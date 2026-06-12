@@ -53,6 +53,10 @@ export class Takes {
     return this.map[sceneId]?.candidate ?? null;
   }
 
+  offset(sceneId: string): number {
+    return this.map[sceneId]?.offset ?? 0;
+  }
+
   /* ---------------------------- recording ------------------------------- */
 
   async startRecording(): Promise<string | null> {
@@ -124,8 +128,9 @@ export class Takes {
       makeSeekable(this.preview);
       hard = true;
     }
-    const t = this.player.localTime;
-    if (this.player.playing) {
+    /* take time = scene time minus the user-set alignment offset */
+    const t = this.player.localTime - this.offset(this.player.scene.id);
+    if (this.player.playing && t >= 0) {
       /* seeking only works once the duration is known; see makeSeekable */
       if (isFinite(this.preview.duration)
           && (hard || Math.abs(this.preview.currentTime - t) > 0.35)) {

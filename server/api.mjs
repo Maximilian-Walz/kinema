@@ -158,8 +158,19 @@ export function createApi({ projectDir }) {
   /* ------------------------------ takes --------------------------------- */
   const sceneTakesDir = (id) => path.join(TAKES_DIR, id);
 
+  /* takes.json: { picks: {sceneId: file}, offsets: {"sceneId/file": seconds} }
+     (legacy format was the flat picks object) */
+  function readTakesState() {
+    const raw = readJson(PICKS_FILE, {});
+    if (raw.picks || raw.offsets) return { picks: raw.picks || {}, offsets: raw.offsets || {} };
+    return { picks: raw, offsets: {} };
+  }
+  function writeTakesState(state) {
+    writeFileTracked(PICKS_FILE, JSON.stringify(state, null, 2));
+  }
+
   function listTakes() {
-    const picks = readJson(PICKS_FILE, {});
+    const { picks, offsets } = readTakesState();
     const out = {};
     if (!fs.existsSync(TAKES_DIR)) return out;
     for (const d of fs.readdirSync(TAKES_DIR)) {
@@ -172,7 +183,12 @@ export function createApi({ projectDir }) {
           return { file: f, size: st.size, created: st.mtimeMs };
         })
         .sort((a, b) => a.created - b.created);
-      out[d] = { candidate: picks[d] || null, takes };
+      const candidate = picks[d] || null;
+      out[d] = {
+        candidate,
+        offset: candidate ? offsets[d + '/' + candidate] || 0 : 0,
+        takes,
+      };
     }
     return out;
   }
@@ -202,7 +218,8 @@ export function createApi({ projectDir }) {
       outFile,
       chromePath: process.env.CHROME_PATH || null,
       takesDir: TAKES_DIR,
-      picks: readJson(PICKS_FILE, {}),
+      picks: readTakesState().picks,
+      offsets: readTakesState().offsets,
       onProgress: (p) => Object.assign(job, p),
     }).then(() => {
       job.state = 'done';
@@ -249,9 +266,9 @@ export function createApi({ projectDir }) {
         } else {
           fs.renameSync(raw, path.join(dir, file)); // keep the recording even if ffmpeg fails
         }
-        const picks = readJson(PICKS_FILE, {});
-        picks[id] = file; // newest take becomes the candidate
-        writeFileTracked(PICKS_FILE, JSON.stringify(picks, null, 2));
+        const state = readTakesState();
+        state.picks[id] = file; // newest take becomes the candidate
+        writeTakesState(state);
         json(res, 200, { ok: true, file, candidate: file });
 
       } else if (req.method === 'POST' && /^\/api\/takes\/[\w-]+\/[\w.-]+\/pick$/.test(p)) {
@@ -259,10 +276,23 @@ export function createApi({ projectDir }) {
         if (!safeName(file) || !fs.existsSync(path.join(sceneTakesDir(id), file))) {
           json(res, 404, { error: 'take not found' }); return;
         }
-        const picks = readJson(PICKS_FILE, {});
-        picks[id] = file;
-        writeFileTracked(PICKS_FILE, JSON.stringify(picks, null, 2));
+        const state = readTakesState();
+        state.picks[id] = file;
+        writeTakesState(state);
         json(res, 200, { ok: true });
+
+      } else if (req.method === 'POST' && /^\/api\/takes\/[\w-]+\/[\w.-]+\/offset$/.test(p)) {
+        const [, , , id, file] = p.split('/');
+        if (!safeName(file) || !fs.existsSync(path.join(sceneTakesDir(id), file))) {
+          json(res, 404, { error: 'take not found' }); return;
+        }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        const offset = Math.max(-30, Math.min(30, Number(body.offset) || 0));
+        const state = readTakesState();
+        if (offset === 0) delete state.offsets[id + '/' + file];
+        else state.offsets[id + '/' + file] = offset;
+        writeTakesState(state);
+        json(res, 200, { ok: true, offset });
 
       } else if (req.method === 'DELETE' && /^\/api\/takes\/[\w-]+\/[\w.-]+$/.test(p)) {
         const [, , , id, file] = p.split('/');
@@ -271,15 +301,16 @@ export function createApi({ projectDir }) {
         const trash = path.join(sceneTakesDir(id), 'trash');
         fs.mkdirSync(trash, { recursive: true });
         fs.renameSync(src, path.join(trash, Date.now() + '-' + file));
-        const picks = readJson(PICKS_FILE, {});
-        if (picks[id] === file) {
+        const state = readTakesState();
+        delete state.offsets[id + '/' + file];
+        if (state.picks[id] === file) {
           /* auto-pick the newest remaining take */
           const left = listTakes()[id];
-          if (left && left.takes.length) picks[id] = left.takes[left.takes.length - 1].file;
-          else delete picks[id];
+          if (left && left.takes.length) state.picks[id] = left.takes[left.takes.length - 1].file;
+          else delete state.picks[id];
         }
-        writeFileTracked(PICKS_FILE, JSON.stringify(picks, null, 2));
-        json(res, 200, { ok: true, candidate: picks[id] || null });
+        writeTakesState(state);
+        json(res, 200, { ok: true, candidate: state.picks[id] || null });
 
       } else if (req.method === 'GET' && /^\/takes\/[\w-]+\/[\w.-]+$/.test(p)) {
         const [, , id, file] = p.split('/');

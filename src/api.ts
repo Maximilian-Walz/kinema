@@ -37,6 +37,13 @@ export async function deleteTake(sceneId: string, file: string): Promise<void> {
   await check(await fetch(`/api/takes/${sceneId}/${file}`, { method: 'DELETE' }));
 }
 
+export async function setTakeOffset(sceneId: string, file: string, offset: number): Promise<void> {
+  await check(await fetch(`/api/takes/${sceneId}/${file}/offset`, {
+    method: 'POST',
+    body: JSON.stringify({ offset }),
+  }));
+}
+
 export function takeUrl(sceneId: string, file: string): string {
   return `/takes/${sceneId}/${file}`;
 }

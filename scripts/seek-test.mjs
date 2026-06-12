@@ -65,6 +65,13 @@ try {
   ok(Math.abs(result.after.seekedTo - 1.5) < 0.3,
     `seeking works on served take (currentTime ${result.after.seekedTo?.toFixed(2)} after seek to 1.5)`);
 
+  /* take offset roundtrip */
+  const off = await page.evaluate(async (scene, file) => {
+    await fetch(`/api/takes/${scene}/${file}/offset`, { method: 'POST', body: JSON.stringify({ offset: -0.25 }) });
+    return (await (await fetch('/api/takes')).json())[scene]?.offset;
+  }, SCENE, result.file);
+  ok(off === -0.25, `take offset roundtrips (${off})`);
+
   /* also probe every real picked take (e.g. takes recorded before the fix) */
   const picked = await page.evaluate(async () => {
     const takes = await (await fetch('/api/takes')).json();

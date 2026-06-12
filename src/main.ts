@@ -2,6 +2,7 @@ import './ui/styles.css';
 import { fetchProject } from './api';
 import { Takes } from './audio/takes';
 import { Player } from './engine/player';
+import { History } from './history';
 import { bootRender } from './render-mode';
 import { TimingSync } from './timings';
 import { el } from './ui/dom';
@@ -44,10 +45,11 @@ async function bootStudio(): Promise<void> {
   const player = new Player(project, content, sceneStyle);
   const takes = new Takes(player);
   const sync = new TimingSync(player);
+  const history = new History();
 
   new Transport(transport, player, takes, sync);
-  new SidePanel(side, player, takes);
-  new Timeline(timeline, player, takes, sync);
+  new SidePanel(side, player, takes, sync, history);
+  const tl = new Timeline(timeline, player, takes, sync, history);
 
   player.events.on('time', () => {
     const { index, local } = player.cursor();
@@ -71,22 +73,42 @@ async function bootStudio(): Promise<void> {
   /* ----------------------------- keyboard ------------------------------- */
   document.addEventListener('keydown', (e) => {
     const t = e.target as HTMLElement;
-    if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA') {
-      t.blur();
-      return;
-    }
-    if (t.tagName === 'BUTTON') t.blur();
-    if (e.code === 'Space') { e.preventDefault(); player.toggle(); }
+    /* let inline editors type in peace */
+    const tag = t.tagName;
+    if (tag === 'TEXTAREA' || (tag === 'INPUT' && (t as HTMLInputElement).type === 'text')) return;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'BUTTON') t.blur();
+
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      const scene = e.shiftKey ? history.redo() : history.undo();
+      if (scene) sync.changed(scene);
+    } else if (ctrl && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      const scene = history.redo();
+      if (scene) sync.changed(scene);
+    } else if (e.code === 'Space') { e.preventDefault(); player.toggle(); }
     else if (e.key === 'r' || e.key === 'R') player.restartScene();
     else if (e.key === 'c' || e.key === 'C') { document.body.classList.toggle('clean'); rescale(); }
+    else if (e.key === 'i' || e.key === 'I') {
+      player.setLoop({ start: player.time, end: player.loop?.end ?? player.total });
+    } else if (e.key === 'o' || e.key === 'O') {
+      player.setLoop({ start: player.loop?.start ?? 0, end: player.time });
+    } else if (e.key === 'Delete' || e.key === 'Backspace') tl.deleteSelection();
     else if (e.key === 'ArrowRight') player.seek(player.time + (e.shiftKey ? 1 : 5));
     else if (e.key === 'ArrowLeft') player.seek(player.time - (e.shiftKey ? 1 : 5));
     else if (e.key === '[') player.seekScene(player.sceneIndex - 1);
     else if (e.key === ']') player.seekScene(player.sceneIndex + 1);
     else if (e.key >= '1' && e.key <= '9') player.seekScene(parseInt(e.key, 10) - 1);
-    else if (e.key === 'Escape' && takes.recording) takes.stopRecording();
+    else if (e.key === 'Escape') {
+      if (takes.recording) takes.stopRecording();
+      else if (player.loop) player.setLoop(null);
+    }
   });
 
   await takes.refresh();
   player.update(0);
+
+  /* for the smoke tests and console debugging */
+  Object.assign(window as object, { __studio: { player, takes, sync, history, timeline: tl } });
 }

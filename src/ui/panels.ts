@@ -1,6 +1,8 @@
 import * as api from '../api';
 import type { Takes } from '../audio/takes';
 import { fmt, type Player } from '../engine/player';
+import type { History } from '../history';
+import type { TimingSync } from '../timings';
 import { el } from './dom';
 
 /* ============================================================================
@@ -14,15 +16,19 @@ type Tab = 'script' | 'takes' | 'export';
 export class SidePanel {
   private readonly player: Player;
   private readonly takes: Takes;
+  private readonly sync: TimingSync;
+  private readonly history: History;
   private readonly body: HTMLElement;
   private readonly tabButtons = new Map<Tab, HTMLButtonElement>();
   private readonly recBar: HTMLElement;
   private tab: Tab = 'script';
   private pollTimer: number | undefined;
 
-  constructor(root: HTMLElement, player: Player, takes: Takes) {
+  constructor(root: HTMLElement, player: Player, takes: Takes, sync: TimingSync, history: History) {
     this.player = player;
     this.takes = takes;
+    this.sync = sync;
+    this.history = history;
 
     const nav = el('div', { class: 'sp-tabs' });
     (['script', 'takes', 'export'] as Tab[]).forEach((t) => {
@@ -82,10 +88,34 @@ export class SidePanel {
     this.body.appendChild(el('div', { class: 'sp-scenetitle', text: `${si + 1} · ${scene.title}` }));
     const list = el('div', { class: 'sp-lines' });
     scene.lines.forEach((ln) => {
-      const div = el('div', { class: 'sp-line' },
+      const div = el('div', { class: 'sp-line', title: 'click = jump · double-click = edit' },
         el('span', { class: 'sp-linetime', text: `${fmt(ln.from)} – ${fmt(ln.to)}` }),
         ln.text);
       div.onclick = () => this.player.seek(this.player.offsets[si] + ln.from);
+      div.ondblclick = () => {
+        if (div.querySelector('textarea')) return;
+        const ta = el('textarea', { class: 'sp-edit' }) as HTMLTextAreaElement;
+        ta.value = ln.text;
+        ta.onclick = (e) => e.stopPropagation();
+        const finish = (commit: boolean): void => {
+          if (commit && ta.value !== ln.text) {
+            const before = this.history.snapshot(scene);
+            ln.text = ta.value;
+            this.history.commit(scene, before);
+            this.sync.changed(scene);
+          }
+          this.render();
+        };
+        ta.onblur = () => finish(true);
+        ta.onkeydown = (e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(true); }
+          else if (e.key === 'Escape') finish(false);
+        };
+        div.appendChild(ta);
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+      };
       list.appendChild(div);
       this.lineEls.push({ div, from: ln.from, to: ln.to });
     });

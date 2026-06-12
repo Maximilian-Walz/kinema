@@ -43,7 +43,53 @@ try {
   await page.keyboard.press('c');
   await new Promise((r) => setTimeout(r, 200));
   ok(await page.evaluate(() => document.body.classList.contains('clean')), 'clean mode toggles');
+  await page.keyboard.press('c'); // back to the full UI — clean mode hides the timeline
   ok(errors.length === 0, 'no page errors (studio)' + (errors.length ? ': ' + errors[0] : ''));
+
+  /* ---------------- loop region via keyboard ---------------- */
+  await page.keyboard.press('1');
+  await page.keyboard.press('ArrowRight');     // t = 5
+  await page.keyboard.press('i');
+  await page.keyboard.press('ArrowRight');     // t = 10
+  await page.keyboard.press('o');
+  const loop = await page.evaluate(() => window.__studio.player.loop);
+  ok(!!loop && Math.abs(loop.start - 5) < 0.1 && Math.abs(loop.end - 10) < 0.1,
+    `I/O keys set loop region (${loop?.start}–${loop?.end})`);
+  await page.keyboard.press('Escape');
+  ok(await page.evaluate(() => window.__studio.player.loop === null), 'Escape clears the loop');
+
+  /* ---------------- drag a script clip + undo ---------------- */
+  await page.keyboard.press('1');
+  await new Promise((r) => setTimeout(r, 300));
+  const before = await page.evaluate(() =>
+    ({ ...window.__studio.player.project.scenes[0].lines[1] }));
+  /* read coordinates inside the page right before the drag — element handles
+     can go stale when the timeline rebuilds */
+  const pos = await page.evaluate(() => {
+    const c = document.querySelectorAll('.tl-script .tl-text')[1];
+    c.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const r = c.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.move(pos.x, pos.y);
+  await page.mouse.down();
+  await page.mouse.move(pos.x + 40, pos.y, { steps: 8 });
+  await page.mouse.up();
+  await new Promise((r) => setTimeout(r, 700)); // debounce save
+  const after = await page.evaluate(() =>
+    ({ ...window.__studio.player.project.scenes[0].lines[1] }));
+  ok(after.from > before.from && Math.abs((after.to - after.from) - (before.to - before.from)) < 0.01,
+    `dragging a script clip moves it (${before.from} -> ${after.from})`);
+  const disk = await page.evaluate(async () =>
+    (await (await fetch('/api/project')).json()).scenes[0].lines[1].from);
+  ok(Math.abs(disk - after.from) < 0.01, 'drag persisted to scene.json');
+  await page.keyboard.down('Control');
+  await page.keyboard.press('z');
+  await page.keyboard.up('Control');
+  await new Promise((r) => setTimeout(r, 700));
+  const undone = await page.evaluate(() =>
+    ({ ...window.__studio.player.project.scenes[0].lines[1] }));
+  ok(Math.abs(undone.from - before.from) < 0.01, 'ctrl+Z restores the original timing');
 
   /* ---------------- timings PUT round-trip ---------------- */
   const put = await page.evaluate(async () => {

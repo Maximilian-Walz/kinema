@@ -38,13 +38,14 @@ STUDIO_PROJECT=projects/my-video npm run dev    # PowerShell: $env:STUDIO_PROJEC
 └─────────────────────────────────────────────────┘
 ```
 
-- **Timeline**: one global timeline across all scenes. Drag clips to move them, drag edges to retime, drag a scene block's right edge to change its length. Every edit is written back into the scene's `scene.json` (debounced, ~0.5s). Click anywhere to seek, `ctrl+wheel` to zoom, − / fit / + buttons.
-- **SCRIPT tab**: teleprompter for the current scene; the current line highlights and autoscrolls during playback; click a line to seek.
-- **TAKES tab**: record restarts the current scene so the take aligns with scene t=0 and stops at the scene boundary. All takes are kept (delete = move to `takes/<scene>/trash/`); the newest is auto-picked, ★ re-picks. Picked takes play in sync during playback.
-- **EXPORT tab**: frame-exact MP4 (headless Chrome under CDP virtual time → ffmpeg, picked takes muxed at scene offsets). Iterate with "this scene" at 15 fps; final at 30/60.
+- **Timeline**: one global timeline across all scenes. Drag clips to move them, drag edges to retime, drag a scene block's right edge to change its length. Drags snap magnetically to the playhead, scene bounds, loop edges and other clips (hold `shift` for free placement). Click selects, `ctrl+click` toggles, dragging empty space draws a marquee; dragging any selected clip moves the whole selection; `del` deletes. Double-click a script/caption clip to edit its text; `+ line / + caption / + element` insert at the playhead (dragging a marker's right edge gives it an exit). Every edit is undoable (`ctrl+Z` / `ctrl+shift+Z`) and written back into the scene's `scene.json` (debounced, ~0.5s). Click anywhere to seek, `ctrl+wheel` to zoom, − / fit / + buttons.
+- **Loop region**: `I`/`O` set the in/out point at the playhead (or `alt+drag` on the ruler); playback loops inside it; `esc` clears.
+- **SCRIPT tab**: teleprompter for the current scene; the current line highlights and autoscrolls during playback; click a line to seek, double-click to edit its text.
+- **TAKES tab**: record restarts the current scene so the take aligns with scene t=0 and stops at the scene boundary. All takes are kept (delete = move to `takes/<scene>/trash/`); the newest is auto-picked, ★ re-picks. Picked takes play in sync during playback. Drag the take's waveform in the VOICE track to align the recording against the scene (mic latency); the offset is used in preview and export.
+- **EXPORT tab**: frame-exact MP4 (headless Chrome under CDP virtual time → ffmpeg, picked takes muxed at scene offsets + alignment offsets). Iterate with "this scene" at 15 fps; final at 30/60.
 - **Recording** auto-switches to SCRIPT so you can read while speaking; a red bar with stop stays visible.
 
-Keys: `SPACE` play/pause · `R` restart scene · `←/→` ±5s (`shift` ±1s) · `[` `]` scene · `1-9` jump · `C` clean mode (stage only, for screen capture) · `ESC` stop recording.
+Keys: `SPACE` play/pause · `R` restart scene · `←/→` ±5s (`shift` ±1s) · `[` `]` scene · `1-9` jump · `I`/`O` loop in/out · `del` delete selection · `ctrl+Z` undo · `C` clean mode (stage only, for screen capture) · `ESC` stop recording / clear loop.
 
 ## Project format
 

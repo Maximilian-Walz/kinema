@@ -72,6 +72,9 @@ body.clean #frame{outline:none}
 .sp-line.done{opacity:.45}
 .sp-linetime{display:block;font-family:var(--st-mono);font-size:11px;
   color:var(--st-faint);margin-bottom:3px;letter-spacing:.08em}
+.sp-edit{display:block;width:100%;min-height:90px;margin-top:8px;resize:vertical;
+  background:#0a0d12;color:var(--st-text);border:1px solid #79c0ff;border-radius:8px;
+  padding:8px 10px;font:inherit;font-size:15px;outline:none}
 
 /* takes */
 .sp-rec{border-color:var(--st-red);color:#ffa198;padding:9px}
@@ -132,6 +135,19 @@ body.clean #frame{outline:none}
   border-left:1px dashed rgba(139,148,158,.18);pointer-events:none;z-index:1}
 .tl-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--st-accent);
   box-shadow:0 0 8px rgba(163,113,247,.7);pointer-events:none;z-index:40}
+.tl-snapguide{display:none;position:absolute;top:0;bottom:0;width:0;
+  border-left:1px solid #79c0ff;box-shadow:0 0 6px rgba(121,192,255,.8);
+  pointer-events:none;z-index:39}
+.tl-loop{display:none;position:absolute;top:0;bottom:0;
+  background:rgba(163,113,247,.07);border-left:1px solid rgba(163,113,247,.6);
+  border-right:1px solid rgba(163,113,247,.6);pointer-events:none;z-index:2}
+.tl-marquee{position:absolute;background:rgba(121,192,255,.1);
+  border:1px solid rgba(121,192,255,.6);pointer-events:none;z-index:50}
+.tl-sep{width:1px;height:16px;background:var(--st-line);margin:0 4px}
+.tl-clip.selected{outline:1.5px solid #79c0ff;outline-offset:1px;z-index:8}
+.tl-edit{position:absolute;inset:0;border:1px solid #79c0ff;border-radius:6px;
+  background:#0a0d12;color:var(--st-text);font-family:var(--st-mono);
+  font-size:11px;padding:2px 7px;outline:none;z-index:60}
 
 .tl-ruler{position:relative;height:24px;border-bottom:1px solid var(--st-line);
   cursor:ew-resize}

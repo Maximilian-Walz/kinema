@@ -39,7 +39,12 @@ export interface TakeInfo {
   created: number;
 }
 
-export type TakesMap = Record<string, { candidate: string | null; takes: TakeInfo[] }>;
+export type TakesMap = Record<string, {
+  candidate: string | null;
+  /** seconds the candidate take is shifted against the scene (mic latency trim) */
+  offset: number;
+  takes: TakeInfo[];
+}>;
 
 export interface ExportStatus {
   state: 'idle' | 'starting' | 'rendering' | 'done' | 'error';

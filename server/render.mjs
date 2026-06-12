@@ -73,7 +73,8 @@ function advanceVirtualTime(client, ms) {
 /* ------------------------------ export --------------------------------- */
 /**
  * opts: { url, fps, scene (sceneId|null), sceneIds, width, height, outFile,
- *         chromePath, takesDir, picks, onProgress(partialJobFields) }
+ *         chromePath, takesDir, picks, offsets ({"sceneId/file": s}),
+ *         onProgress(partialJobFields) }
  */
 export async function exportVideo(opts) {
   const { url, fps, scene, sceneIds, width, height, outFile, onProgress } = opts;
@@ -152,21 +153,26 @@ export async function exportVideo(opts) {
     await browser.close();
 
     /* ------------------------- mux voice takes ------------------------- */
+    /* a take's user-set offset shifts its audio against the scene:
+       positive -> plays later (delay), negative -> head is trimmed off */
+    const offsets = opts.offsets || {};
+    const addTake = (takes, id, sceneOffset, len) => {
+      const file = opts.picks[id];
+      if (!file || !fs.existsSync(path.join(opts.takesDir, id, file))) return;
+      const off = offsets[id + '/' + file] || 0;
+      takes.push({
+        path: path.join(opts.takesDir, id, file),
+        delay: sceneOffset + Math.max(0, off),
+        trimStart: Math.max(0, -off),
+        audible: Math.max(0.05, len - Math.max(0, off)),
+      });
+    };
     const takes = [];
     if (sceneIndex == null) {
       let offset = 0;
-      sceneIds.forEach((id, i) => {
-        const file = opts.picks[id];
-        if (file && fs.existsSync(path.join(opts.takesDir, id, file))) {
-          takes.push({ path: path.join(opts.takesDir, id, file), offset, len: lens[i] });
-        }
-        offset += lens[i];
-      });
+      sceneIds.forEach((id, i) => { addTake(takes, id, offset, lens[i]); offset += lens[i]; });
     } else {
-      const file = opts.picks[scene];
-      if (file && fs.existsSync(path.join(opts.takesDir, scene, file))) {
-        takes.push({ path: path.join(opts.takesDir, scene, file), offset: 0, len: lens[sceneIndex] });
-      }
+      addTake(takes, scene, 0, lens[sceneIndex]);
     }
 
     if (!takes.length) {
@@ -177,7 +183,8 @@ export async function exportVideo(opts) {
       const args = ['-y', '-i', tmpVideo];
       takes.forEach((tk) => args.push('-i', tk.path));
       const parts = takes.map((tk, i) =>
-        `[${i + 1}:a]atrim=0:${tk.len},adelay=${Math.round(tk.offset * 1000)}:all=1[a${i}]`);
+        `[${i + 1}:a]atrim=${tk.trimStart}:${tk.trimStart + tk.audible},` +
+        `asetpts=PTS-STARTPTS,adelay=${Math.round(tk.delay * 1000)}:all=1[a${i}]`);
       const mixIn = takes.map((_, i) => `[a${i}]`).join('');
       const filter = parts.join(';') + ';' + mixIn +
         `amix=inputs=${takes.length}:duration=longest:dropout_transition=0:normalize=0[aout]`;

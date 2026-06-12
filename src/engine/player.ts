@@ -20,6 +20,7 @@ export class Player {
     play: [boolean];
     timings: [];       // lens / offsets changed
     ended: [];
+    loop: [];          // loop region changed
   }>();
 
   offsets: number[] = [];
@@ -27,6 +28,7 @@ export class Player {
 
   time = 0;
   playing = false;
+  loop: { start: number; end: number } | null = null;
   private mounted = -1;
   private lastFrame: number | null = null;
   private threadScroll = 0;
@@ -80,6 +82,17 @@ export class Player {
   }
 
   toggle(): void { this.setPlaying(!this.playing); }
+
+  setLoop(loop: { start: number; end: number } | null): void {
+    if (loop) {
+      const start = Math.max(0, Math.min(loop.start, loop.end));
+      const end = Math.min(this.total, Math.max(loop.start, loop.end));
+      this.loop = end - start > 0.2 ? { start, end } : null;
+    } else {
+      this.loop = null;
+    }
+    this.events.emit('loop');
+  }
 
   seek(time: number): void { this.update(time); }
 
@@ -137,7 +150,12 @@ export class Player {
     const dt = (now - this.lastFrame) / 1000;
     this.lastFrame = now;
     if (this.playing) {
-      this.update(this.time + dt);
+      const next = this.time + dt;
+      if (this.loop && this.time < this.loop.end && next >= this.loop.end) {
+        this.update(this.loop.start);
+      } else {
+        this.update(next);
+      }
       if (this.time >= this.total) {
         this.setPlaying(false);
         this.events.emit('ended');
