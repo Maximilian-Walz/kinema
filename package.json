@@ -1,0 +1,20 @@
+{
+  "name": "video-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local studio for data-driven animation videos: timeline editor, teleprompter, voice takes, frame-exact MP4 export.",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "puppeteer-core": "^24.9.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5"
+  }
+}

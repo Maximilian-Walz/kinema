@@ -1,0 +1,32 @@
+<div class="s7wrap">
+  <div class="s7code el" id="s7code"><span class="kw">from</span> llm <span class="kw">import</span> chat
+
+<span class="region" id="s7r1">AGENTS = {
+  <span class="st">"Advocate"</span>:   <span class="st">"Argue for the best concrete solution.
+                 Revise when others raise valid objections."</span>,
+  <span class="st">"Critic"</span>:     <span class="st">"Attack the weakest assumptions so far.
+                 Be specific. Quote claims."</span>,
+  <span class="st">"Pragmatist"</span>: <span class="st">"Represent the team that must build and
+                 run this. Raise cost and ops constraints."</span>,
+}</span>
+
+JUDGE = <span class="st">"Read the debate. Recommendation + confidence,
+         strongest argument per side, open questions."</span>
+
+<span class="kw">def</span> <span class="fn">run_debate</span>(question, rounds=3):
+<span class="region" id="s7r2">    thread = [{<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: question}]
+    <span class="kw">for</span> _ <span class="kw">in</span> range(rounds):
+        <span class="kw">for</span> name, persona <span class="kw">in</span> AGENTS.items():
+            reply = chat(system=name + <span class="st">". "</span> + persona,
+                         messages=thread)
+            thread.append({<span class="st">"role"</span>: <span class="st">"assistant"</span>,
+                           <span class="st">"content"</span>: name + <span class="st">": "</span> + reply})</span>
+<span class="region" id="s7r3">    <span class="kw">return</span> chat(system=JUDGE, messages=thread)</span></div>
+  <div class="s7side">
+    <div class="s7fw el" id="s7f1"><b>AutoGen</b><span>smarter speaker selection</span></div>
+    <div class="s7fw el" id="s7f2"><b>LangGraph</b><span>typed message graphs</span></div>
+    <div class="s7fw el" id="s7f3"><b>CrewAI</b><span>role + tooling presets</span></div>
+    <div class="s7end el" id="s7end">build the loop once,<br>and the frameworks<br>stop being magic</div>
+  </div>
+</div>
+<div id="caption"></div>

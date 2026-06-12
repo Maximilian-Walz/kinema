@@ -1,0 +1,30 @@
+{
+  "title": "THE PATTERN",
+  "len": 50,
+  "schedule": [
+    { "id": "s3p1", "enter": 0, "exit": 12.5 },
+    { "id": "s3one", "enter": 0.8 },
+    { "id": "s3a", "enter": 4.0 },
+    { "id": "s3c", "enter": 4.7 },
+    { "id": "s3p", "enter": 5.4 },
+    { "id": "s3thread", "enter": 7.0 },
+    { "id": "s3p2", "enter": 12.5, "exit": 35.0 },
+    { "id": "s3big", "enter": 13.5 },
+    { "id": "s3m1", "enter": 15.0 },
+    { "id": "s3m2", "enter": 16.0 },
+    { "id": "s3m3", "enter": 17.0 },
+    { "id": "s3line", "enter": 21.0 },
+    { "id": "s3p3", "enter": 35.0 },
+    { "id": "s3cite", "enter": 36.0 },
+    { "id": "s3ast", "enter": 41.0 },
+    { "id": "s3chips", "enter": 45.0 }
+  ],
+  "captions": [
+    { "from": 28.0, "to": 34.5, "text": "The limits of same-weights disagreement are real. Pitfalls, later." }
+  ],
+  "lines": [
+    { "from": 0, "to": 12, "text": "The fix is called the GroupChat or debate pattern. Instead of one model answering, you run a structured conversation between multiple agents. Each plays a distinct role. They challenge and refine each other before converging on an answer." },
+    { "from": 12, "to": 35, "text": "Usually that’s the same model called several times with different system prompts. And before you object: yes, same weights. Is the disagreement real? More than you’d expect. A critic doesn’t need independent knowledge. It needs a different objective. A system prompt provides exactly that. We’ll get to the limits of this later, because they’re real too." },
+    { "from": 35, "to": 50, "text": "There’s research behind this. Multi-agent debate measurably improves factuality and reasoning. Follow-up studies are more mixed, and the gains concentrate in reasoning-heavy tasks. Keep that in mind, it’ll matter at the end." }
+  ]
+}

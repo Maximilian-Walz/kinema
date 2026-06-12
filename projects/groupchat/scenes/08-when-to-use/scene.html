@@ -1,0 +1,44 @@
+<div class="ovl" id="s8p1">
+  <div class="heading">WHEN IT EARNS ITS COST</div>
+  <div class="s8list">
+    <div class="s8item el" id="s8i1"><span class="ic ok">✓</span>the question is a genuine tradeoff</div>
+    <div class="s8item el" id="s8i2"><span class="ic ok">✓</span>the cost of a wrong answer is high</div>
+    <div class="s8item el" id="s8i3"><span class="ic ok">✓</span>the domain invites confident hallucination</div>
+    <div class="s8item el" id="s8i4"><span class="ic ok">✓</span>you need the reasoning and the open questions, plus the verdict</div>
+  </div>
+</div>
+<div class="ovl" id="s8p2">
+  <div class="heading">WHEN TO SKIP IT</div>
+  <div class="s8list" style="width:1300px">
+    <div class="s8item el" id="s8x1"><span class="ic no">✗</span>latency-sensitive paths — a debate is a dozen sequential LLM calls</div>
+    <div class="s8item el" id="s8x2"><span class="ic no">✗</span>simple factual queries — HTTP 418 does not need a critic</div>
+  </div>
+  <div class="s8curvewrap">
+    <svg id="s8curve" width="620" height="320" viewBox="0 0 620 320">
+      <line class="axis" x1="50" y1="280" x2="590" y2="280"/>
+      <line class="axis" x1="50" y1="280" x2="50" y2="20"/>
+      <path class="curve" d="M 50 275 C 250 265, 430 200, 580 40"/>
+      <text x="430" y="308">turns →</text>
+      <text x="62" y="40">tokens</text>
+    </svg>
+    <div class="s8verdict">
+      <div class="el" id="s8v1" style="color:var(--advocate)">10 decisions / week&nbsp;&nbsp;✓</div>
+      <div class="el" id="s8v2" style="color:var(--critic)">1M tickets / day&nbsp;&nbsp;✗</div>
+    </div>
+  </div>
+</div>
+<div class="ovl" id="s8p3">
+  <div class="heading">THE BIG PITFALL: ECHO CHAMBERS</div>
+  <div class="s8echo el" id="s8bots">
+    <div class="s8bots">
+      <div class="avatar">🤖</div><div class="avatar">🤖</div><div class="avatar">🤖</div>
+    </div>
+    <div class="s8thought">…all sharing the same wrong "fact"</div>
+  </div>
+  <div class="s8ladder">
+    <div class="rung el" id="s8r1"><b>fix 1</b> make the critic concretely adversarial: "quote three claims, attack each"</div>
+    <div class="rung el" id="s8r2"><b>fix 2</b> use a different model family for the critic</div>
+    <div class="rung el" id="s8r3"><b>fix 3</b> ground the debate in retrieved evidence, so facts settle disagreements</div>
+  </div>
+</div>
+<div id="caption"></div>

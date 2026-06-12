@@ -1,0 +1,9 @@
+.s6row{display:flex;gap:50px}
+.s6card{width:520px;background:var(--panel);border:2px solid var(--line);
+  border-radius:18px;padding:30px 30px 36px;display:flex;flex-direction:column;
+  gap:22px;align-items:center;transition:border-color .5s,box-shadow .5s}
+.s6card.hl{border-color:var(--judge);box-shadow:0 0 50px rgba(163,113,247,.25)}
+.s6card h3{font-family:var(--mono);font-size:23px;letter-spacing:.1em}
+.s6dia{font-size:34px;font-family:var(--mono);line-height:1.9;color:var(--dim)}
+.s6dia b{color:var(--text)}
+.s6sub{font-size:22px;color:var(--dim);line-height:1.5}

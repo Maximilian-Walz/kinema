@@ -1,0 +1,22 @@
+.s3one{width:560px;background:var(--panel);border:1px solid var(--line);
+  border-radius:18px;padding:26px 34px;font-size:30px}
+.s3ring{display:flex;gap:120px;align-items:center}
+.s3agent{display:flex;flex-direction:column;align-items:center;gap:14px;
+  font-family:var(--mono);font-size:22px}
+.s3agent .avatar{width:110px;height:110px;font-size:46px}
+.s3thread{font-family:var(--mono);font-size:24px;color:var(--dim);
+  border:1px dashed var(--line);border-radius:999px;padding:14px 60px}
+.s3models{display:flex;gap:80px}
+.s3model{display:flex;flex-direction:column;align-items:center;gap:16px}
+.s3model .core{width:150px;height:150px;border-radius:24px;background:var(--panel2);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:54px}
+.s3model .hat{font-family:var(--mono);font-size:20px;padding:6px 20px;border-radius:999px}
+.s3big{font-size:46px;font-weight:700}
+.s3line{font-family:var(--mono);font-size:30px;color:#7ee787}
+.s3cite{width:1000px;background:var(--panel);border:1px solid var(--line);
+  border-radius:18px;padding:40px 50px;font-size:30px;line-height:1.6;text-align:left}
+.s3cite .ast{color:var(--pragmatist);font-size:24px;display:block;margin-top:16px}
+.s3chips{display:flex;gap:20px}
+.s3chips span{font-family:var(--mono);font-size:22px;border:1px solid var(--line);
+  border-radius:999px;padding:8px 26px;color:var(--dim)}

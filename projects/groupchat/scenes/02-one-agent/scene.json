@@ -1,0 +1,25 @@
+{
+  "title": "WHY ONE AGENT ISN’T ENOUGH",
+  "len": 55,
+  "schedule": [
+    { "id": "s2lone", "enter": 1.0 },
+    { "id": "s2c1", "enter": 8.0 },
+    { "id": "s2c2", "enter": 17.0 },
+    { "id": "s2c3", "enter": 29.0 },
+    { "id": "s2g1", "enter": 33.0 },
+    { "id": "s2g2", "enter": 34.2 },
+    { "id": "s2g3", "enter": 35.4 },
+    { "id": "s2fix", "enter": 43.5 },
+    { "id": "s2stamp", "enter": 47.5, "cls": "on" }
+  ],
+  "captions": [
+    { "from": 49.5, "to": 55, "text": "You need structural separation: someone whose actual job is to disagree." }
+  ],
+  "lines": [
+    { "from": 0, "to": 8, "text": "A single LLM call is one model, one perspective, one pass. Three failure modes follow directly from that." },
+    { "from": 8, "to": 17, "text": "One: sycophancy. Models are trained to be agreeable. If your prompt leaks a preference, the answer leans your way." },
+    { "from": 17, "to": 29, "text": "Two: single-pass bias. Once the model commits to a direction in the first few tokens, everything after supports it. You can ask for pros and cons, but the framing was already settled." },
+    { "from": 29, "to": 43, "text": "Three: confident hallucination. Architecture decisions are exactly where models are weakest. Real tradeoffs, missing context, no ground truth. Gaps get filled with plausible assumptions, and nothing flags them." },
+    { "from": 43, "to": 55, "text": "And no, \"be critical\" in the system prompt doesn’t fix this. That’s like telling one employee to also represent the opposing view in their own proposal. You need structural separation. Someone whose actual job is to disagree." }
+  ]
+}

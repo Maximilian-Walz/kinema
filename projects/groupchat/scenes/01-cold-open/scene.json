@@ -1,0 +1,74 @@
+{
+  "title": "COLD OPEN",
+  "len": 35,
+  "schedule": [
+    {
+      "id": "s1win",
+      "enter": 0.4
+    },
+    {
+      "id": "s1q",
+      "enter": 1.5
+    },
+    {
+      "id": "s1a",
+      "enter": 8.5
+    },
+    {
+      "id": "s1b1",
+      "enter": 10
+    },
+    {
+      "id": "s1b2",
+      "enter": 11
+    },
+    {
+      "id": "s1b3",
+      "enter": 12
+    },
+    {
+      "id": "s1b4",
+      "enter": 13.5
+    },
+    {
+      "id": "s1split",
+      "enter": 16.5,
+      "exit": 26.8
+    },
+    {
+      "id": "s1cardA",
+      "enter": 17.5
+    },
+    {
+      "id": "s1cardB",
+      "enter": 19
+    },
+    {
+      "id": "s1title",
+      "enter": 27.3
+    }
+  ],
+  "captions": [],
+  "lines": [
+    {
+      "from": 0,
+      "to": 8,
+      "text": "You’ve got a big decision to make. Microservices or monolith for your new platform. So you do what we all do now: you ask an AI."
+    },
+    {
+      "from": 8,
+      "to": 16,
+      "text": "Three seconds later you get a confident answer. Microservices. Scalability, team autonomy, here’s your migration roadmap."
+    },
+    {
+      "from": 16,
+      "to": 27,
+      "text": "And that answer might even be right. The problem is the confidence. Phrase the question slightly differently, mention that you like monoliths, and you get the opposite answer. Just as polished."
+    },
+    {
+      "from": 27,
+      "to": 35,
+      "text": "Nobody pushed back. Nobody asked the obvious question: how big is your team? Today I’ll show you how to fix that. Don’t ask one AI. Make several of them argue."
+    }
+  ]
+}

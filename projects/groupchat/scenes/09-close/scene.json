@@ -1,0 +1,23 @@
+{
+  "title": "CLOSE",
+  "len": 30,
+  "schedule": [
+    { "id": "s9p1", "enter": 0, "exit": 10.0 },
+    { "id": "s9f1", "enter": 3.0, "cls": "struck" },
+    { "id": "s9f2", "enter": 5.0, "cls": "struck" },
+    { "id": "s9f3", "enter": 7.0, "cls": "struck" },
+    { "id": "s9p2", "enter": 10.0, "exit": 19.0 },
+    { "id": "s9sea", "enter": 10.5 },
+    { "id": "s9seacap", "enter": 13.0 },
+    { "id": "s9p3", "enter": 19.0 },
+    { "id": "s9agents", "enter": 21.0 },
+    { "id": "s9agents", "enter": 25.0, "cls": "bow" },
+    { "id": "s9cta", "enter": 23.0 }
+  ],
+  "captions": [],
+  "lines": [
+    { "from": 0, "to": 10, "text": "The GroupChat pattern is one of the few multi-agent ideas that earns its complexity, because it attacks specific failure modes with structure instead of prompt-level wishful thinking." },
+    { "from": 10, "to": 19, "text": "But it’s a tool with a narrow sweet spot. Most LLM calls in a real product are simple, latency-bound, and fine with one model." },
+    { "from": 19, "to": 30, "text": "Save the debate for the questions where you’d also want more than one human in the room. For those: stop asking one AI. Let them argue." }
+  ]
+}

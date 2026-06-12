@@ -1,0 +1,19 @@
+{
+  "title": "VARIANTS, IN PASSING",
+  "len": 25,
+  "schedule": [
+    { "id": "s6h", "enter": 0.5 },
+    { "id": "s6c1", "enter": 1.0 },
+    { "id": "s6c2", "enter": 1.5 },
+    { "id": "s6c3", "enter": 2.0 },
+    { "id": "s6c1", "enter": 3.5, "exit": 9.5, "cls": "hl" },
+    { "id": "s6c2", "enter": 9.5, "exit": 15.5, "cls": "hl" },
+    { "id": "s6c3", "enter": 15.5, "exit": 22.0, "cls": "hl" }
+  ],
+  "captions": [
+    { "from": 21.0, "to": 25.0, "text": "The article goes deeper on when each fits." }
+  ],
+  "lines": [
+    { "from": 0, "to": 25, "text": "Quick aside: the panel you just watched is one of three common shapes. There’s the structured debate, exactly two sides trading rebuttals, good for genuinely binary questions. And there’s the judge-only variant: several agents answer independently, no shared thread, a judge picks or merges the best. Cheaper and parallel, but you lose the rebuttals. The article goes deeper on when each fits. Today we stick with the panel." }
+  ]
+}

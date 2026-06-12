@@ -1,0 +1,70 @@
+#threadview{position:absolute;top:90px;bottom:120px;left:0;right:0;
+  display:flex;justify-content:center;overflow:hidden}
+#threadcol{width:1080px;display:flex;flex-direction:column;gap:26px;
+  padding:10px 0 40px;will-change:transform}
+.roundchip{align-self:center;font-family:var(--mono);font-size:21px;
+  letter-spacing:.18em;color:var(--dim);border:1px solid var(--line);
+  border-radius:999px;padding:8px 26px;background:var(--panel)}
+.msg{display:flex;gap:18px;max-width:920px}
+.msg .avatar{flex:0 0 56px;height:56px;font-size:24px}
+.msg .bubble{background:var(--panel);border:1px solid var(--line);
+  border-radius:16px;padding:20px 26px;font-size:27px;line-height:1.5}
+.msg .who{font-family:var(--mono);font-size:19px;margin-bottom:8px;letter-spacing:.06em}
+.msg .tag{display:inline-block;font-family:var(--mono);font-size:16px;
+  padding:2px 12px;border-radius:999px;margin-left:12px;vertical-align:2px}
+.advocate .avatar{background:var(--advocate)} .advocate .who{color:var(--advocate)}
+.advocate .bubble{border-left:4px solid var(--advocate)}
+.critic .avatar{background:var(--critic)} .critic .who{color:var(--critic)}
+.critic .bubble{border-left:4px solid var(--critic)}
+.pragmatist .avatar{background:var(--pragmatist)} .pragmatist .who{color:var(--pragmatist)}
+.pragmatist .bubble{border-left:4px solid var(--pragmatist)}
+.moderator{align-self:center}
+.moderator .bubble{border-left:none;border-style:dashed;font-family:var(--mono);
+  font-size:22px;color:var(--dim);background:transparent}
+.hl{border-radius:6px;padding:1px 6px;transition:background .6s,color .6s}
+.hl.on{background:rgba(63,185,80,.25);color:#7ee787}
+.hl.attacked{background:rgba(248,81,73,.28);color:#ffa198}
+.quoteline{font-family:var(--mono);font-size:19px;color:var(--critic);
+  margin-bottom:10px;opacity:.9}
+.bill{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px;
+  display:flex;flex-direction:column;gap:8px;font-family:var(--mono);font-size:22px}
+.bill .item{display:flex;justify-content:space-between;gap:40px}
+.bill .item span:last-child{color:var(--pragmatist)}
+.bill .total{border-top:1px solid var(--line);padding-top:8px;font-weight:700}
+.revtag{background:rgba(63,185,80,.15);color:#7ee787;border:1px solid rgba(63,185,80,.4)}
+.judgecard{align-self:center;width:920px;background:var(--panel2);
+  border:1px solid var(--judge);border-radius:18px;padding:30px 36px;
+  box-shadow:0 0 60px rgba(163,113,247,.15)}
+.judgecard h3{font-family:var(--mono);font-size:21px;color:var(--judge);
+  letter-spacing:.15em;margin-bottom:18px}
+.jrow{font-size:26px;line-height:1.5;margin-bottom:16px}
+.jrow .lbl{font-family:var(--mono);font-size:18px;color:var(--dim);
+  display:block;margin-bottom:4px;letter-spacing:.1em}
+.meter{height:16px;border-radius:999px;background:#21262d;overflow:hidden;margin-top:8px}
+.meter .fill{height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,#a371f7,#d2a8ff);transition:width 1.6s cubic-bezier(.2,.7,.3,1)}
+.meter.on .fill{width:55%}
+.meterlbl{font-family:var(--mono);font-size:20px;color:#d2a8ff;margin-top:6px}
+#compare{position:absolute;inset:0;background:rgba(5,7,10,.88);z-index:60;
+  display:flex;align-items:center;justify-content:center;gap:60px;
+  opacity:0;pointer-events:none;transition:opacity .6s}
+#compare.on{opacity:1}
+.ccard{width:560px;border-radius:18px;padding:36px 40px;border:1px solid var(--line);
+  background:var(--panel);font-size:28px;line-height:1.6}
+.ccard h4{font-family:var(--mono);font-size:20px;letter-spacing:.12em;
+  color:var(--dim);margin-bottom:18px}
+.ccard ul{list-style:none}
+.ccard li{margin-bottom:10px}
+.vs{font-family:var(--mono);font-size:30px;color:var(--dim)}
+.pulse{display:inline-block;border-radius:8px;padding:2px 10px}
+#compare.on .pulse{animation:pulse 1.2s ease-in-out infinite;
+  background:rgba(163,113,247,.25);color:#d2a8ff}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(163,113,247,.5)}
+  50%{box-shadow:0 0 0 14px rgba(163,113,247,0)}}
+#messy{position:absolute;inset:0;background:var(--bg);z-index:70;opacity:0;
+  pointer-events:none;transition:opacity .4s}
+#messy.on{opacity:1}
+#messy .mb{position:absolute;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:14px 20px;font-size:21px;color:var(--dim);max-width:430px}
+#messy .cap{position:absolute;bottom:60px;left:0;right:0;text-align:center;
+  font-size:30px;font-style:italic;color:var(--text)}
