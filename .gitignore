@@ -1,4 +1,4 @@
 node_modules/
 dist/
-projects/*/takes/
-projects/*/exports/
+# content projects are documents, not part of the tool — each gets its own repo
+/projects/
