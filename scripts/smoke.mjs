@@ -66,7 +66,10 @@ try {
   ok(await rp.evaluate(() => !!window.__render), 'render mode exposes __render');
   await rp.evaluate(() => window.__render.ready);
   const lens = await rp.evaluate(() => window.__render.sceneLens());
-  ok(lens.length === 9 && Math.round(lens.reduce((a, b) => a + b, 0)) === 470, 'sceneLens = 9 scenes / 470s');
+  const proj = await (await fetch(BASE + '/api/project')).json();
+  const expected = proj.scenes.reduce((a, s) => a + s.len, 0);
+  ok(lens.length === proj.scenes.length && Math.abs(lens.reduce((a, b) => a + b, 0) - expected) < 0.01,
+    `sceneLens matches project (${proj.scenes.length} scenes / ${expected.toFixed(1)}s)`);
   await rp.evaluate(() => window.__render.begin(4));
   await new Promise((r) => setTimeout(r, 300));
   ok(await rp.evaluate(() => !window.__render.finished()), 'begin(4) starts playback');

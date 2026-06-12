@@ -15,6 +15,7 @@
      GET    /api/export/status              poll the single export job
      GET    /exports/:file                  serve an exported MP4
 ============================================================================ */
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -44,14 +45,42 @@ function readBody(req, limit = 200 * 1024 * 1024) {
   });
 }
 
-function sendFile(res, file) {
+/* MediaRecorder blobs lack duration/cue headers, which makes them unseekable
+   in <audio>. A stream-copy remux through ffmpeg writes proper headers. */
+async function remux(src, dst) {
+  const { ffmpegPath } = await import('./render.mjs');
+  return new Promise((resolve) => {
+    const ff = spawn(ffmpegPath(), ['-y', '-i', src, '-c', 'copy', dst], { stdio: 'ignore' });
+    ff.on('error', () => resolve(false));
+    ff.on('close', (code) => resolve(code === 0 && fs.existsSync(dst) && fs.statSync(dst).size > 0));
+  });
+}
+
+/* media files need Range support: <audio>/<video> can't seek without it */
+function sendFile(res, file, range) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404); res.end('not found'); return;
   }
+  const size = fs.statSync(file).size;
+  const type = MIME[path.extname(file).toLowerCase()] || 'application/octet-stream';
+  const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range) : null;
+  if (m && (m[1] !== '' || m[2] !== '')) {
+    const start = m[1] !== '' ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
+    const end = m[1] !== '' && m[2] !== '' ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+    if (start > end || start >= size) {
+      res.writeHead(416, { 'Content-Range': `bytes */${size}` }); res.end(); return;
+    }
+    res.writeHead(206, {
+      'Content-Type': type, 'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+      'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store',
+    });
+    fs.createReadStream(file, { start, end }).pipe(res);
+    return;
+  }
   res.writeHead(200, {
-    'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
-    'Content-Length': fs.statSync(file).size,
-    'Cache-Control': 'no-store',
+    'Content-Type': type, 'Content-Length': size,
+    'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store',
   });
   fs.createReadStream(file).pipe(res);
 }
@@ -213,7 +242,13 @@ export function createApi({ projectDir }) {
         const dir = sceneTakesDir(id);
         fs.mkdirSync(dir, { recursive: true });
         const file = 'take-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.' + ext;
-        fs.writeFileSync(path.join(dir, file), body);
+        const raw = path.join(dir, 'raw-' + file);
+        fs.writeFileSync(raw, body);
+        if (await remux(raw, path.join(dir, file))) {
+          fs.rmSync(raw, { force: true });
+        } else {
+          fs.renameSync(raw, path.join(dir, file)); // keep the recording even if ffmpeg fails
+        }
         const picks = readJson(PICKS_FILE, {});
         picks[id] = file; // newest take becomes the candidate
         writeFileTracked(PICKS_FILE, JSON.stringify(picks, null, 2));
@@ -249,7 +284,7 @@ export function createApi({ projectDir }) {
       } else if (req.method === 'GET' && /^\/takes\/[\w-]+\/[\w.-]+$/.test(p)) {
         const [, , id, file] = p.split('/');
         if (!safeName(id) || !safeName(file)) { res.writeHead(404); res.end(); return; }
-        sendFile(res, path.join(TAKES_DIR, id, file));
+        sendFile(res, path.join(TAKES_DIR, id, file), req.headers.range);
 
       } else if (req.method === 'POST' && p === '/api/export') {
         const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
@@ -266,7 +301,7 @@ export function createApi({ projectDir }) {
       } else if (req.method === 'GET' && /^\/exports\/[\w.-]+$/.test(p)) {
         const file = p.split('/')[2];
         if (!safeName(file)) { res.writeHead(404); res.end(); return; }
-        sendFile(res, path.join(EXPORTS_DIR, file));
+        sendFile(res, path.join(EXPORTS_DIR, file), req.headers.range);
 
       } else {
         next();

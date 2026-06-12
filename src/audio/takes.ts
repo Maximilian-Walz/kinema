@@ -119,13 +119,34 @@ export class Takes {
     const file = this.candidate(this.player.scene.id);
     if (!file) { this.preview.pause(); return; }
     const abs = new URL(api.takeUrl(this.player.scene.id, file), location.href).href;
-    if (this.preview.src !== abs) { this.preview.src = abs; hard = true; }
+    if (this.preview.src !== abs) {
+      this.preview.src = abs;
+      makeSeekable(this.preview);
+      hard = true;
+    }
     const t = this.player.localTime;
     if (this.player.playing) {
-      if (hard || Math.abs(this.preview.currentTime - t) > 0.35) this.preview.currentTime = t;
+      /* seeking only works once the duration is known; see makeSeekable */
+      if (isFinite(this.preview.duration)
+          && (hard || Math.abs(this.preview.currentTime - t) > 0.35)) {
+        this.preview.currentTime = t;
+      }
       if (this.preview.paused) void this.preview.play().catch(() => {});
     } else {
       this.preview.pause();
     }
   }
+}
+
+/* Takes recorded before the server learned to remux uploads are MediaRecorder
+   blobs without duration/cue headers: duration reports Infinity and setting
+   currentTime is ignored, so the audio just plays on. Seeking to a huge time
+   forces Chrome to scan the file and emit the real duration, after which
+   seeking works. */
+function makeSeekable(a: HTMLAudioElement): void {
+  const fix = (): void => {
+    if (a.duration === Infinity) a.currentTime = 1e101;
+  };
+  if (a.readyState >= 1) fix();
+  else a.addEventListener('loadedmetadata', fix, { once: true });
 }

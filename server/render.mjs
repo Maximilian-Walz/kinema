@@ -20,7 +20,7 @@ import puppeteer from 'puppeteer-core';
 const require = createRequire(import.meta.url);
 
 /* ----------------------------- ffmpeg ---------------------------------- */
-function ffmpegPath() {
+export function ffmpegPath() {
   try {
     const p = require('ffmpeg-static');
     if (p && fs.existsSync(p)) return p;
