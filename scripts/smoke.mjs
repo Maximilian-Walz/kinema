@@ -108,6 +108,46 @@ try {
   });
   ok(put, 'timings PUT round-trips and preserves title');
 
+  /* ---------------- workspace modes ---------------- */
+  /* TIME is the default; switch through RECORD and TUNE and back, verify the
+     body class flips, the right bottom dock is visible, and the per-mode
+     selectors land. */
+  const modeChecks = [
+    { key: 'F1', mode: 'record', visible: '#recordview', selector: '.rv-prompter', hidden: '#timeline' },
+    { key: 'F2', mode: 'tune',   visible: '#tuneview',   selector: '.tv-nav-row',  hidden: '#recordview' },
+    { key: 'F3', mode: 'time',   visible: '#timeline',   selector: '.tl-track',    hidden: '#tuneview' },
+  ];
+  for (const m of modeChecks) {
+    await page.keyboard.press(m.key);
+    await new Promise((r) => setTimeout(r, 350));
+    const state = await page.evaluate((s) => ({
+      body: document.body.className,
+      visibleDisplay: getComputedStyle(document.querySelector(s.visible)).display,
+      hiddenDisplay: getComputedStyle(document.querySelector(s.hidden)).display,
+      hits: document.querySelectorAll(s.selector).length,
+    }), m);
+    const cls = state.body.includes('mode-' + m.mode);
+    const vis = state.visibleDisplay !== 'none';
+    const hid = state.hiddenDisplay === 'none';
+    ok(cls && vis && hid && state.hits > 0,
+      `${m.key} -> ${m.mode} (body=${cls?'ok':'no'}, visible=${vis?'ok':'no'}, hidden=${hid?'ok':'no'}, hits=${state.hits})`);
+  }
+  /* mode chips in the transport bar reflect the active mode */
+  const chipActive = await page.evaluate(() => {
+    const c = document.querySelectorAll('.mode-chip.active');
+    return c.length === 1 && c[0].textContent.includes('TIME');
+  });
+  ok(chipActive, 'transport mode chip reflects active mode');
+
+  /* export dialog opens via the transport button */
+  await page.click('.t-export');
+  await new Promise((r) => setTimeout(r, 250));
+  ok(await page.$('.export-overlay') !== null, 'transport export button opens dialog');
+  await page.keyboard.press('Escape'); // ESC also clears loop if any; close dialog via click
+  await page.evaluate(() => { document.querySelector('.export-close')?.click(); });
+  await new Promise((r) => setTimeout(r, 200));
+  ok(await page.$('.export-overlay') === null, 'export dialog closes');
+
   /* ---------------- render mode ---------------- */
   const rp = await browser.newPage();
   const rerrors = [];

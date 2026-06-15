@@ -102,7 +102,6 @@ async function bootStudio(): Promise<void> {
     sync,
     history,
     mode,
-    micMonitor,
     playbackMeter,
   );
   const tl = new Timeline(timeline, player, takes, sync, history);

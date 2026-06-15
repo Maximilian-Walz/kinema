@@ -1,6 +1,6 @@
 import * as api from "../api";
 import { computeNormalizeGain, measureLoudness } from "../audio/loudness";
-import type { MicMonitor, PlaybackMeter } from "../audio/monitor";
+import type { PlaybackMeter } from "../audio/monitor";
 import { TakeStrip } from "../audio/take-strip";
 import type { Takes } from "../audio/takes";
 import { fmt, type Player } from "../engine/player";
@@ -8,24 +8,18 @@ import type { History } from "../history";
 import type { TimingSync } from "../timings";
 import type { SceneData, SectionTakes, TakeChain } from "../types";
 import { el } from "./dom";
-import type { Mode, WorkspaceMode } from "./workspace-mode";
+import type { WorkspaceMode } from "./workspace-mode";
 
 /* ============================================================================
-   Side panel: SCRIPT (teleprompter), TAKES, EXPORT tabs.
-   Recording auto-switches to SCRIPT so the narration is readable while
-   speaking; a red bar with the stop button stays visible.
+   Side panel. Content is fully driven by the active workspace mode:
+     RECORD -> compact "last takes for the line under the cursor" card
+     TUNE   -> playback meter + post-chain cards for the line under the cursor
+     TIME   -> script teleprompter (drag clips on the timeline below to retime)
+
+   The old SCRIPT/TAKES/EXPORT tabs are gone -- export now lives in a
+   transport-bar dialog (T8), takes browsing is the TUNE comparator (T4),
+   recording happens in the RECORD prompter (T3).
 ============================================================================ */
-
-type Tab = "script" | "takes";
-
-/* Default tab per workspace mode. T3/T4/T5 will replace each side-panel
-   render with a mode-specific view; until then the mode just steers which of
-   the existing tabs is shown so the bulky takes UI only appears in TUNE. */
-const MODE_DEFAULT_TAB: Record<Mode, Tab> = {
-  record: "script",
-  tune: "takes",
-  time: "script",
-};
 
 export class SidePanel {
   private readonly player: Player;
@@ -33,11 +27,8 @@ export class SidePanel {
   private readonly sync: TimingSync;
   private readonly history: History;
   private readonly mode: WorkspaceMode;
-  private readonly micMonitor: MicMonitor;
   private readonly playbackMeter: PlaybackMeter;
   private readonly body: HTMLElement;
-  private readonly tabButtons = new Map<Tab, HTMLButtonElement>();
-  private tab: Tab = "script";
   /** debounce timers for per-section gain writes, keyed sceneId/lineId/file */
   private readonly chainTimers = new Map<string, number>();
 
@@ -55,7 +46,6 @@ export class SidePanel {
     sync: TimingSync,
     history: History,
     mode: WorkspaceMode,
-    micMonitor: MicMonitor,
     playbackMeter: PlaybackMeter,
   ) {
     this.player = player;
@@ -63,65 +53,30 @@ export class SidePanel {
     this.sync = sync;
     this.history = history;
     this.mode = mode;
-    this.micMonitor = micMonitor;
     this.playbackMeter = playbackMeter;
 
-    const nav = el("div", { class: "sp-tabs" });
-    (["script", "takes"] as Tab[]).forEach((t) => {
-      const b = el("button", { text: t.toUpperCase() });
-      b.onclick = () => this.show(t);
-      this.tabButtons.set(t, b);
-      nav.appendChild(b);
-    });
-
     this.body = el("div", { class: "sp-body" });
-    root.append(nav, this.body);
+    root.append(this.body);
 
     player.events.on("scene", () => this.render());
     player.events.on("time", () => this.tick());
-    player.events.on("timings", () => {
-      if (this.tab === "script") this.render();
-    });
-    takes.events.on("change", () => {
-      if (this.tab === "takes") this.render();
-    });
+    player.events.on("timings", () => this.render());
+    takes.events.on("change", () => this.render());
     takes.events.on("countdown", (n) => this.onCountdown(n));
-
-    takes.events.on("recording", (on) => {
+    takes.events.on("recording", () => {
       /* once recording starts, clear any remaining overlay */
       this.removeCountdownOverlay();
-      /* recbar UI is owned by the top-level RecBar singleton now (T9).
-         We only steer side-panel focus: drag the panel back to SCRIPT in
-         non-RECORD modes so the operator can read the narration. */
-      if (on && this.mode.mode !== "record") this.show("script");
-      else if (!on && this.tab === "takes") this.render();
+      /* recbar UI is owned by the top-level RecBar singleton (T9). */
     });
+    takes.events.on("monitor", () => this.render());
 
-    takes.events.on("monitor", () => {
-      /* MicMonitor singleton has already (re)bound the widgets; just re-render
-         the takes panel so the monitor block picks up the new state */
-      if (this.tab === "takes") this.render();
-    });
-
-    this.show(MODE_DEFAULT_TAB[this.mode.mode]);
+    this.render();
   }
 
-  /** Called by main.ts after a mode switch. Picks the mode's default tab and
-      re-renders. Recording / count-in are not interrupted -- the recording
-      handler will still drag focus back to SCRIPT mid-take. */
+  /** Called by main.ts after a mode switch. Re-renders the body so the new
+      mode's view takes over. Recording / count-in are not interrupted -- the
+      recbar singleton stays put regardless. */
   onModeChange(): void {
-    if (this.takes.recording || this.takes.counting) return;
-    this.show(MODE_DEFAULT_TAB[this.mode.mode]);
-  }
-
-  show(tab: Tab): void {
-    /* leaving the TAKES tab while the monitor is armed (but not recording):
-       stop the monitor so the OS mic indicator turns off */
-    if (this.tab === "takes" && tab !== "takes" && !this.takes.recording) {
-      if (this.takes.monitoring) this.takes.stopMonitor();
-    }
-    this.tab = tab;
-    this.tabButtons.forEach((b, t) => b.classList.toggle("active", t === tab));
     this.render();
   }
 
@@ -130,23 +85,11 @@ export class SidePanel {
   private render(): void {
     this.destroyTakeStrips();
     this.body.innerHTML = "";
-    if (this.mode.mode === "record") {
-      this.renderRecordSide();
-      return;
+    switch (this.mode.mode) {
+      case "record": this.renderRecordSide(); return;
+      case "tune":   this.renderTuneSide();   return;
+      case "time":   this.renderScript();     return;
     }
-    if (this.mode.mode === "tune") {
-      this.renderTuneSide();
-      return;
-    }
-    /* TIME mode: side panel is the teleprompter. EXPORT now lives as a
-       transport button (T8), so the tab routing only ever picks SCRIPT or
-       TAKES from here. */
-    if (this.mode.mode === "time") {
-      this.renderScript();
-      return;
-    }
-    if (this.tab === "script") this.renderScript();
-    else this.renderTakes();
   }
 
   /* SCRIPT ----------------------------------------------------------------- */
@@ -241,194 +184,10 @@ export class SidePanel {
     this.render();
   }
 
-  /* TAKES ------------------------------------------------------------------ */
-
-  private renderTakes(): void {
-    const scene = this.player.scene;
-    this.body.appendChild(
-      el("div", { class: "sp-scenetitle", text: `takes · ${scene.title}` }),
-    );
-
-    /* ---- mic monitor block (input level, ticket 02) ---- */
-    this.appendMonitorBlock();
-
-    /* ---- playback meter block (post-processed output level, ticket 04) ---- */
-    this.appendPlaybackMeterBlock();
-
-    if (!scene.lines.length) {
-      this.body.appendChild(
-        el("div", {
-          class: "sp-dim",
-          text: "no narration lines in this scene yet",
-        }),
-      );
-    }
-
-    /* one block per section (script line): the line, its record button, and its
-       take list with a candidate star. Recording auto-stops at the line end. */
-    scene.lines.forEach((ln) => {
-      const lineId = ln.id;
-      const sect = lineId ? this.takes.section(scene.id, lineId) : undefined;
-      const recording = this.takes.recording &&
-        this.takes.recordingLine === lineId;
-      const countingThis = this.takes.counting &&
-        this.takes.countingLine === lineId;
-      const block = el("div", {
-        class: "sp-section" + (sect?.takes.length ? " has-takes" : ""),
-      });
-
-      const head = el("div", { class: "sp-sectionhead" });
-      const dot = el("span", {
-        class: "sp-sectiondot" + (sect?.takes.length ? " on" : ""),
-        title: sect?.takes.length ? "recorded" : "no take yet",
-      });
-      const label = el("span", {
-        class: "sp-sectiontext",
-        title: ln.text,
-        text: `${fmt(ln.from)}–${fmt(ln.to)} · ${ln.text}`,
-      });
-      const recClass = "sp-rec" +
-        (recording ? " live" : countingThis ? " counting" : "");
-      const recText = recording ? "■ stop" : countingThis ? "… wait" : "● rec";
-      const rec = el("button", {
-        class: recClass,
-        text: recText,
-        title:
-          "record this line with 3-2-1 count-in (seeks to its start, stops at its end)",
-      });
-      rec.onclick = async () => {
-        if (this.takes.recording || this.takes.counting) {
-          this.takes.stopRecording();
-          return;
-        }
-        const err = await this.takes.startRecordingWithCountIn(lineId);
-        if (err) this.status(err);
-      };
-      head.append(dot, label, rec);
-      block.appendChild(head);
-
-      const list = el("div", { class: "sp-takes" });
-      if (!sect || !sect.takes.length) {
-        list.appendChild(el("div", { class: "sp-dim", text: "no takes yet" }));
-      } else {
-        sect.takes.forEach((tk, n) => {
-          const row = el("div", {
-            class: "sp-take" + (tk.file === sect.candidate ? " cand" : ""),
-          });
-          const play = el("button", {
-            text: this.takes.auditioning === tk.file ? "⏸" : "▶",
-          });
-          play.onclick = () =>
-            this.takes.toggleAudition(scene.id, lineId!, tk.file);
-          const name = el("span", {
-            class: "sp-takename",
-            text: `take ${n + 1} · ${
-              new Date(tk.created).toLocaleTimeString()
-            }`,
-            title: tk.file,
-          });
-          const star = el("button", {
-            class: "sp-star",
-            text: tk.file === sect.candidate ? "★" : "☆",
-            title: "pick as the take used in preview and export",
-          });
-          star.onclick = async () => {
-            await api.pickTake(scene.id, lineId!, tk.file);
-            await this.takes.refresh();
-          };
-          const del = el("button", { text: "✕", title: "move to trash" });
-          del.onclick = async () => {
-            if (!confirm("Move this take to trash?")) return;
-            await api.deleteTake(scene.id, lineId!, tk.file);
-            await this.takes.refresh();
-          };
-          row.append(play, name, star, del);
-          list.appendChild(row);
-        });
-      }
-      block.appendChild(list);
-      /* "post" controls for the candidate take (gain, high-pass), applied in
-         preview, audition and export. Only shown once a take is picked. */
-      if (sect && sect.candidate && lineId) {
-        this.appendPostControls(block, scene.id, lineId, sect);
-      }
-      this.body.appendChild(block);
-    });
-
-    const cb = el("input", { type: "checkbox" }) as HTMLInputElement;
-    cb.checked = this.takes.previewEnabled;
-    cb.onchange = () => this.takes.setPreviewEnabled(cb.checked);
-    this.body.appendChild(
-      el(
-        "label",
-        { class: "sp-checkbox" },
-        cb,
-        " play picked takes during playback",
-      ),
-    );
-    this.body.appendChild(el("div", { class: "sp-status" }));
-  }
-
-  /** Render the arm-mic toggle and, when armed, the live Meter + scrolling
-  /** Render the arm-mic toggle and, when armed, mount the shared live
-      waveform + level meter from MicMonitor. The singleton owns lifecycle;
-      this view just supplies a host element. */
-  private appendMonitorBlock(): void {
-    const armed = this.takes.monitoring;
-    const block = el("div", { class: "sp-monitor" + (armed ? " armed" : "") });
-
-    const armBtn = el("button", {
-      class: "sp-arm" + (armed ? " live" : ""),
-      text: armed ? "disarm mic" : "arm mic / monitor",
-      title: armed
-        ? "disarm the microphone (releases the device)"
-        : "open the mic for level monitoring before recording (no speaker feedback)",
-    });
-    armBtn.onclick = async () => {
-      if (armed) {
-        this.takes.stopMonitor();
-      } else {
-        const err = await this.takes.startMonitor();
-        if (err) this.status(err);
-      }
-    };
-    block.appendChild(armBtn);
-
-    if (armed && this.micMonitor.active) {
-      const vis = el("div", { class: "sp-monitor-vis" });
-      /* shared singleton: replaces children of `vis` with waveform + meter */
-      this.micMonitor.attach(vis);
-
-      /* clip warning -- shown via CSS when the meter's clip LED is lit */
-      const clipWarn = el("div", {
-        class: "sp-monitor-clip",
-        text: "input clipping -- lower your level",
-      });
-
-      /* poll the clip LED state at ~8 Hz to toggle the warning */
-      const clipLed = this.micMonitor.meterClipEl;
-      if (clipLed) {
-        const pollClip = (): void => {
-          const clipping = clipLed.classList.contains("clipped");
-          clipWarn.classList.toggle("visible", clipping);
-        };
-        const intervalId = window.setInterval(pollClip, 120);
-        /* clean up when the block is detached (next render tears it down) */
-        const observer = new MutationObserver(() => {
-          if (!block.isConnected) {
-            clearInterval(intervalId);
-            observer.disconnect();
-          }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-      }
-
-      block.appendChild(vis);
-      block.appendChild(clipWarn);
-    }
-
-    this.body.appendChild(block);
-  }
+  /* TAKES tab UI is gone (T11) -- the per-section browsing moved to TuneView,
+     recording to RecordView, and the mic monitor lives in the RECORD prompter
+     bar. The shared appendPlaybackMeterBlock + appendPostControls helpers
+     below are still used by renderTuneSide. */
 
   /** Render the playback level meter block (post-processing output). The
       PlaybackMeter singleton owns the Meter; this view supplies the host. */
@@ -1044,7 +803,7 @@ export class SidePanel {
   private onCountdown(n: number | null): void {
     if (n === null || n === 0) {
       this.removeCountdownOverlay();
-      if (this.tab === "takes") this.render(); // reset rec button appearance
+      this.render(); // reset rec button appearance in record-side card
       return;
     }
     /* create the overlay on first beat */
@@ -1056,8 +815,7 @@ export class SidePanel {
     /* force a reflow so re-adding the class re-triggers the animation */
     void this.countdownOverlay.offsetWidth;
     this.countdownOverlay.classList.add("cd-pop");
-    /* also re-render the TAKES panel in real time so the button label updates */
-    if (this.tab === "takes") this.render();
+    this.render();
   }
 
   private createCountdownOverlay(): HTMLElement {
@@ -1092,7 +850,8 @@ export class SidePanel {
       }
       return;
     }
-    if (this.tab !== "script" || !this.lineEls.length) return;
+    /* TIME mode: highlight + autoscroll the current script line. */
+    if (!this.lineEls.length) return;
     const local = this.player.localTime;
     for (const le of this.lineEls) {
       const cur = local >= le.from && local < le.to;
