@@ -5,18 +5,18 @@ import { Player } from "./engine/player";
 import { History } from "./history";
 import { bootRender } from "./render-mode";
 import { TimingSync } from "./timings";
+import { DockResize } from "./ui/dock-resize";
 import { el } from "./ui/dom";
+import { ExportDialog } from "./ui/export-dialog";
 import { SidePanel } from "./ui/panels";
 import { showPicker } from "./ui/picker";
-import "./ui/styles.css";
-import { DockResize } from "./ui/dock-resize";
-import { ExportDialog } from "./ui/export-dialog";
 import { RecBar } from "./ui/recbar";
+import { RecordView } from "./ui/record-view";
+import "./ui/styles.css";
 import { Timeline } from "./ui/timeline";
 import { Transport } from "./ui/transport";
-import { WorkspaceMode } from "./ui/workspace-mode";
-import { RecordView } from "./ui/record-view";
 import { TuneView } from "./ui/tune-view";
+import { WorkspaceMode } from "./ui/workspace-mode";
 
 if (new URLSearchParams(location.search).has("render")) {
   bootRender();

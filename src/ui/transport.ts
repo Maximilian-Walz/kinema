@@ -12,9 +12,12 @@ import type { Mode, WorkspaceMode } from "./workspace-mode";
    mode so the operator never has to remember a different alphabet per mode;
    the mode-specific keys lead each line. */
 const MODE_KEY_HINT: Record<Mode, string> = {
-  record: "r rec this line \u00b7 ESC stop \u00b7 SPACE play \u00b7 \u2190/\u2192 \u00b15s \u00b7 F2 tune \u00b7 F3 time",
-  tune: "\u25b6 audition \u00b7 drag waveform to scrub \u00b7 SPACE play \u00b7 F1 record \u00b7 F3 time",
-  time: "SPACE play \u00b7 drag clips \u00b7 I/O loop \u00b7 [ ] scene \u00b7 1-9 jump \u00b7 F1 record \u00b7 F2 tune \u00b7 C clean",
+  record:
+    "r rec this line \u00b7 ESC stop \u00b7 SPACE play \u00b7 \u2190/\u2192 \u00b15s \u00b7 F2 tune \u00b7 F3 time",
+  tune:
+    "\u25b6 audition \u00b7 drag waveform to scrub \u00b7 SPACE play \u00b7 F1 record \u00b7 F3 time",
+  time:
+    "SPACE play \u00b7 drag clips \u00b7 I/O loop \u00b7 [ ] scene \u00b7 1-9 jump \u00b7 F1 record \u00b7 F2 tune \u00b7 C clean",
 };
 
 /* play/pause, scene navigation, timecode, record shortcut, clean mode */
@@ -84,7 +87,9 @@ export class Transport {
 
     const modeSwitch = mode.buildSwitcher();
     const keysEl = el("span", { class: "t-keys" });
-    const paintKeys = (): void => { keysEl.textContent = MODE_KEY_HINT[mode.mode]; };
+    const paintKeys = (): void => {
+      keysEl.textContent = MODE_KEY_HINT[mode.mode];
+    };
     paintKeys();
     mode.events.on("change", paintKeys);
 

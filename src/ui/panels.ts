@@ -86,9 +86,15 @@ export class SidePanel {
     this.destroyTakeStrips();
     this.body.innerHTML = "";
     switch (this.mode.mode) {
-      case "record": this.renderRecordSide(); return;
-      case "tune":   this.renderTuneSide();   return;
-      case "time":   this.renderScript();     return;
+      case "record":
+        this.renderRecordSide();
+        return;
+      case "tune":
+        this.renderTuneSide();
+        return;
+      case "time":
+        this.renderScript();
+        return;
     }
   }
 
@@ -312,7 +318,9 @@ export class SidePanel {
       body: HTMLElement;
       setSummary: (text: string, on: boolean) => void;
     } => {
-      const card = el("details", { class: "sp-post-card" }) as HTMLDetailsElement;
+      const card = el("details", {
+        class: "sp-post-card",
+      }) as HTMLDetailsElement;
       if (defaultOpen) card.open = true;
       const summary = document.createElement("summary");
       summary.className = "sp-post-summary";
@@ -396,7 +404,10 @@ export class SidePanel {
     };
 
     /* --- high-pass section --- */
-    const hpCard = mkCard("high-pass", !!this.takes.chain(sceneId, lineId)?.highpass);
+    const hpCard = mkCard(
+      "high-pass",
+      !!this.takes.chain(sceneId, lineId)?.highpass,
+    );
     const hpRow = el("div", { class: "sp-post-row" });
     const hpLabel = el("span", { class: "sp-postlabel", text: "cutoff" });
     const hpToggle = el("input", {
@@ -512,7 +523,11 @@ export class SidePanel {
           (gate.range ?? GATE_VOICE.range!).toFixed(0) + " dB";
       }
       gateCard.setSummary(
-        gate ? `${gate.threshold.toFixed(0)} dB / -${(gate.range ?? GATE_VOICE.range!).toFixed(0)} dB` : "off",
+        gate
+          ? `${gate.threshold.toFixed(0)} dB / -${
+            (gate.range ?? GATE_VOICE.range!).toFixed(0)
+          } dB`
+          : "off",
         on,
       );
     };
@@ -562,7 +577,10 @@ export class SidePanel {
       ["hard", { threshold: -12, ratio: 8, attack: 0.003, release: 0.08 }],
     ];
 
-    const compCard = mkCard("compressor", !!this.takes.chain(sceneId, lineId)?.comp);
+    const compCard = mkCard(
+      "compressor",
+      !!this.takes.chain(sceneId, lineId)?.comp,
+    );
     const compSection = el("div", { class: "sp-post-comp" });
 
     /* toggle row */
@@ -654,7 +672,9 @@ export class SidePanel {
       }
       blankOpt.selected = true;
       compCard.setSummary(
-        comp ? `${comp.threshold.toFixed(0)} dB · ${comp.ratio.toFixed(1)}:1` : "off",
+        comp
+          ? `${comp.threshold.toFixed(0)} dB · ${comp.ratio.toFixed(1)}:1`
+          : "off",
         on,
       );
     };
@@ -883,12 +903,17 @@ export class SidePanel {
     this.lastRecordLineId = activeId;
 
     this.body.appendChild(
-      el("div", { class: "sp-scenetitle", text: `takes \u00b7 ${scene.title}` }),
+      el("div", {
+        class: "sp-scenetitle",
+        text: `takes \u00b7 ${scene.title}`,
+      }),
     );
 
     /* current line card: last 2 takes with audition/star/delete */
     const activeLine = scene.lines.find((ln) => ln.id === activeId) ?? null;
-    const activeSect = activeLine?.id ? this.takes.section(scene.id, activeLine.id) : undefined;
+    const activeSect = activeLine?.id
+      ? this.takes.section(scene.id, activeLine.id)
+      : undefined;
     const card = el("div", { class: "sp-rec-card" });
     if (activeLine) {
       card.appendChild(
@@ -900,19 +925,28 @@ export class SidePanel {
       );
       const recent = (activeSect?.takes ?? []).slice(-2).reverse();
       if (recent.length === 0) {
-        card.appendChild(el("div", { class: "sp-dim", text: "no takes yet for this line" }));
+        card.appendChild(
+          el("div", { class: "sp-dim", text: "no takes yet for this line" }),
+        );
       } else {
         const takesEl = el("div", { class: "sp-takes" });
         recent.forEach((tk, i) => {
           const total = activeSect!.takes.length;
           const ord = total - i; // most-recent first
-          takesEl.appendChild(this.takeRow(scene.id, activeLine.id!, activeSect!, tk, ord, { withStrip: true }));
+          takesEl.appendChild(
+            this.takeRow(scene.id, activeLine.id!, activeSect!, tk, ord, {
+              withStrip: true,
+            }),
+          );
         });
         card.appendChild(takesEl);
       }
     } else {
       card.appendChild(
-        el("div", { class: "sp-dim", text: "play or seek to a script line to record" }),
+        el("div", {
+          class: "sp-dim",
+          text: "play or seek to a script line to record",
+        }),
       );
     }
     this.body.appendChild(card);
@@ -924,23 +958,34 @@ export class SidePanel {
       const has = !!sect?.takes.length;
       const isActive = ln.id === activeId;
       const row = el("button", {
-        class: "sp-rec-section" + (isActive ? " active" : "") + (has ? " has-takes" : ""),
+        class: "sp-rec-section" + (isActive ? " active" : "") +
+          (has ? " has-takes" : ""),
         title: ln.text,
       });
-      row.appendChild(el("span", { class: "sp-sectiondot" + (has ? " on" : "") }));
+      row.appendChild(
+        el("span", { class: "sp-sectiondot" + (has ? " on" : "") }),
+      );
       row.appendChild(
         el("span", { class: "sp-rec-section-time", text: fmt(ln.from) }),
       );
       row.appendChild(
-        el("span", { class: "sp-rec-section-text", text: ln.text || "(empty)" }),
+        el("span", {
+          class: "sp-rec-section-text",
+          text: ln.text || "(empty)",
+        }),
       );
       if (sect?.takes.length) {
         row.appendChild(
-          el("span", { class: "sp-rec-section-count", text: `${sect.takes.length}` }),
+          el("span", {
+            class: "sp-rec-section-count",
+            text: `${sect.takes.length}`,
+          }),
         );
       }
       row.onclick = () => {
-        this.player.seek(this.player.offsets[this.player.sceneIndex] + ln.from + 0.001);
+        this.player.seek(
+          this.player.offsets[this.player.sceneIndex] + ln.from + 0.001,
+        );
       };
       dots.appendChild(row);
     });
@@ -964,7 +1009,10 @@ export class SidePanel {
 
     if (!activeId) {
       this.body.appendChild(
-        el("div", { class: "sp-dim", text: "seek to a script line to adjust its post chain" }),
+        el("div", {
+          class: "sp-dim",
+          text: "seek to a script line to adjust its post chain",
+        }),
       );
       return;
     }
@@ -975,12 +1023,17 @@ export class SidePanel {
       el("div", {
         class: "sp-rec-card-line",
         text: activeLine?.text || "(empty line)",
-        title: activeLine ? `${fmt(activeLine.from)}\u2013${fmt(activeLine.to)}` : "",
+        title: activeLine
+          ? `${fmt(activeLine.from)}\u2013${fmt(activeLine.to)}`
+          : "",
       }),
     );
     if (!sect?.candidate) {
       block.appendChild(
-        el("div", { class: "sp-dim", text: "pick a take in the comparator to edit its post chain" }),
+        el("div", {
+          class: "sp-dim",
+          text: "pick a take in the comparator to edit its post chain",
+        }),
       );
     } else {
       this.appendPostControls(block, scene.id, activeId, sect);
@@ -999,7 +1052,9 @@ export class SidePanel {
     opts: { withStrip?: boolean } = {},
   ): HTMLElement {
     const wrap = el("div", { class: "sp-take-wrap" });
-    const row = el("div", { class: "sp-take" + (tk.file === sect.candidate ? " cand" : "") });
+    const row = el("div", {
+      class: "sp-take" + (tk.file === sect.candidate ? " cand" : ""),
+    });
     const play = el("button", {
       text: this.takes.auditioning === tk.file ? "\u23f8" : "\u25b6",
       title: "audition this take",
@@ -1028,7 +1083,9 @@ export class SidePanel {
     row.append(play, name, star, del);
     wrap.appendChild(row);
     if (opts.withStrip) {
-      const strip = new TakeStrip(this.takes, sceneId, lineId, tk.file, { height: 36 });
+      const strip = new TakeStrip(this.takes, sceneId, lineId, tk.file, {
+        height: 36,
+      });
       wrap.appendChild(strip.element);
       this.takeStrips.push(strip);
     }

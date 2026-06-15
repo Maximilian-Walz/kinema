@@ -77,6 +77,23 @@ export class Timeline {
     takes.events.on('change', () => { if (!this.dragging) this.rebuild(); });
 
     requestAnimationFrame(() => { this.fit(); });
+
+    /* The timeline is hidden in RECORD/TUNE modes (display:none), so the
+       initial fit() above measures zero width and pps clamps to its 1.5
+       fallback. When the user switches to TIME the element finally has a
+       width -- refit once so the project fills the viewport. We disconnect
+       after the first non-zero measurement so user-initiated zoom isn't
+       overwritten by later resizes. */
+    let fitted = false;
+    const ro = new ResizeObserver(() => {
+      if (fitted) return;
+      if (this.scroll.clientWidth > 0) {
+        fitted = true;
+        this.fit();
+        ro.disconnect();
+      }
+    });
+    ro.observe(this.scroll);
   }
 
   /* ------------------------------ shell --------------------------------- */

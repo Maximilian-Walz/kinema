@@ -46,11 +46,12 @@ body.clean #app{grid-template-columns:1fr;grid-template-rows:1fr;grid-template-a
 body.clean #side,body.clean #transport,body.clean #timeline,body.clean #recordview,body.clean #tuneview,body.clean #hud{display:none}
 
 /* mode chip group in the transport bar */
-.mode-switch{display:inline-flex;gap:1px;background:var(--st-line);
+.mode-switch{display:inline-flex;flex:none;gap:1px;background:var(--st-line);
   border:1px solid var(--st-line);border-radius:8px;padding:1px;overflow:hidden}
-.mode-chip{display:inline-flex;align-items:center;gap:6px;border:none;border-radius:6px;
-  padding:5px 10px;background:transparent;color:var(--st-dim);
-  font-family:var(--st-mono);font-size:11px;letter-spacing:.12em;cursor:pointer}
+.mode-chip{display:inline-flex;flex:none;align-items:center;gap:6px;
+  border:none;border-radius:6px;padding:5px 10px;background:transparent;
+  color:var(--st-dim);font-family:var(--st-mono);font-size:11px;
+  letter-spacing:.12em;cursor:pointer;white-space:nowrap}
 .mode-chip:hover{color:var(--st-text);background:var(--st-panel2)}
 .mode-chip.active{background:var(--st-panel2);color:var(--st-text);
   box-shadow:inset 0 -2px 0 var(--st-mode)}
@@ -160,13 +161,17 @@ body.recording #app{padding-top:38px}
 /* =============================== transport =============================== */
 #transport{grid-area:transport;display:flex;align-items:center;gap:10px;
   padding:8px 14px;background:var(--st-panel);border-top:1px solid var(--st-line);
-  font-family:var(--st-mono);font-size:12.5px;color:var(--st-dim)}
+  font-family:var(--st-mono);font-size:12.5px;color:var(--st-dim);min-width:0}
+/* Every transport item is a fixed-size chip; only `.t-spacer` flexes. The
+   t-time block can shrink + wrap its time string when room is tight. */
+#transport > *{flex:none}
+.t-time{flex:1 1 auto;min-width:0;color:var(--st-dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-spacer{flex:1 1 auto;min-width:8px}
 .t-play{min-width:90px}
 .t-scene{color:var(--st-text);margin-left:6px}
-.t-time{color:var(--st-dim)}
 .t-saved{color:var(--st-green);min-width:70px}
 .t-saved.error{color:var(--st-red)}
-.t-spacer{flex:1}
 .t-rec{border-color:var(--st-red);color:#ffa198}
 .t-rec.live{background:var(--st-red);color:#0d1117;font-weight:700;
   animation:blink 1.2s infinite}
@@ -308,17 +313,21 @@ body.recording #app{padding-top:38px}
    Lives in the `bottom` grid area; CSS in the grid section toggles visibility
    per mode. */
 #recordview{background:var(--st-panel);border-top:1px solid var(--st-red);
-  color:var(--st-text)}
+  color:var(--st-text);overflow:hidden}
 .rv-monitor{display:flex;align-items:center;gap:10px;padding:8px 16px;
   background:rgba(248,81,73,.05);border-bottom:1px solid var(--st-line);
   font-family:var(--st-mono);font-size:12px}
 .rv-arm{flex:none}
 .rv-arm.live{border-color:#7ee787;color:#7ee787}
+/* The waveform stretches to fill, the level meter stays compact. The Mic
+   monitor mounts the waveform <canvas> as a direct child and the meter as a
+   .vs-meter sibling (see audio/monitor.ts). */
 .rv-monitor-host{flex:1;min-width:160px;display:flex;flex-direction:row;
   align-items:center;gap:10px}
-.rv-monitor-host canvas{flex:none;border-radius:3px}
-.rv-monitor-host .vs-meter{flex:1}
-.rv-monitor-host .vs-meter canvas{width:100% !important}
+.rv-monitor-host > canvas{flex:1 1 auto;min-width:0;width:100% !important;
+  height:36px;border-radius:3px}
+.rv-monitor-host .vs-meter{flex:none}
+.rv-monitor-host .vs-meter canvas{width:160px !important}
 .rv-clip{display:none;font-size:11px;color:#f85149;padding:2px 6px;
   border:1px solid #f85149;border-radius:6px}
 .rv-clip.visible{display:inline-block}
@@ -330,7 +339,8 @@ body.recording #app{padding-top:38px}
   animation:blink 1.2s infinite}
 .rv-rec.counting{border-color:#e3b341;color:#e3b341;animation:blink 1s infinite}
 
-.rv-prompter{flex:1;overflow-y:auto;padding:30px 16px 50vh;
+.rv-prompter{flex:1 1 0;min-height:0;overflow-y:auto;
+  padding:30px 16px 50vh;
   display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
 .rv-scenetitle{font-family:var(--st-mono);font-size:11.5px;
   color:var(--st-faint);letter-spacing:.14em;text-align:center;
@@ -391,13 +401,37 @@ body.recording #app{padding-top:38px}
 .sp-post-card[open] .sp-post-chev{transform:rotate(180deg)}
 .sp-post-body{padding:8px 10px 10px;border-top:1px solid var(--st-line);
   display:flex;flex-direction:column;gap:6px}
-.sp-post-row{display:flex;align-items:center;gap:8px}
-.sp-post-comprow .sp-postlabel-sm{flex:none;width:60px;font-size:11px;
+.sp-post-row{display:flex;align-items:center;gap:10px}
+/* All post-row labels share a width so the toggles line up across rows.
+   ".sp-postlabel" was 30 px which crowded the checkbox; widen it. */
+.sp-post-body .sp-postlabel{flex:none;width:64px;color:var(--st-dim);
+  font-size:11.5px;letter-spacing:.04em}
+.sp-post-comprow .sp-postlabel-sm{flex:none;width:64px;font-size:11px;
   color:var(--st-dim)}
 .sp-comp-slider{flex:1;min-width:0;accent-color:var(--st-accent)}
 .sp-hpfreq{flex:1;min-width:0;accent-color:var(--st-accent)}
 .sp-post-gate-controls,.sp-post-comp-controls{display:flex;flex-direction:column;
-  gap:5px;padding:6px 0 0;border-top:1px dashed rgba(48,54,61,.6)}
+  gap:6px;padding:8px 0 0;margin-top:4px;
+  border-top:1px dashed rgba(48,54,61,.6)}
+
+/* Native checkbox restyle so the post-chain toggles match the rest of the
+   side-panel controls (mono font, accent colour, breathing room). */
+.sp-post-body input[type="checkbox"]{flex:none;-webkit-appearance:none;
+  appearance:none;width:16px;height:16px;border:1px solid var(--st-line);
+  border-radius:4px;background:var(--st-panel);cursor:pointer;margin:0;
+  position:relative;transition:border-color .15s,background .15s}
+.sp-post-body input[type="checkbox"]:hover{border-color:var(--st-dim)}
+.sp-post-body input[type="checkbox"]:checked{background:var(--st-accent);
+  border-color:var(--st-accent)}
+.sp-post-body input[type="checkbox"]:checked::after{content:"";
+  position:absolute;left:4px;top:1px;width:5px;height:9px;
+  border:solid #0d1117;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.sp-post-body select{flex:none;background:var(--st-panel);
+  border:1px solid var(--st-line);border-radius:6px;padding:3px 8px;
+  font-family:var(--st-mono);font-size:11px;color:var(--st-text);
+  cursor:pointer}
+.sp-post-body select:disabled{opacity:.5;cursor:default}
+.sp-post-body .sp-normalize{padding:5px 12px;font-size:11.5px;flex:none}
 
 /* =============================== tune view =============================== */
 /* TUNE mode bottom dock: section navigator (left column) + take comparator

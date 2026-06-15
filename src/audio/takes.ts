@@ -1,7 +1,7 @@
-import * as api from '../api';
-import { Emitter } from '../emitter';
-import type { Player } from '../engine/player';
-import type { SectionTakes, TakeChain, TakesMap, TimedText } from '../types';
+import * as api from "../api";
+import { Emitter } from "../emitter";
+import type { Player } from "../engine/player";
+import type { SectionTakes, TakeChain, TakesMap, TimedText } from "../types";
 
 /* ----------------------------------------------------------------------------
    The post-production audio chain, shared by preview and audition (and mirrored
@@ -32,10 +32,18 @@ const GATE_DEFAULT_RELEASE_S = 0.15;
 /* Encode the gate as it is actually wired into a source, so a gate edit (or the
    gate appearing once the worklet loads) forces a preview re-anchor. Empty
    string when no gate node is present (no gate field, or worklet not ready). */
-export function gateKey(chain: TakeChain | undefined, gateReady: boolean): string {
-  if (!chain?.gate || !gateReady) return '';
+export function gateKey(
+  chain: TakeChain | undefined,
+  gateReady: boolean,
+): string {
+  if (!chain?.gate || !gateReady) return "";
   const g = chain.gate;
-  return [g.threshold, g.range ?? GATE_DEFAULT_RANGE_DB, g.attack ?? GATE_DEFAULT_ATTACK_S, g.release ?? GATE_DEFAULT_RELEASE_S].join(':');
+  return [
+    g.threshold,
+    g.range ?? GATE_DEFAULT_RANGE_DB,
+    g.attack ?? GATE_DEFAULT_ATTACK_S,
+    g.release ?? GATE_DEFAULT_RELEASE_S,
+  ].join(":");
 }
 
 export function buildChain(
@@ -48,7 +56,7 @@ export function buildChain(
   /* high-pass is the chain head -- roll off rumble/plosives before everything else */
   if (chain?.highpass) {
     const hp = ctx.createBiquadFilter();
-    hp.type = 'highpass';
+    hp.type = "highpass";
     hp.frequency.value = chain.highpass.freq;
     /* leave Q at the default (~0.707, Butterworth), appropriate for a gentle rolloff */
     tail.connect(hp);
@@ -61,10 +69,13 @@ export function buildChain(
      to mirror the agate conversions. */
   if (chain?.gate && gateReady) {
     const g = chain.gate;
-    const node = new AudioWorkletNode(ctx, 'gate-processor', {
+    const node = new AudioWorkletNode(ctx, "gate-processor", {
       parameterData: {
         threshold: Math.max(0, Math.min(1, Math.pow(10, g.threshold / 20))),
-        range: Math.max(0, Math.min(1, Math.pow(10, -(g.range ?? GATE_DEFAULT_RANGE_DB) / 20))),
+        range: Math.max(
+          0,
+          Math.min(1, Math.pow(10, -(g.range ?? GATE_DEFAULT_RANGE_DB) / 20)),
+        ),
         attack: g.attack ?? GATE_DEFAULT_ATTACK_S,
         release: g.release ?? GATE_DEFAULT_RELEASE_S,
       },
@@ -77,9 +88,9 @@ export function buildChain(
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = chain.comp.threshold; // dB, same scale as Web Audio
     comp.ratio.value = chain.comp.ratio;
-    comp.attack.value = chain.comp.attack;       // seconds, same scale as Web Audio
-    comp.release.value = chain.comp.release;     // seconds
-    comp.knee.value = 6;                         // 6 dB soft knee
+    comp.attack.value = chain.comp.attack; // seconds, same scale as Web Audio
+    comp.release.value = chain.comp.release; // seconds
+    comp.knee.value = 6; // 6 dB soft knee
     tail.connect(comp);
     tail = comp;
   }
@@ -170,12 +181,16 @@ export class Takes {
   private monitorStream: MediaStream | null = null;
   private monitorSource: MediaStreamAudioSourceNode | null = null;
   private monitorAnalyser: AnalyserNode | null = null;
-  get monitoring(): boolean { return this.monitorStream !== null; }
+  get monitoring(): boolean {
+    return this.monitorStream !== null;
+  }
 
   /** The persistent post-processing analyser node (chainTail -> analyser ->
       destination).  Created on first use alongside the AudioContext; never torn
       down.  The UI attaches a playback Meter here. */
-  get playbackAnalyser(): AnalyserNode { return this.masterAnalyser(); }
+  get playbackAnalyser(): AnalyserNode {
+    return this.masterAnalyser();
+  }
 
   /* Web Audio: one context, an in-memory decode cache, and at most one live
      source for the synced preview and one for list auditioning. */
@@ -187,7 +202,7 @@ export class Takes {
      degrades to ungated preview. On 'failed' we permanently degrade and never
      retry. Mirrors the decode cache: an async resource lands, then sync() is
      called so the preview re-anchors with the gate. */
-  private gateModuleState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
+  private gateModuleState: "idle" | "loading" | "ready" | "failed" = "idle";
   private previewNode: PreviewNode | null = null;
   private auditionNode: AudioBufferSourceNode | null = null;
   /** ctx.currentTime when the live audition source was started */
@@ -202,17 +217,19 @@ export class Takes {
 
   constructor(player: Player) {
     this.player = player;
-    player.events.on('time', () => {
+    player.events.on("time", () => {
       /* stop a section recording the moment the playhead reaches the line end */
-      if (this.recorder && this.player.localTime >= this.recStopAt) this.stopRecording();
+      if (this.recorder && this.player.localTime >= this.recStopAt) {
+        this.stopRecording();
+      }
       this.sync();
     });
-    player.events.on('play', (p) => {
+    player.events.on("play", (p) => {
       if (p) void this.audioCtx().resume();
       if (!p && this.recorder) this.stopRecording();
       this.sync();
     });
-    player.events.on('scene', () => {
+    player.events.on("scene", () => {
       if (this.recorder && this.player.sceneIndex !== this.recSceneIndex) {
         this.player.setPlaying(false); // stops the recorder via the play hook
       }
@@ -220,13 +237,21 @@ export class Takes {
     });
   }
 
-  get recording(): boolean { return this.recorder !== null; }
-  get counting(): boolean { return this.countInAbort !== null; }
+  get recording(): boolean {
+    return this.recorder !== null;
+  }
+  get counting(): boolean {
+    return this.countInAbort !== null;
+  }
 
   async refresh(): Promise<void> {
-    try { this.map = await api.fetchTakes(); } catch { this.map = {}; }
+    try {
+      this.map = await api.fetchTakes();
+    } catch {
+      this.map = {};
+    }
     this.sync(); // warm/realign the current section's take against the new picks
-    this.events.emit('change');
+    this.events.emit("change");
   }
 
   section(sceneId: string, lineId: string): SectionTakes | undefined {
@@ -249,7 +274,9 @@ export class Takes {
 
   /** the line whose [from, to) window contains a scene-local time, or null */
   lineAt(scene: { lines: TimedText[] }, local: number): TimedText | null {
-    for (const ln of scene.lines) if (local >= ln.from && local < ln.to) return ln;
+    for (const ln of scene.lines) {
+      if (local >= ln.from && local < ln.to) return ln;
+    }
     return null;
   }
 
@@ -264,7 +291,9 @@ export class Takes {
     const line = lineId
       ? scene.lines.find((ln) => ln.id === lineId)
       : (this.lineAt(scene, this.player.localTime) ?? scene.lines[0]);
-    if (!line || !line.id) return 'no line to record (add a narration line first)';
+    if (!line || !line.id) {
+      return "no line to record (add a narration line first)";
+    }
 
     /* reuse the monitor stream when already armed; otherwise open a new one */
     let stream: MediaStream;
@@ -274,21 +303,29 @@ export class Takes {
     } else {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
         });
       } catch (e) {
-        return 'microphone blocked: ' + (e instanceof Error ? e.message : String(e));
+        return "microphone blocked: " +
+          (e instanceof Error ? e.message : String(e));
       }
     }
-    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus' : 'audio/webm';
+    const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : "audio/webm";
     const rec = new MediaRecorder(stream, { mimeType: mime });
     const chunks: Blob[] = [];
     this.recSceneIndex = this.player.sceneIndex;
     this.recStopAt = line.to;
     const sceneId = scene.id;
     const lid = line.id;
-    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    rec.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
     rec.onstop = async () => {
       /* only stop the stream if it was not the monitor stream; monitor stream
          is released separately via stopMonitor() */
@@ -296,10 +333,10 @@ export class Takes {
       this.recorder = null;
       this.recordingLine = null;
       this.recStopAt = Infinity;
-      this.events.emit('recording', false);
+      this.events.emit("recording", false);
       const blob = new Blob(chunks, { type: mime });
       if (blob.size < 1000) return; // discarded, effectively empty
-      await api.uploadTake(sceneId, lid, blob, 'webm');
+      await api.uploadTake(sceneId, lid, blob, "webm");
       await this.refresh();
     };
     this.recorder = rec;
@@ -309,13 +346,15 @@ export class Takes {
     this.player.seekScene(this.recSceneIndex, line.from); // align take with line start
     rec.start();
     this.player.setPlaying(true);
-    this.events.emit('recording', true);
+    this.events.emit("recording", true);
     return null;
   }
 
   stopRecording(): void {
     this.cancelCountIn();
-    if (this.recorder && this.recorder.state === 'recording') this.recorder.stop();
+    if (this.recorder && this.recorder.state === "recording") {
+      this.recorder.stop();
+    }
     if (this.player.playing) this.player.setPlaying(false);
   }
 
@@ -326,7 +365,7 @@ export class Takes {
   private playClick(ctx: AudioContext, when: number, accent: boolean): void {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'sine';
+    osc.type = "sine";
     osc.frequency.value = accent ? 1200 : 900;
     gain.gain.setValueAtTime(accent ? 0.55 : 0.35, when);
     gain.gain.exponentialRampToValueAtTime(0.001, when + 0.06);
@@ -347,7 +386,9 @@ export class Takes {
     const line = lineId
       ? scene.lines.find((ln) => ln.id === lineId)
       : (this.lineAt(scene, this.player.localTime) ?? scene.lines[0]);
-    if (!line || !line.id) return 'no line to record (add a narration line first)';
+    if (!line || !line.id) {
+      return "no line to record (add a narration line first)";
+    }
     const lid = line.id;
 
     /* open the mic now so the user gets the permission prompt before the
@@ -356,10 +397,15 @@ export class Takes {
     if (!this.monitorStream) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
         });
       } catch (e) {
-        return 'microphone blocked: ' + (e instanceof Error ? e.message : String(e));
+        return "microphone blocked: " +
+          (e instanceof Error ? e.message : String(e));
       }
       this.countInStream = stream;
     }
@@ -385,10 +431,13 @@ export class Takes {
         this.cleanUpCountIn();
         return null;
       }
-      this.events.emit('countdown', beat);
+      this.events.emit("countdown", beat);
       await new Promise<void>((res) => {
         const id = window.setTimeout(res, beatDur * 1000);
-        abort.signal.addEventListener('abort', () => { clearTimeout(id); res(); }, { once: true });
+        abort.signal.addEventListener("abort", () => {
+          clearTimeout(id);
+          res();
+        }, { once: true });
       });
     }
 
@@ -401,7 +450,7 @@ export class Takes {
     this.countInAbort = null;
     this.countingLine = null;
     this.countInStream = null; // ownership transfers to startRecording
-    this.events.emit('countdown', 0);
+    this.events.emit("countdown", 0);
 
     /* if the monitor stream was armed before we started, startRecording will
        reuse it; otherwise pass the stream we opened during the count-in by
@@ -432,7 +481,7 @@ export class Takes {
          we add a one-shot listener to clear monitorStream if it is still our
          temp one. */
       const tempStream = stream!;
-      const unsub = this.events.on('recording', (_on: boolean) => {
+      const unsub = this.events.on("recording", (_on: boolean) => {
         if (this.monitorStream === tempStream) {
           /* stop tracks and clear the reference -- no real monitor armed */
           tempStream.getTracks().forEach((t) => t.stop());
@@ -463,7 +512,7 @@ export class Takes {
       this.countInStream.getTracks().forEach((t) => t.stop());
       this.countInStream = null;
     }
-    this.events.emit('countdown', null);
+    this.events.emit("countdown", null);
   }
 
   /* -------------------------- mic monitor ------------------------------- */
@@ -478,10 +527,15 @@ export class Takes {
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
       });
     } catch (e) {
-      return 'microphone blocked: ' + (e instanceof Error ? e.message : String(e));
+      return "microphone blocked: " +
+        (e instanceof Error ? e.message : String(e));
     }
     const ctx = this.audioCtx();
     const source = ctx.createMediaStreamSource(stream);
@@ -492,7 +546,7 @@ export class Takes {
     this.monitorStream = stream;
     this.monitorSource = source;
     this.monitorAnalyser = analyser;
-    this.events.emit('monitor', analyser);
+    this.events.emit("monitor", analyser);
     return null;
   }
 
@@ -507,29 +561,43 @@ export class Takes {
     this.monitorStream = null;
     this.monitorSource = null;
     this.monitorAnalyser = null;
-    this.events.emit('monitor', null);
+    this.events.emit("monitor", null);
   }
 
   /* ----------------------- audition (list playback) --------------------- */
 
   toggleAudition(sceneId: string, lineId: string, file: string): void {
-    if (this.auditioning === file) { this.stopAudition(); return; }
+    if (this.auditioning === file) {
+      this.stopAudition();
+      return;
+    }
     this.stopPreview();
     this.stopAudition();
     this.auditioning = file;
-    this.events.emit('change');
-    void this.startAudition(new URL(api.takeUrl(sceneId, lineId, file), location.href).href, file, sceneId, lineId, 0);
+    this.events.emit("change");
+    void this.startAudition(
+      new URL(api.takeUrl(sceneId, lineId, file), location.href).href,
+      file,
+      sceneId,
+      lineId,
+      0,
+    );
   }
 
   /** Restart the audition for `file` from `fromSec` seconds into the buffer.
       Used by the scrubbable take strip; clicking the waveform calls this. If a
       different take is currently auditioning it is replaced. Re-uses the
       decode cache so seeking is cheap. */
-  scrubAudition(sceneId: string, lineId: string, file: string, fromSec: number): void {
+  scrubAudition(
+    sceneId: string,
+    lineId: string,
+    file: string,
+    fromSec: number,
+  ): void {
     this.stopPreview();
     this.stopAudition();
     this.auditioning = file;
-    this.events.emit('change');
+    this.events.emit("change");
     void this.startAudition(
       new URL(api.takeUrl(sceneId, lineId, file), location.href).href,
       file,
@@ -543,27 +611,39 @@ export class Takes {
       if no audition is playing. Cheap; safe to poll at RAF rate. */
   auditionPosition(): number {
     if (!this.auditionNode || !this.ctx) return -1;
-    return this.auditionStartOffset + (this.ctx.currentTime - this.auditionStartedAt);
+    return this.auditionStartOffset +
+      (this.ctx.currentTime - this.auditionStartedAt);
   }
 
-  private async startAudition(url: string, file: string, sceneId: string, lineId: string, fromSec = 0): Promise<void> {
+  private async startAudition(
+    url: string,
+    file: string,
+    sceneId: string,
+    lineId: string,
+    fromSec = 0,
+  ): Promise<void> {
     const ctx = this.audioCtx();
     void ctx.resume();
     const buf = await this.load(url);
     if (this.auditioning !== file) return; // toggled off (or replaced) while loading
-    if (!buf) { this.auditioning = null; this.events.emit('change'); return; }
+    if (!buf) {
+      this.auditioning = null;
+      this.events.emit("change");
+      return;
+    }
     const source = ctx.createBufferSource();
     source.buffer = buf;
     /* same chain as the synced preview/export so an audition is true to mix;
        routes through the master analyser so the playback meter reads it. The
        gate worklet may still be loading; gateReady() kicks the load and the
        audition simply starts ungated (a short take is rarely worth re-anchoring) */
-    buildChain(ctx, source, this.chain(sceneId, lineId), this.gateReady()).connect(this.masterAnalyser());
+    buildChain(ctx, source, this.chain(sceneId, lineId), this.gateReady())
+      .connect(this.masterAnalyser());
     source.onended = () => {
       if (this.auditionNode !== source) return;
       this.auditionNode = null;
       this.auditioning = null;
-      this.events.emit('change');
+      this.events.emit("change");
     };
     this.auditionNode = source;
     this.auditionStartOffset = fromSec;
@@ -576,12 +656,14 @@ export class Takes {
     if (source) {
       this.auditionNode = null;
       source.onended = null;
-      try { source.stop(); } catch { /* already stopped */ }
+      try {
+        source.stop();
+      } catch { /* already stopped */ }
       source.disconnect();
     }
     if (this.auditioning !== null) {
       this.auditioning = null;
-      this.events.emit('change');
+      this.events.emit("change");
     }
   }
 
@@ -597,16 +679,23 @@ export class Takes {
       Assembles the scene from its sections: plays the candidate of the line
       under the playhead, anchored at line.from + the user-set offset. */
   private sync(): void {
-    if (!this.previewEnabled || this.recorder) { this.stopPreview(); return; }
+    if (!this.previewEnabled || this.recorder) {
+      this.stopPreview();
+      return;
+    }
     const scene = this.player.scene;
     const local = this.player.localTime;
     const line = this.lineAt(scene, local);
     const file = line?.id ? this.candidate(scene.id, line.id) : null;
-    this.warmNext();            // pre-decode the next section/scene for a snappy boundary
-    if (!line || !line.id || !file) { this.stopPreview(); return; } // gap or no take: silent
+    this.warmNext(); // pre-decode the next section/scene for a snappy boundary
+    if (!line || !line.id || !file) {
+      this.stopPreview();
+      return;
+    } // gap or no take: silent
     const lineId = line.id;
 
-    const url = new URL(api.takeUrl(scene.id, line.id, file), location.href).href;
+    const url =
+      new URL(api.takeUrl(scene.id, line.id, file), location.href).href;
     const buf = this.peek(url); // kicks off the decode if needed; warms the cache while paused
 
     /* take time = how far into this line the playhead is, minus the alignment */
@@ -635,19 +724,26 @@ export class Takes {
       this.previewNode.hpFreq === hpFreq &&
       this.previewNode.gateKey === gKey &&
       /* NaN !== NaN is true, so either both absent or both equal threshold */
-      (isNaN(this.previewNode.compThreshold) ? isNaN(compThreshold) : this.previewNode.compThreshold === compThreshold)
+      (isNaN(this.previewNode.compThreshold)
+        ? isNaN(compThreshold)
+        : this.previewNode.compThreshold === compThreshold)
     ) {
-      const pos = this.previewNode.startOffset
-        + (this.audioCtx().currentTime - this.previewNode.startedAt);
+      const pos = this.previewNode.startOffset +
+        (this.audioCtx().currentTime - this.previewNode.startedAt);
       if (Math.abs(pos - t) <= 0.35) return;
     }
     this.startPreview(url, buf, t, currentChain);
   }
 
-  private startPreview(url: string, buf: AudioBuffer, t: number, chain: TakeChain | undefined): void {
+  private startPreview(
+    url: string,
+    buf: AudioBuffer,
+    t: number,
+    chain: TakeChain | undefined,
+  ): void {
     this.stopPreview();
     const ctx = this.audioCtx();
-    if (ctx.state === 'suspended') void ctx.resume();
+    if (ctx.state === "suspended") void ctx.resume();
     const source = ctx.createBufferSource();
     source.buffer = buf;
     /* same chain as audition/export; snapshot chain fields used for re-anchor
@@ -660,8 +756,19 @@ export class Takes {
     const hpFreq = chain?.highpass?.freq ?? 0;
     const compThreshold = chain?.comp?.threshold ?? NaN;
     const gKey = gateKey(chain, ready);
-    const node: PreviewNode = { source, url, gainDb, hpFreq, compThreshold, gateKey: gKey, startOffset: t, startedAt: ctx.currentTime };
-    source.onended = () => { if (this.previewNode === node) this.previewNode = null; };
+    const node: PreviewNode = {
+      source,
+      url,
+      gainDb,
+      hpFreq,
+      compThreshold,
+      gateKey: gKey,
+      startOffset: t,
+      startedAt: ctx.currentTime,
+    };
+    source.onended = () => {
+      if (this.previewNode === node) this.previewNode = null;
+    };
     this.previewNode = node;
     source.start(0, t);
   }
@@ -671,7 +778,9 @@ export class Takes {
     if (!node) return;
     this.previewNode = null;
     node.source.onended = null;
-    try { node.source.stop(); } catch { /* already stopped */ }
+    try {
+      node.source.stop();
+    } catch { /* already stopped */ }
     node.source.disconnect();
   }
 
@@ -690,17 +799,20 @@ export class Takes {
       shipped as a module asset the Vite-compatible way: a `new URL(...,
       import.meta.url)` reference Vite rewrites to the built worklet chunk. */
   private gateReady(): boolean {
-    if (this.gateModuleState === 'ready') return true;
-    if (this.gateModuleState === 'idle') {
-      this.gateModuleState = 'loading';
+    if (this.gateModuleState === "ready") return true;
+    if (this.gateModuleState === "idle") {
+      this.gateModuleState = "loading";
       const ctx = this.audioCtx();
-      const url = new URL('./gate-worklet.js', import.meta.url).href;
+      const url = new URL("./gate-worklet.js", import.meta.url).href;
       ctx.audioWorklet.addModule(url).then(() => {
-        this.gateModuleState = 'ready';
+        this.gateModuleState = "ready";
         this.sync(); // re-anchor so a pending gate becomes audible
       }).catch((e) => {
-        this.gateModuleState = 'failed';
-        console.warn('[takes] gate worklet failed to load; preview stays ungated', e);
+        this.gateModuleState = "failed";
+        console.warn(
+          "[takes] gate worklet failed to load; preview stays ungated",
+          e,
+        );
       });
     }
     return false;
@@ -724,7 +836,11 @@ export class Takes {
   private warmNext(): void {
     const warm = (sceneId: string, lineId: string | undefined): void => {
       const file = lineId ? this.candidate(sceneId, lineId) : null;
-      if (lineId && file) this.peek(new URL(api.takeUrl(sceneId, lineId, file), location.href).href);
+      if (lineId && file) {
+        this.peek(
+          new URL(api.takeUrl(sceneId, lineId, file), location.href).href,
+        );
+      }
     };
     const scene = this.player.scene;
     const local = this.player.localTime;
@@ -746,14 +862,18 @@ export class Takes {
       bad URL isn't re-fetched on every frame). Re-syncs when one lands so the
       synced preview can pick it up the moment it's ready. */
   private load(url: string): Promise<AudioBuffer | null> {
-    if (this.ready.has(url)) return Promise.resolve(this.ready.get(url) ?? null);
+    if (this.ready.has(url)) {
+      return Promise.resolve(this.ready.get(url) ?? null);
+    }
     const existing = this.pending.get(url);
     if (existing) return existing;
     const p = (async (): Promise<AudioBuffer | null> => {
       let buf: AudioBuffer | null = null;
       try {
         const resp = await fetch(url);
-        if (resp.ok) buf = await this.audioCtx().decodeAudioData(await resp.arrayBuffer());
+        if (resp.ok) {
+          buf = await this.audioCtx().decodeAudioData(await resp.arrayBuffer());
+        }
       } catch { /* leave buf null — cached as a failed decode */ }
       this.ready.set(url, buf);
       this.pending.delete(url);
