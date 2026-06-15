@@ -1,0 +1,46 @@
+/* ============================================================================
+   Meet video-studio — shared theme for all scenes.
+   Loaded once before any scene CSS. Kept small on purpose: this project is the
+   template colleagues copy, so the helpers below are the ones worth reusing.
+============================================================================ */
+:root{
+  --bg:#0b1020; --panel:#161c2e; --panel2:#1f2740; --line:#2c3350;
+  --text:#e9edf6; --dim:#93a0bd;
+  --accent:#5b9bff; --accent2:#7ee0c4; --warn:#ffcf6b; --rec:#ff5d6c;
+  --mono:'SF Mono','Cascadia Code',Consolas,monospace;
+}
+
+/* the scene mounts into #scenecontent, which fills the 1920x1080 stage */
+#scenecontent{position:absolute;inset:0;background:
+  radial-gradient(1200px 700px at 50% -10%,#13203f 0%,var(--bg) 60%);
+  color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
+  overflow:hidden;margin:0;padding:0;box-sizing:border-box}
+/* zero-specificity reset so every scene.css rule can override it */
+:where(#scenecontent *){margin:0;padding:0;box-sizing:border-box}
+
+/* ================= generic animation helpers =================
+   The engine toggles `.on` on a scheduled #id; CSS does the motion, so a scene
+   looks the same whether you play forward or scrub backward. Give an element
+   `.el` and it slides up + fades in when its schedule entry fires. */
+.el{opacity:0;transform:translateY(26px);
+  transition:opacity .5s cubic-bezier(.2,.7,.3,1),transform .5s cubic-bezier(.2,.7,.3,1)}
+.el.on{opacity:1;transform:translateY(0)}
+
+/* a full-stage overlay; stack several and fade between them */
+.ovl{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:40px;text-align:center;
+  padding:0 120px 140px;opacity:0;pointer-events:none;transition:opacity .6s;
+  background:radial-gradient(1200px 700px at 50% -10%,#13203f 0%,var(--bg) 60%)}
+.ovl.on{opacity:1}
+
+h1{font-size:92px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
+.sub{font-size:32px;color:var(--dim);font-family:var(--mono)}
+.heading{font-family:var(--mono);font-size:24px;letter-spacing:.22em;color:var(--dim)}
+.note{font-size:30px;color:var(--accent2);font-family:var(--mono)}
+
+/* caption = reserved lower-third band; keep scene content above it */
+#caption{position:absolute;bottom:0;left:0;right:0;text-align:center;
+  font-size:30px;color:#cdd6ea;font-style:italic;opacity:0;
+  transition:opacity .5s;z-index:80;padding:30px 220px 30px;
+  background:linear-gradient(transparent,rgba(5,7,16,.9) 45%)}
+#caption.on{opacity:1}

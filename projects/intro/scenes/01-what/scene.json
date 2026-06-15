@@ -1,0 +1,26 @@
+{
+  "title": "WHAT IT IS",
+  "len": 28,
+  "schedule": [
+    { "id": "title", "enter": 0.4 },
+    { "id": "sub", "enter": 1.5 },
+    { "id": "proj", "enter": 4.8 },
+    { "id": "o1b", "enter": 12.6 },
+    { "id": "fHtml", "enter": 12.9 },
+    { "id": "fCss", "enter": 14.4 },
+    { "id": "fJson", "enter": 17.8 },
+    { "id": "note", "enter": 22.0 }
+  ],
+  "captions": [
+    { "from": 8.6, "to": 12.4, "text": "one scene = three files" },
+    { "from": 22.0, "to": 27.6, "text": "the files on disk are the whole video" }
+  ],
+  "lines": [
+    { "from": 0, "to": 4.6, "text": "This is video-studio. It turns plain web files into data-driven videos." },
+    { "from": 4.8, "to": 8.4, "text": "Every video is a project: a folder of scenes." },
+    { "from": 8.6, "to": 12.6, "text": "And a scene is just three files you already know." },
+    { "from": 12.8, "to": 17.6, "text": "An HTML file for the markup, a CSS file for the look," },
+    { "from": 17.8, "to": 21.8, "text": "and a JSON file holding the timing and the narration." },
+    { "from": 22.0, "to": 27.6, "text": "Nothing is hidden in a database. The files on disk are the whole video." }
+  ]
+}

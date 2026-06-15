@@ -1,6 +1,6 @@
 # 04 - Example "intro" project
 
-Status: todo
+Status: done
 Depends on: 01, 02 (so it is selectable in the picker), 03 (to validate it)
 Plan item: 2
 

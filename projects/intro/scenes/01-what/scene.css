@@ -1,0 +1,9 @@
+.chip{font-size:34px;color:var(--text);background:var(--panel);
+  border:1px solid var(--line);border-radius:999px;padding:16px 34px}
+.chip b{color:var(--accent)}
+
+.files{display:flex;gap:40px}
+.file{width:380px;background:var(--panel);border:1px solid var(--line);
+  border-radius:18px;padding:38px 30px;text-align:center}
+.file .ext{font-family:var(--mono);font-size:36px;color:var(--accent);font-weight:600}
+.file .d{margin-top:14px;font-size:26px;color:var(--dim)}

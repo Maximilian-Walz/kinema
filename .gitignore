@@ -1,6 +1,10 @@
 node_modules/
 dist/
-# content projects are documents, not part of the tool — each gets its own repo
-/projects/
+# content projects are documents, not part of the tool — each gets its own repo.
+# the "intro" project is the one exception: it ships tracked as the template.
+/projects/*
+!/projects/intro
+/projects/intro/takes/
+/projects/intro/exports/
 # machine-local list of out-of-tree projects (see server/plugin.mjs)
 /studio.config.json

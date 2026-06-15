@@ -1,0 +1,12 @@
+{
+  "name": "Meet video-studio",
+  "width": 1920,
+  "height": 1080,
+  "scenes": [
+    "01-what",
+    "02-timeline",
+    "03-takes",
+    "04-export",
+    "05-make"
+  ]
+}
