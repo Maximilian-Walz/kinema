@@ -166,6 +166,10 @@ export class SidePanel {
       this.renderRecordSide();
       return;
     }
+    if (this.mode.mode === "tune") {
+      this.renderTuneSide();
+      return;
+    }
     if (this.tab === "script") this.renderScript();
     else if (this.tab === "takes") this.renderTakes();
     else this.renderExport();
@@ -1192,8 +1196,7 @@ export class SidePanel {
   /* highlight + autoscroll the current script line ------------------------ */
 
   private tick(): void {
-    if (this.mode.mode === "record") {
-      /* RECORD side panel re-renders when the cursor crosses a line boundary */
+    if (this.mode.mode === "record" || this.mode.mode === "tune") {
       const id = this.activeLineId();
       if (id !== this.lastRecordLineId) {
         this.lastRecordLineId = id;
@@ -1295,6 +1298,47 @@ export class SidePanel {
       dots.appendChild(row);
     });
     this.body.appendChild(dots);
+  }
+
+  /* TUNE side: playback meter + post chain for the line under the cursor.
+     The take browsing UI lives in TuneView; the side panel is dedicated to
+     output level and the picked take's post processing. */
+  private renderTuneSide(): void {
+    const scene = this.player.scene;
+    const activeId = this.activeLineId();
+    this.lastRecordLineId = activeId;
+
+    this.body.appendChild(
+      el("div", { class: "sp-scenetitle", text: `post \u00b7 ${scene.title}` }),
+    );
+
+    /* always-visible playback meter + "match all takes" */
+    this.appendPlaybackMeterBlock();
+
+    if (!activeId) {
+      this.body.appendChild(
+        el("div", { class: "sp-dim", text: "seek to a script line to adjust its post chain" }),
+      );
+      return;
+    }
+    const activeLine = scene.lines.find((ln) => ln.id === activeId);
+    const sect = this.takes.section(scene.id, activeId);
+    const block = el("div", { class: "sp-section has-takes" });
+    block.appendChild(
+      el("div", {
+        class: "sp-rec-card-line",
+        text: activeLine?.text || "(empty line)",
+        title: activeLine ? `${fmt(activeLine.from)}\u2013${fmt(activeLine.to)}` : "",
+      }),
+    );
+    if (!sect?.candidate) {
+      block.appendChild(
+        el("div", { class: "sp-dim", text: "pick a take in the comparator to edit its post chain" }),
+      );
+    } else {
+      this.appendPostControls(block, scene.id, activeId, sect);
+    }
+    this.body.appendChild(block);
   }
 
   /** A compact take row: play, name, star, delete + scrubbable waveform.
