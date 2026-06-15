@@ -21,8 +21,8 @@ projects/<name>/
 │       ├── scene.html    # stage markup, mounted into #scenecontent
 │       ├── scene.css     # scene-scoped styles
 │       └── scene.json    # title, len, schedule, captions, lines
-├── takes.json            # picked take + alignment per scene (written by the app)
-├── takes/                # recorded voice takes (runtime, gitignored)
+├── takes.json            # picked take + alignment per section (written by the app)
+├── takes/                # recorded voice takes, takes/<sceneId>/<lineId>/ (runtime, gitignored)
 └── exports/              # rendered MP4s (runtime, gitignored)
 ```
 
@@ -53,7 +53,7 @@ Scene order is whatever `project.json` lists, not alphabetical.
     { "id": "card",  "enter": 5.0, "cls": "hl" }      // toggle a custom class
   ],
   "captions": [ { "from": 4, "to": 9, "text": "lower-third caption" } ],
-  "lines":    [ { "from": 0, "to": 8, "text": "narration line read on the prompter" } ]
+  "lines":    [ { "id": "ln-x1", "from": 0, "to": 8, "text": "narration line read on the prompter" } ]
 }
 ```
 
@@ -87,6 +87,16 @@ band is a reserved lower third, so keep scene content above it.
 Narration for the teleprompter. The current line highlights and autoscrolls
 during playback, and exports do not use the line text. Aim for ~2.5 words/second
 when sizing a line's `[from, to)` window against the spoken take.
+
+Each line is also a **section**: the unit a voice take covers. A take records
+one line and is keyed by that line's **stable `id`** (a string matching
+`[\w.-]+`, unique within the scene). The id is what survives edits, inserts and
+reorders so a recorded take stays bound to its line. Write a short id per line
+(e.g. `"id": "ln-1"`); the validator checks ids are unique within a scene when
+present. Lines authored without an `id` still load: the app fills any missing
+id on first load and persists it back into `scene.json`, so older projects keep
+working. Captions do not carry an id. Merging two lines in the UI keeps the
+first line's id (and its takes) and drops the second.
 
 ## Scene markup rules
 

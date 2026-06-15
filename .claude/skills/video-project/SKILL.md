@@ -54,6 +54,13 @@ What separates a valid project from a watchable one:
   shows at a time.
 - **Give every scheduled element an `id`.** The validator flags a schedule entry
   whose `id` has no matching `#id` in `scene.html`.
+- **Give every narration line a stable `id`.** A voice take covers one line (a
+  "section") and is keyed by that line's `id`. Emit one per line, matching
+  `[\w.-]+` and unique within the scene (e.g. `"id": "ln-1"`, `"ln-2"`). The
+  validator flags duplicate or malformed ids. When you revise a scene, keep each
+  surviving line's existing `id` so its recorded take stays attached; only new
+  lines need a fresh id. (Lines authored without an id still load, but emitting
+  them keeps takes stable from the start.)
 
 ## Workflows
 
