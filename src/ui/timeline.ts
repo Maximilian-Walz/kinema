@@ -1,12 +1,12 @@
-import * as api from '../api';
-import { takeUrl } from '../api';
-import type { Takes } from '../audio/takes';
-import { drawWaveform, getPeaks } from '../audio/waveform';
-import { fmt, type Player } from '../engine/player';
-import type { History } from '../history';
-import type { TimingSync } from '../timings';
-import type { SceneData, TimedText } from '../types';
-import { el } from './dom';
+import * as api from "../api";
+import { takeUrl } from "../api";
+import type { Takes } from "../audio/takes";
+import { drawWaveform, getPeaks } from "../audio/waveform";
+import { fmt, type Player } from "../engine/player";
+import type { History } from "../history";
+import type { TimingSync } from "../timings";
+import type { SceneData, TimedText } from "../types";
+import { el } from "./dom";
 
 /* ============================================================================
    Timeline editor. Tracks, top to bottom:
@@ -36,13 +36,13 @@ const round = (v: number, step: number): number => Math.round(v / step) * step;
 
 interface ClipRecord {
   div: HTMLElement;
-  place: () => void;                       // re-apply left/width from the model
+  place: () => void; // re-apply left/width from the model
   isCurrent?: (time: number) => boolean;
-  key?: string;                            // present = selectable
+  key?: string; // present = selectable
   scene?: SceneData;
-  edges?: () => number[];                  // absolute times, used as snap targets
-  beginMove?: () => (delta: number) => void;  // participate in (multi-)drag
-  remove?: () => void;                     // delete from the model
+  edges?: () => number[]; // absolute times, used as snap targets
+  beginMove?: () => (delta: number) => void; // participate in (multi-)drag
+  remove?: () => void; // delete from the model
 }
 
 export class Timeline {
@@ -62,7 +62,13 @@ export class Timeline {
   private selection = new Set<string>();
   private dragging = false;
 
-  constructor(root: HTMLElement, player: Player, takes: Takes, sync: TimingSync, history: History) {
+  constructor(
+    root: HTMLElement,
+    player: Player,
+    takes: Takes,
+    sync: TimingSync,
+    history: History,
+  ) {
     this.root = root;
     this.player = player;
     this.takes = takes;
@@ -70,13 +76,21 @@ export class Timeline {
     this.history = history;
     this.buildShell();
 
-    player.events.on('time', () => this.onTime());
-    player.events.on('scene', () => { if (!this.dragging) this.rebuild(); });
-    player.events.on('timings', () => { if (!this.dragging) this.rebuild(); });
-    player.events.on('loop', () => this.placeLoop());
-    takes.events.on('change', () => { if (!this.dragging) this.rebuild(); });
+    player.events.on("time", () => this.onTime());
+    player.events.on("scene", () => {
+      if (!this.dragging) this.rebuild();
+    });
+    player.events.on("timings", () => {
+      if (!this.dragging) this.rebuild();
+    });
+    player.events.on("loop", () => this.placeLoop());
+    takes.events.on("change", () => {
+      if (!this.dragging) this.rebuild();
+    });
 
-    requestAnimationFrame(() => { this.fit(); });
+    requestAnimationFrame(() => {
+      this.fit();
+    });
 
     /* The timeline is hidden in RECORD/TUNE modes (display:none), so the
        initial fit() above measures zero width and pps clamps to its 1.5
@@ -99,40 +113,56 @@ export class Timeline {
   /* ------------------------------ shell --------------------------------- */
 
   private buildShell(): void {
-    const zoomOut = el('button', { text: '−', title: 'zoom out' });
-    const zoomFit = el('button', { text: 'fit', title: 'fit whole video' });
-    const zoomIn = el('button', { text: '+', title: 'zoom in' });
+    const zoomOut = el("button", { text: "−", title: "zoom out" });
+    const zoomFit = el("button", { text: "fit", title: "fit whole video" });
+    const zoomIn = el("button", { text: "+", title: "zoom in" });
     zoomOut.onclick = () => this.zoom(1 / 1.5);
     zoomIn.onclick = () => this.zoom(1.5);
     zoomFit.onclick = () => this.fit();
 
-    const addLine = el('button', { text: '+ line', title: 'add a narration line at the playhead' });
-    const addCap = el('button', { text: '+ caption', title: 'add a caption at the playhead' });
-    const addElem = el('button', { text: '+ element', title: 'add a schedule entry at the playhead' });
-    addLine.onclick = () => this.addText('lines');
-    addCap.onclick = () => this.addText('captions');
+    const addLine = el("button", {
+      text: "+ line",
+      title: "add a narration line at the playhead",
+    });
+    const addCap = el("button", {
+      text: "+ caption",
+      title: "add a caption at the playhead",
+    });
+    const addElem = el("button", {
+      text: "+ element",
+      title: "add a schedule entry at the playhead",
+    });
+    addLine.onclick = () => this.addText("lines");
+    addCap.onclick = () => this.addText("captions");
     addElem.onclick = () => this.addElement();
 
-    const toolbar = el('div', { class: 'tl-toolbar' },
-      el('span', { class: 'tl-title', text: 'TIMELINE' }),
-      zoomOut, zoomFit, zoomIn,
-      el('span', { class: 'tl-sep' }),
-      addLine, addCap, addElem,
-      el('span', {
-        class: 'tl-hint',
-        text: 'drag = move (snaps, shift = free) · ctrl+click / marquee = multi-select · del = delete · dbl-click = edit text · I/O or alt+drag = loop · ctrl+wheel = zoom',
+    const toolbar = el(
+      "div",
+      { class: "tl-toolbar" },
+      el("span", { class: "tl-title", text: "TIMELINE" }),
+      zoomOut,
+      zoomFit,
+      zoomIn,
+      el("span", { class: "tl-sep" }),
+      addLine,
+      addCap,
+      addElem,
+      el("span", {
+        class: "tl-hint",
+        text:
+          "drag = move (snaps, shift = free) · ctrl+click / marquee = multi-select · del = delete · dbl-click = edit text · I/O or alt+drag = loop · ctrl+wheel = zoom",
       }),
     );
 
-    this.scroll = el('div', { class: 'tl-scroll' });
-    this.canvas = el('div', { class: 'tl-canvas' });
-    this.playhead = el('div', { class: 'tl-playhead' });
-    this.snapGuide = el('div', { class: 'tl-snapguide' });
-    this.loopEl = el('div', { class: 'tl-loop' });
+    this.scroll = el("div", { class: "tl-scroll" });
+    this.canvas = el("div", { class: "tl-canvas" });
+    this.playhead = el("div", { class: "tl-playhead" });
+    this.snapGuide = el("div", { class: "tl-snapguide" });
+    this.loopEl = el("div", { class: "tl-loop" });
     this.scroll.appendChild(this.canvas);
     this.root.append(toolbar, this.scroll);
 
-    this.scroll.addEventListener('wheel', (e) => {
+    this.scroll.addEventListener("wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
       const rect = this.scroll.getBoundingClientRect();
@@ -149,7 +179,10 @@ export class Timeline {
   }
 
   private fit(): void {
-    this.pps = Math.max(1.5, (this.scroll.clientWidth - 40) / Math.max(1, this.player.total));
+    this.pps = Math.max(
+      1.5,
+      (this.scroll.clientWidth - 40) / Math.max(1, this.player.total),
+    );
     this.rebuild();
   }
 
@@ -158,20 +191,24 @@ export class Timeline {
   rebuild(): void {
     const P = this.player;
     this.clips = [];
-    this.canvas.innerHTML = '';
-    this.canvas.style.width = P.total * this.pps + 60 + 'px';
+    this.canvas.innerHTML = "";
+    this.canvas.style.width = P.total * this.pps + 60 + "px";
 
     this.canvas.appendChild(this.buildRuler());
 
     for (let i = 1; i < P.project.scenes.length; i++) {
-      const line = el('div', { class: 'tl-grid' });
-      line.style.left = P.offsets[i] * this.pps + 'px';
+      const line = el("div", { class: "tl-grid" });
+      line.style.left = P.offsets[i] * this.pps + "px";
       this.canvas.appendChild(line);
     }
 
     this.canvas.appendChild(this.buildScenesTrack());
-    this.canvas.appendChild(this.buildTextTrack('SCRIPT', 'tl-script', (s) => s.lines));
-    this.canvas.appendChild(this.buildTextTrack('CAPTIONS', 'tl-captions', (s) => s.captions));
+    this.canvas.appendChild(
+      this.buildTextTrack("SCRIPT", "tl-script", (s) => s.lines),
+    );
+    this.canvas.appendChild(
+      this.buildTextTrack("CAPTIONS", "tl-captions", (s) => s.captions),
+    );
     this.canvas.appendChild(this.buildElementsTrack());
     this.canvas.appendChild(this.buildTakesTrack());
 
@@ -182,33 +219,42 @@ export class Timeline {
     /* empty space: click = seek + deselect, drag = marquee select, alt+drag = loop */
     this.canvas.onpointerdown = (e) => {
       const target = e.target as HTMLElement;
-      if (target.closest('.tl-clip, .tl-handle, .tl-edit')) return;
-      if (e.altKey) { this.loopDrag(e); return; }
-      if (target.closest('.tl-ruler')) { this.seekDrag(e); return; }
+      if (target.closest(".tl-clip, .tl-handle, .tl-edit")) return;
+      if (e.altKey) {
+        this.loopDrag(e);
+        return;
+      }
+      if (target.closest(".tl-ruler")) {
+        this.seekDrag(e);
+        return;
+      }
       this.marqueeOrSeek(e);
     };
   }
 
   private timeAt(clientX: number): number {
     const rect = this.canvas.getBoundingClientRect();
-    return Math.max(0, Math.min(this.player.total, (clientX - rect.left) / this.pps));
+    return Math.max(
+      0,
+      Math.min(this.player.total, (clientX - rect.left) / this.pps),
+    );
   }
 
   private buildRuler(): HTMLElement {
-    const ruler = el('div', { class: 'tl-ruler' });
+    const ruler = el("div", { class: "tl-ruler" });
     const steps = [0.5, 1, 2, 5, 10, 15, 30, 60];
     const major = steps.find((s) => s * this.pps >= 64) ?? 60;
     for (let t = 0; t <= this.player.total; t += major) {
-      const tick = el('div', { class: 'tl-tick', text: fmt(t) });
-      tick.style.left = t * this.pps + 'px';
+      const tick = el("div", { class: "tl-tick", text: fmt(t) });
+      tick.style.left = t * this.pps + "px";
       ruler.appendChild(tick);
     }
     const minor = major / 5;
     if (minor * this.pps >= 7) {
       for (let t = 0; t <= this.player.total; t += minor) {
         if (Math.abs(t % major) < 1e-6) continue;
-        const tick = el('div', { class: 'tl-tick-minor' });
-        tick.style.left = t * this.pps + 'px';
+        const tick = el("div", { class: "tl-tick-minor" });
+        tick.style.left = t * this.pps + "px";
         ruler.appendChild(tick);
       }
     }
@@ -218,29 +264,46 @@ export class Timeline {
   /* ---------------------------- scenes track ----------------------------- */
 
   private buildScenesTrack(): HTMLElement {
-    const track = el('div', { class: 'tl-track tl-scenes' }, this.label('SCENES'));
+    const track = el(
+      "div",
+      { class: "tl-track tl-scenes" },
+      this.label("SCENES"),
+    );
     this.player.project.scenes.forEach((scene, i) => {
-      const block = el('div', { class: 'tl-clip tl-scene' },
-        el('span', { class: 'tl-scenename', text: `${i + 1} · ${scene.title}` }),
-        el('span', { class: 'tl-scenelen', text: fmt(scene.len) }),
+      const block = el(
+        "div",
+        { class: "tl-clip tl-scene" },
+        el("span", {
+          class: "tl-scenename",
+          text: `${i + 1} · ${scene.title}`,
+        }),
+        el("span", { class: "tl-scenelen", text: fmt(scene.len) }),
       );
-      const handle = el('div', { class: 'tl-handle tl-handle-r', title: 'drag to change scene length' });
+      const handle = el("div", {
+        class: "tl-handle tl-handle-r",
+        title: "drag to change scene length",
+      });
       block.appendChild(handle);
 
       const place = (): void => {
-        block.style.left = this.player.offsets[i] * this.pps + 'px';
-        block.style.width = Math.max(8, scene.len * this.pps - 2) + 'px';
+        block.style.left = this.player.offsets[i] * this.pps + "px";
+        block.style.width = Math.max(8, scene.len * this.pps - 2) + "px";
         (block.children[1] as HTMLElement).textContent = fmt(scene.len);
       };
       this.clips.push({
-        div: block, place,
+        div: block,
+        place,
         isCurrent: () => this.player.sceneIndex === i,
-        edges: () => [this.player.offsets[i], this.player.offsets[i] + scene.len],
+        edges:
+          () => [this.player.offsets[i], this.player.offsets[i] + scene.len],
       });
 
       block.onpointerdown = (e) => {
-        if ((e.target as HTMLElement).closest('.tl-handle')) return;
-        if (e.altKey) { this.loopDrag(e); return; }
+        if ((e.target as HTMLElement).closest(".tl-handle")) return;
+        if (e.altKey) {
+          this.loopDrag(e);
+          return;
+        }
         this.seekDrag(e);
       };
       handle.onpointerdown = (e) => {
@@ -251,7 +314,9 @@ export class Timeline {
           scenes: [scene],
           excluded: new Set([block]),
           edges: [end],
-          apply: (delta) => { scene.len = Math.max(1, round(orig + delta, FINE)); },
+          apply: (delta) => {
+            scene.len = Math.max(1, round(orig + delta, FINE));
+          },
         });
       };
       track.appendChild(block);
@@ -267,28 +332,40 @@ export class Timeline {
     cls: string,
     pick: (s: SceneData) => TimedText[],
   ): HTMLElement {
-    const kind = cls === 'tl-script' ? 'line' : 'caption';
-    const track = el('div', { class: `tl-track ${cls}` }, this.label(name));
+    const kind = cls === "tl-script" ? "line" : "caption";
+    const track = el("div", { class: `tl-track ${cls}` }, this.label(name));
     this.player.project.scenes.forEach((scene, si) => {
       pick(scene).forEach((item, idx) => {
         const key = `${scene.id}|${kind}|${idx}`;
-        const clip = el('div', { class: 'tl-clip tl-text', title: item.text },
-          el('span', { class: 'tl-cliptext', text: item.text }));
-        const hl = el('div', { class: 'tl-handle tl-handle-l' });
-        const hr = el('div', { class: 'tl-handle tl-handle-r' });
+        const clip = el(
+          "div",
+          { class: "tl-clip tl-text", title: item.text },
+          el("span", { class: "tl-cliptext", text: item.text }),
+        );
+        const hl = el("div", { class: "tl-handle tl-handle-l" });
+        const hr = el("div", { class: "tl-handle tl-handle-r" });
         clip.append(hl, hr);
 
         const place = (): void => {
-          clip.style.left = (this.player.offsets[si] + item.from) * this.pps + 'px';
-          clip.style.width = Math.max(6, (item.to - item.from) * this.pps - 1) + 'px';
+          clip.style.left = (this.player.offsets[si] + item.from) * this.pps +
+            "px";
+          clip.style.width = Math.max(6, (item.to - item.from) * this.pps - 1) +
+            "px";
         };
         const record: ClipRecord = {
-          div: clip, place, key, scene,
+          div: clip,
+          place,
+          key,
+          scene,
           isCurrent: (time) => {
             const local = time - this.player.offsets[si];
             return local >= item.from && local < item.to;
           },
-          edges: () => [this.player.offsets[si] + item.from, this.player.offsets[si] + item.to],
+          edges:
+            () => [
+              this.player.offsets[si] + item.from,
+              this.player.offsets[si] + item.to,
+            ],
           beginMove: () => {
             const oF = item.from, oT = item.to;
             return (delta) => {
@@ -316,8 +393,15 @@ export class Timeline {
               excluded: new Set([clip]),
               edges: [this.player.offsets[si] + orig],
               apply: (delta) => {
-                if (isL) item.from = Math.min(item.to - 0.2, Math.max(0, round(orig + delta, FINE)));
-                else item.to = Math.max(item.from + 0.2, Math.min(scene.len, round(orig + delta, FINE)));
+                if (isL) {
+                  item.from = Math.min(
+                    item.to - 0.2,
+                    Math.max(0, round(orig + delta, FINE)),
+                  );
+                } else {item.to = Math.max(
+                    item.from + 0.2,
+                    Math.min(scene.len, round(orig + delta, FINE)),
+                  );}
               },
             });
           } else {
@@ -341,57 +425,74 @@ export class Timeline {
     const P = this.player;
     const si = P.sceneIndex;
     const scene = P.project.scenes[si];
-    const track = el('div', { class: 'tl-track tl-elements' },
-      this.label(`ELEMENTS · scene ${si + 1}`));
+    const track = el(
+      "div",
+      { class: "tl-track tl-elements" },
+      this.label(`ELEMENTS · scene ${si + 1}`),
+    );
 
     const lanes: number[] = [];
     const entries = scene.schedule.map((ev, idx) => {
       const isSpan = ev.exit !== undefined;
-      const name = ev.id + (ev.cls && ev.cls !== 'on' ? '.' + ev.cls : '');
+      const name = ev.id + (ev.cls && ev.cls !== "on" ? "." + ev.cls : "");
       const startPx = (P.offsets[si] + ev.enter) * this.pps;
       const widthPx = isSpan
         ? Math.max(10, (ev.exit! - ev.enter) * this.pps)
         : name.length * 6.6 + 18;
       let lane = lanes.findIndex((end) => end <= startPx + 0.5);
-      if (lane < 0) { lane = lanes.length; lanes.push(0); }
+      if (lane < 0) {
+        lane = lanes.length;
+        lanes.push(0);
+      }
       lanes[lane] = startPx + widthPx + 6;
       return { ev, idx, isSpan, name, lane };
     });
-    track.style.height = 26 + Math.max(1, lanes.length) * 20 + 'px';
+    track.style.height = 26 + Math.max(1, lanes.length) * 20 + "px";
 
     for (const { ev, idx, isSpan, name, lane } of entries) {
       const key = `${scene.id}|sched|${idx}`;
-      const clip = el('div', {
-        class: 'tl-clip tl-element' + (isSpan ? '' : ' tl-marker'),
-        title: name + ` · in ${ev.enter}s` + (isSpan ? ` · out ${ev.exit}s` : ' (stays on — drag right edge to add an exit)'),
-      }, el('span', { class: 'tl-cliptext', text: name }));
-      const hl = isSpan ? el('div', { class: 'tl-handle tl-handle-l' }) : null;
-      const hr = el('div', { class: 'tl-handle tl-handle-r' });
+      const clip = el("div", {
+        class: "tl-clip tl-element" + (isSpan ? "" : " tl-marker"),
+        title: name + ` · in ${ev.enter}s` +
+          (isSpan
+            ? ` · out ${ev.exit}s`
+            : " (stays on — drag right edge to add an exit)"),
+      }, el("span", { class: "tl-cliptext", text: name }));
+      const hl = isSpan ? el("div", { class: "tl-handle tl-handle-l" }) : null;
+      const hr = el("div", { class: "tl-handle tl-handle-r" });
       if (hl) clip.appendChild(hl);
       clip.appendChild(hr);
 
       const place = (): void => {
-        clip.style.left = (P.offsets[si] + ev.enter) * this.pps + 'px';
-        clip.style.top = 24 + lane * 20 + 'px';
+        clip.style.left = (P.offsets[si] + ev.enter) * this.pps + "px";
+        clip.style.top = 24 + lane * 20 + "px";
         if (ev.exit !== undefined) {
-          clip.style.width = Math.max(8, (ev.exit - ev.enter) * this.pps - 1) + 'px';
+          clip.style.width = Math.max(8, (ev.exit - ev.enter) * this.pps - 1) +
+            "px";
         }
       };
       const record: ClipRecord = {
-        div: clip, place, key, scene,
+        div: clip,
+        place,
+        key,
+        scene,
         isCurrent: (time) => {
           const local = time - P.offsets[si];
-          return local >= ev.enter && (ev.exit === undefined || local < ev.exit);
+          return local >= ev.enter &&
+            (ev.exit === undefined || local < ev.exit);
         },
-        edges: () => ev.exit === undefined
-          ? [P.offsets[si] + ev.enter]
-          : [P.offsets[si] + ev.enter, P.offsets[si] + ev.exit],
+        edges: () =>
+          ev.exit === undefined
+            ? [P.offsets[si] + ev.enter]
+            : [P.offsets[si] + ev.enter, P.offsets[si] + ev.exit],
         beginMove: () => {
           const oE = ev.enter, oX = ev.exit;
           return (delta) => {
             const d = Math.max(-oE, delta);
             ev.enter = round(oE + d, FINE);
-            if (oX !== undefined) ev.exit = Math.min(scene.len, round(oX + d, FINE));
+            if (oX !== undefined) {
+              ev.exit = Math.min(scene.len, round(oX + d, FINE));
+            }
           };
         },
         remove: () => {
@@ -411,7 +512,10 @@ export class Timeline {
             excluded: new Set([clip]),
             edges: [P.offsets[si] + orig],
             apply: (delta) => {
-              ev.enter = Math.min((ev.exit ?? scene.len) - 0.1, Math.max(0, round(orig + delta, FINE)));
+              ev.enter = Math.min(
+                (ev.exit ?? scene.len) - 0.1,
+                Math.max(0, round(orig + delta, FINE)),
+              );
             },
           });
         } else if (target === hr) {
@@ -422,7 +526,10 @@ export class Timeline {
             excluded: new Set([clip]),
             edges: [P.offsets[si] + orig],
             apply: (delta) => {
-              ev.exit = Math.max(ev.enter + 0.1, Math.min(scene.len, round(orig + delta, FINE)));
+              ev.exit = Math.max(
+                ev.enter + 0.1,
+                Math.min(scene.len, round(orig + delta, FINE)),
+              );
             },
           });
         } else {
@@ -439,7 +546,11 @@ export class Timeline {
 
   private buildTakesTrack(): HTMLElement {
     const P = this.player;
-    const track = el('div', { class: 'tl-track tl-takes' }, this.label('VOICE'));
+    const track = el(
+      "div",
+      { class: "tl-track tl-takes" },
+      this.label("VOICE"),
+    );
     /* one waveform clip per section: left = line.from, width = line length;
        dragging aligns that section's take (per-file offset). */
     P.project.scenes.forEach((scene, i) => {
@@ -450,15 +561,17 @@ export class Timeline {
         const sect = this.takes.section(scene.id, lineId)!;
         const span = ln.to - ln.from;
         const w = Math.max(8, Math.floor(span * this.pps) - 2);
-        const cv = el('canvas', { class: 'tl-wave' }) as HTMLCanvasElement;
+        const cv = el("canvas", { class: "tl-wave" }) as HTMLCanvasElement;
         cv.width = Math.min(8192, w);
         cv.height = 36;
-        cv.style.width = w + 'px';
-        const holder = el('div', { class: 'tl-clip tl-take' }, cv);
+        cv.style.width = w + "px";
+        const holder = el("div", { class: "tl-clip tl-take" }, cv);
         const left = (): number => P.offsets[i] + ln.from + (sect.offset || 0);
         const place = (): void => {
-          holder.style.left = left() * this.pps + 'px';
-          holder.title = `${file} · offset ${(sect.offset || 0).toFixed(2)}s — drag to align with the line`;
+          holder.style.left = left() * this.pps + "px";
+          holder.title = `${file} · offset ${
+            (sect.offset || 0).toFixed(2)
+          }s — drag to align with the line`;
         };
         this.clips.push({ div: holder, place, edges: () => [left()] });
 
@@ -471,7 +584,10 @@ export class Timeline {
             excluded: new Set([holder]),
             edges: [P.offsets[i] + ln.from + orig],
             apply: (delta) => {
-              sect.offset = Math.max(-30, Math.min(30, round(orig + delta, FINE)));
+              sect.offset = Math.max(
+                -30,
+                Math.min(30, round(orig + delta, FINE)),
+              );
               clearTimeout(timer);
               timer = window.setTimeout(() => {
                 void api.setTakeOffset(scene.id, lineId, file, sect.offset);
@@ -481,9 +597,13 @@ export class Timeline {
         };
         track.appendChild(holder);
         place();
-        void getPeaks(takeUrl(scene.id, lineId, file)).then(({ peaks, duration }) => {
-          if (cv.isConnected) drawWaveform(cv, peaks, duration, span, '#7ee787');
-        });
+        void getPeaks(takeUrl(scene.id, lineId, file)).then(
+          ({ peaks, duration }) => {
+            if (cv.isConnected) {
+              drawWaveform(cv, peaks, duration, span, "#7ee787");
+            }
+          },
+        );
       });
     });
     return track;
@@ -494,17 +614,22 @@ export class Timeline {
   private setSelection(keys: Iterable<string>): void {
     this.selection = new Set(keys);
     for (const c of this.clips) {
-      if (c.key) c.div.classList.toggle('selected', this.selection.has(c.key));
+      if (c.key) c.div.classList.toggle("selected", this.selection.has(c.key));
     }
   }
 
   deleteSelection(): void {
-    const records = this.clips.filter((c) => c.key && this.selection.has(c.key) && c.remove);
+    const records = this.clips.filter((c) =>
+      c.key && this.selection.has(c.key) && c.remove
+    );
     if (!records.length) return;
     const scenes = [...new Set(records.map((r) => r.scene!))];
     const snaps = scenes.map((s) => ({ s, before: this.history.snapshot(s) }));
     records.forEach((r) => r.remove!());
-    snaps.forEach(({ s, before }) => { this.history.commit(s, before); this.sync.changed(s); });
+    snaps.forEach(({ s, before }) => {
+      this.history.commit(s, before);
+      this.sync.changed(s);
+    });
     this.setSelection([]);
     this.rebuild();
   }
@@ -525,7 +650,9 @@ export class Timeline {
       this.setSelection(next);
       return;
     }
-    const moving = this.clips.filter((c) => c.key && this.selection.has(c.key) && c.beginMove);
+    const moving = this.clips.filter((c) =>
+      c.key && this.selection.has(c.key) && c.beginMove
+    );
     const movers = moving.map((c) => c.beginMove!());
     this.beginDrag(e, {
       scenes: [...new Set(moving.map((c) => c.scene!))],
@@ -546,22 +673,23 @@ export class Timeline {
   }): void {
     this.dragging = true;
     const startX = e.clientX;
-    const snaps = spec.scenes.map((s) => ({ s, before: this.history.snapshot(s) }));
+    const snaps = spec.scenes.map((s) => ({
+      s,
+      before: this.history.snapshot(s),
+    }));
     const targets = this.snapTargets(spec.excluded);
-    this.capture(e,
-      (ev) => {
-        const raw = (ev.clientX - startX) / this.pps;
-        const delta = this.snapDelta(raw, spec.edges, targets, ev.shiftKey);
-        spec.apply(delta);
-        spec.scenes.forEach((s) => this.sync.changed(s));
-        this.placeAll();
-      },
-      () => {
-        this.dragging = false;
-        this.snapGuide.style.display = 'none';
-        snaps.forEach(({ s, before }) => this.history.commit(s, before));
-        this.rebuild();
-      });
+    this.capture(e, (ev) => {
+      const raw = (ev.clientX - startX) / this.pps;
+      const delta = this.snapDelta(raw, spec.edges, targets, ev.shiftKey);
+      spec.apply(delta);
+      spec.scenes.forEach((s) => this.sync.changed(s));
+      this.placeAll();
+    }, () => {
+      this.dragging = false;
+      this.snapGuide.style.display = "none";
+      snaps.forEach(({ s, before }) => this.history.commit(s, before));
+      this.rebuild();
+    });
   }
 
   /** snap candidates: playhead, video bounds, scene bounds, loop, clip edges */
@@ -576,9 +704,14 @@ export class Timeline {
     return targets;
   }
 
-  private snapDelta(raw: number, edges: number[], targets: number[], free: boolean): number {
+  private snapDelta(
+    raw: number,
+    edges: number[],
+    targets: number[],
+    free: boolean,
+  ): number {
     if (free) {
-      this.snapGuide.style.display = 'none';
+      this.snapGuide.style.display = "none";
       return round(raw, FINE);
     }
     const thresh = 8 / this.pps;
@@ -587,31 +720,36 @@ export class Timeline {
       for (const target of targets) {
         const delta = target - edge;
         const dist = Math.abs(raw - delta);
-        if (dist < thresh && (!best || dist < best.dist)) best = { delta, target, dist };
+        if (dist < thresh && (!best || dist < best.dist)) {
+          best = { delta, target, dist };
+        }
       }
     }
     if (best) {
-      this.snapGuide.style.left = best.target * this.pps + 'px';
-      this.snapGuide.style.display = 'block';
+      this.snapGuide.style.left = best.target * this.pps + "px";
+      this.snapGuide.style.display = "block";
       return best.delta;
     }
-    this.snapGuide.style.display = 'none';
+    this.snapGuide.style.display = "none";
     return round(raw, GRID);
   }
 
   /* ---------------------- seek / loop / marquee drags -------------------- */
 
   private seekDrag(e: PointerEvent): void {
-    const seek = (ev: PointerEvent): void => this.player.seek(this.timeAt(ev.clientX));
+    const seek = (ev: PointerEvent): void =>
+      this.player.seek(this.timeAt(ev.clientX));
     seek(e);
     this.capture(e, seek, () => {});
   }
 
   private loopDrag(e: PointerEvent): void {
     const start = this.timeAt(e.clientX);
-    this.capture(e,
+    this.capture(
+      e,
       (ev) => this.player.setLoop({ start, end: this.timeAt(ev.clientX) }),
-      () => {});
+      () => {},
+    );
   }
 
   private marqueeOrSeek(e: PointerEvent): void {
@@ -619,52 +757,62 @@ export class Timeline {
     const canvasRect = this.canvas.getBoundingClientRect();
     let marquee: HTMLElement | null = null;
     const additive = e.ctrlKey || e.metaKey;
-    const baseSelection = additive ? new Set(this.selection) : new Set<string>();
-    this.capture(e,
-      (ev) => {
-        if (!marquee && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
-        if (!marquee) {
-          marquee = el('div', { class: 'tl-marquee' });
-          this.canvas.appendChild(marquee);
-        }
-        const x1 = Math.min(startX, ev.clientX) - canvasRect.left;
-        const x2 = Math.max(startX, ev.clientX) - canvasRect.left;
-        const y1 = Math.min(startY, ev.clientY) - canvasRect.top;
-        const y2 = Math.max(startY, ev.clientY) - canvasRect.top;
-        Object.assign(marquee.style, {
-          left: x1 + 'px', top: y1 + 'px',
-          width: x2 - x1 + 'px', height: y2 - y1 + 'px',
-        });
-        const next = new Set(baseSelection);
-        for (const c of this.clips) {
-          if (!c.key) continue;
-          const r = c.div.getBoundingClientRect();
-          const cx1 = r.left - canvasRect.left, cx2 = r.right - canvasRect.left;
-          const cy1 = r.top - canvasRect.top, cy2 = r.bottom - canvasRect.top;
-          if (cx1 < x2 && cx2 > x1 && cy1 < y2 && cy2 > y1) next.add(c.key);
-        }
-        this.setSelection(next);
-      },
-      () => {
-        if (marquee) {
-          marquee.remove();
-        } else {
-          this.player.seek(this.timeAt(startX));
-          this.setSelection([]);
-        }
+    const baseSelection = additive
+      ? new Set(this.selection)
+      : new Set<string>();
+    this.capture(e, (ev) => {
+      if (
+        !marquee && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5
+      ) return;
+      if (!marquee) {
+        marquee = el("div", { class: "tl-marquee" });
+        this.canvas.appendChild(marquee);
+      }
+      const x1 = Math.min(startX, ev.clientX) - canvasRect.left;
+      const x2 = Math.max(startX, ev.clientX) - canvasRect.left;
+      const y1 = Math.min(startY, ev.clientY) - canvasRect.top;
+      const y2 = Math.max(startY, ev.clientY) - canvasRect.top;
+      Object.assign(marquee.style, {
+        left: x1 + "px",
+        top: y1 + "px",
+        width: x2 - x1 + "px",
+        height: y2 - y1 + "px",
       });
+      const next = new Set(baseSelection);
+      for (const c of this.clips) {
+        if (!c.key) continue;
+        const r = c.div.getBoundingClientRect();
+        const cx1 = r.left - canvasRect.left, cx2 = r.right - canvasRect.left;
+        const cy1 = r.top - canvasRect.top, cy2 = r.bottom - canvasRect.top;
+        if (cx1 < x2 && cx2 > x1 && cy1 < y2 && cy2 > y1) next.add(c.key);
+      }
+      this.setSelection(next);
+    }, () => {
+      if (marquee) {
+        marquee.remove();
+      } else {
+        this.player.seek(this.timeAt(startX));
+        this.setSelection([]);
+      }
+    });
   }
 
   /* --------------------------- inline text edit -------------------------- */
 
   private editText(clip: HTMLElement, scene: SceneData, item: TimedText): void {
-    if (clip.querySelector('.tl-edit')) return;
-    const input = el('input', { class: 'tl-edit', type: 'text' }) as HTMLInputElement;
+    if (clip.querySelector(".tl-edit")) return;
+    const input = el("input", {
+      class: "tl-edit",
+      type: "text",
+    }) as HTMLInputElement;
     input.value = item.text;
     input.onpointerdown = (e) => e.stopPropagation();
     const finish = (commit: boolean): void => {
       input.remove();
-      if (!commit || input.value === item.text) { this.rebuild(); return; }
+      if (!commit || input.value === item.text) {
+        this.rebuild();
+        return;
+      }
       const before = this.history.snapshot(scene);
       item.text = input.value;
       this.history.commit(scene, before);
@@ -674,8 +822,8 @@ export class Timeline {
     input.onblur = () => finish(true);
     input.onkeydown = (e) => {
       e.stopPropagation();
-      if (e.key === 'Enter') finish(true);
-      else if (e.key === 'Escape') finish(false);
+      if (e.key === "Enter") finish(true);
+      else if (e.key === "Escape") finish(false);
     };
     clip.appendChild(input);
     input.focus();
@@ -684,13 +832,16 @@ export class Timeline {
 
   /* ------------------------------ add clips ------------------------------ */
 
-  private addText(kind: 'lines' | 'captions'): void {
+  private addText(kind: "lines" | "captions"): void {
     const scene = this.player.scene;
-    const at = Math.min(Math.max(0, this.player.localTime), Math.max(0, scene.len - 0.5));
+    const at = Math.min(
+      Math.max(0, this.player.localTime),
+      Math.max(0, scene.len - 0.5),
+    );
     const item: TimedText = {
       from: round(at, GRID),
       to: round(Math.min(scene.len, at + 3), GRID),
-      text: kind === 'lines' ? 'new narration line' : 'new caption',
+      text: kind === "lines" ? "new narration line" : "new caption",
     };
     const before = this.history.snapshot(scene);
     const arr = scene[kind];
@@ -701,7 +852,7 @@ export class Timeline {
     this.rebuild();
     /* open the editor on the new clip right away */
     const idx = arr.indexOf(item);
-    const key = `${scene.id}|${kind === 'lines' ? 'line' : 'caption'}|${idx}`;
+    const key = `${scene.id}|${kind === "lines" ? "line" : "caption"}|${idx}`;
     this.setSelection([key]);
     const rec = this.clips.find((c) => c.key === key);
     if (rec) this.editText(rec.div, scene, item);
@@ -709,13 +860,17 @@ export class Timeline {
 
   private addElement(): void {
     const scene = this.player.scene;
-    const raw = window.prompt('element id to schedule (e.g. "s1win", "s1win.hl" for a class other than "on"):');
+    const raw = window.prompt(
+      'element id to schedule (e.g. "s1win", "s1win.hl" for a class other than "on"):',
+    );
     if (!raw) return;
     const m = /^([\w-]+)(?:\.([\w-]+))?$/.exec(raw.trim());
     if (!m) return;
     const before = this.history.snapshot(scene);
-    const entry: { id: string; enter: number; cls?: string } =
-      { id: m[1], enter: round(Math.max(0, this.player.localTime), GRID) };
+    const entry: { id: string; enter: number; cls?: string } = {
+      id: m[1],
+      enter: round(Math.max(0, this.player.localTime), GRID),
+    };
     if (m[2]) entry.cls = m[2];
     scene.schedule.push(entry);
     this.history.commit(scene, before);
@@ -727,7 +882,7 @@ export class Timeline {
   /* ------------------------------ helpers -------------------------------- */
 
   private label(text: string): HTMLElement {
-    return el('div', { class: 'tl-label', text });
+    return el("div", { class: "tl-label", text });
   }
 
   private placeAll(): void {
@@ -736,10 +891,13 @@ export class Timeline {
 
   private placeLoop(): void {
     const loop = this.player.loop;
-    if (!loop) { this.loopEl.style.display = 'none'; return; }
-    this.loopEl.style.display = 'block';
-    this.loopEl.style.left = loop.start * this.pps + 'px';
-    this.loopEl.style.width = (loop.end - loop.start) * this.pps + 'px';
+    if (!loop) {
+      this.loopEl.style.display = "none";
+      return;
+    }
+    this.loopEl.style.display = "block";
+    this.loopEl.style.left = loop.start * this.pps + "px";
+    this.loopEl.style.width = (loop.end - loop.start) * this.pps + "px";
   }
 
   private capture(
@@ -751,14 +909,14 @@ export class Timeline {
     target.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent): void => onMove(ev);
     const up = (): void => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', up);
-      target.removeEventListener('pointercancel', up);
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", up);
+      target.removeEventListener("pointercancel", up);
       onUp();
     };
-    target.addEventListener('pointermove', move);
-    target.addEventListener('pointerup', up);
-    target.addEventListener('pointercancel', up);
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+    target.addEventListener("pointercancel", up);
   }
 
   /* ------------------------------ per tick ------------------------------- */
@@ -769,10 +927,12 @@ export class Timeline {
        seeks, since they mount too). onTime stays a cheap per-frame update:
        move the playhead and refresh clip classes only. */
     const x = this.player.time * this.pps;
-    this.playhead.style.left = x + 'px';
+    this.playhead.style.left = x + "px";
     for (const c of this.clips) {
-      if (c.isCurrent) c.div.classList.toggle('current', c.isCurrent(this.player.time));
-      if (c.key) c.div.classList.toggle('selected', this.selection.has(c.key));
+      if (c.isCurrent) {
+        c.div.classList.toggle("current", c.isCurrent(this.player.time));
+      }
+      if (c.key) c.div.classList.toggle("selected", this.selection.has(c.key));
     }
     if (this.player.playing) {
       const left = this.scroll.scrollLeft;

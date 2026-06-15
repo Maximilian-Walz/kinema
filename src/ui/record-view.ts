@@ -235,7 +235,8 @@ export class RecordView {
         overflow:hidden -- making the whole grid jump up by ~150 px. */
     private scrollLineIntoView(line: HTMLElement): void {
         const host = this.promptHost;
-        const offset = line.offsetTop + line.offsetHeight / 2 - host.clientHeight / 2;
+        const offset = line.offsetTop + line.offsetHeight / 2 -
+            host.clientHeight / 2;
         host.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
     }
 
