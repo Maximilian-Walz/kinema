@@ -32,6 +32,10 @@ export class Player {
   private mounted = -1;
   private lastFrame: number | null = null;
   private threadScroll = 0;
+  /* id -> element in the mounted scene; the scene HTML is static between
+     mounts, so resolving once per mount avoids a querySelector per scheduled
+     element on every frame. null means "looked up, not present". */
+  private elCache = new Map<string, HTMLElement | null>();
 
   private readonly content: HTMLElement;
   private readonly sceneStyle: HTMLStyleElement;
@@ -117,14 +121,14 @@ export class Player {
 
     // element states, derived purely from local t
     for (const ev of scene.schedule) {
-      const el = this.content.querySelector<HTMLElement>('#' + CSS.escape(ev.id));
+      const el = this.resolve(ev.id);
       if (!el) continue;
       const on = local >= ev.enter && (ev.exit === undefined || local < ev.exit);
       el.classList.toggle(ev.cls || 'on', on);
     }
 
     // caption strip (scene-owned element, may not exist)
-    const capEl = this.content.querySelector<HTMLElement>('#caption');
+    const capEl = this.resolve('caption');
     if (capEl) {
       const cap = scene.captions.find((c) => local >= c.from && local < c.to);
       capEl.textContent = cap ? cap.text : '';
@@ -139,8 +143,19 @@ export class Player {
     const scene = this.project.scenes[index];
     this.sceneStyle.textContent = scene.css;
     this.content.innerHTML = scene.html;
+    this.elCache.clear(); // new DOM; drop the previous scene's element lookups
     this.threadScroll = 0;
     this.events.emit('scene', index);
+  }
+
+  /** cached `getElementById` within the mounted scene (see elCache) */
+  private resolve(id: string): HTMLElement | null {
+    let el = this.elCache.get(id);
+    if (el === undefined) {
+      el = this.content.querySelector<HTMLElement>('#' + CSS.escape(id));
+      this.elCache.set(id, el);
+    }
+    return el;
   }
 
   /* ------------------------------- rAF loop ------------------------------ */
@@ -174,8 +189,8 @@ export class Player {
 
   /** keep the newest visible message in view (debate thread) */
   private threadAutoscroll(): void {
-    const view = this.content.querySelector<HTMLElement>('#threadview');
-    const col = this.content.querySelector<HTMLElement>('#threadcol');
+    const view = this.resolve('threadview');
+    const col = this.resolve('threadcol');
     if (!view || !col) return;
     let bottom = 0;
     for (const child of Array.from(col.children) as HTMLElement[]) {

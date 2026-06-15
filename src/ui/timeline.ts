@@ -742,13 +742,11 @@ export class Timeline {
 
   /* ------------------------------ per tick ------------------------------- */
 
-  private builtForScene = -1;
-
   private onTime(): void {
-    if (this.builtForScene !== this.player.sceneIndex) {
-      this.builtForScene = this.player.sceneIndex;
-      if (!this.dragging) { this.rebuild(); return; }
-    }
+    /* The ELEMENTS track shows only the current scene, so it must follow scene
+       changes — but the 'scene' event already drives that rebuild (and so do
+       seeks, since they mount too). onTime stays a cheap per-frame update:
+       move the playhead and refresh clip classes only. */
     const x = this.player.time * this.pps;
     this.playhead.style.left = x + 'px';
     for (const c of this.clips) {
