@@ -39,6 +39,11 @@ export class Player {
   /* "id class" pairs the schedule currently drives on; lets update() clear a
      class once no entry asks for it (e.g. an entry deleted from the schedule) */
   private driven = new Set<string>();
+  /* elementId -> fx base class currently applied (e.g. "title" -> "fx-up").
+     Schedule entries with an animation preset keep this base class on the
+     element for the whole scene (it holds the hidden "before" state); the map
+     is reconciled each update so changing or removing the preset clears it. */
+  private drivenFx = new Map<string, string>();
 
   private readonly content: HTMLElement;
   private readonly sceneStyle: HTMLStyleElement;
@@ -129,10 +134,18 @@ export class Player {
     // never visited here, so it drops out of `nextOn` and gets removed in the
     // reconciliation pass instead of lingering until the next remount.
     const nextOn = new Set<string>();
+    const nextFx = new Map<string, string>();
     for (const ev of scene.schedule) {
       const cls = ev.cls || 'on';
       const el = this.resolve(ev.id);
       if (!el) continue;
+      // animation preset: keep the fx base class on for the whole scene so the
+      // element sits in the preset's hidden state until its `cls` toggles in.
+      if (ev.fx) {
+        const fxCls = 'fx-' + ev.fx;
+        el.classList.add(fxCls);
+        nextFx.set(ev.id, fxCls);
+      }
       const on = local >= ev.enter && (ev.exit === undefined || local < ev.exit);
       el.classList.toggle(cls, on);
       if (on) nextOn.add(ev.id + '\u0000' + cls);
@@ -143,6 +156,13 @@ export class Player {
       this.resolve(key.slice(0, i))?.classList.remove(key.slice(i + 1));
     }
     this.driven = nextOn;
+    // clear fx base classes no entry asks for any more (entry deleted, or its
+    // preset changed/cleared) so a removed animation doesn't linger
+    for (const [id, fxCls] of this.drivenFx) {
+      if (nextFx.get(id) === fxCls) continue;
+      this.resolve(id)?.classList.remove(fxCls);
+    }
+    this.drivenFx = nextFx;
 
     // caption strip (scene-owned element, may not exist)
     const capEl = this.resolve('caption');
@@ -162,6 +182,7 @@ export class Player {
     this.content.innerHTML = scene.html;
     this.elCache.clear(); // new DOM; drop the previous scene's element lookups
     this.driven.clear();  // fresh markup carries none of the old classes
+    this.drivenFx.clear();
     this.threadScroll = 0;
     this.events.emit('scene', index);
   }
@@ -174,6 +195,42 @@ export class Player {
       this.elCache.set(id, el);
     }
     return el;
+  }
+
+  /** Human-friendly descriptor of an element in the CURRENTLY mounted scene,
+      for the stage editor: a readable label (its `data-label`, else its text
+      content, else the id), the tag name (for a type glyph), whether it
+      resolved, and whether it is a leaf (no child elements -- the only case the
+      studio can safely edit text for). The scene being edited is always the
+      mounted one, so this reads off the live DOM. */
+  elementInfo(
+    id: string,
+  ): { label: string; tag: string; exists: boolean; leaf: boolean } {
+    const el = this.resolve(id);
+    if (!el) return { label: id, tag: '', exists: false, leaf: false };
+    const dataLabel = el.getAttribute('data-label');
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    let label = dataLabel || text || id;
+    if (label.length > 38) label = label.slice(0, 36) + '…';
+    return { label, tag: el.tagName.toLowerCase(), exists: true, leaf: el.children.length === 0 };
+  }
+
+  /** Live text content of a leaf element in the mounted scene (for seeding the
+      text editor); empty string if it doesn't resolve. */
+  elementText(id: string): string {
+    return (this.resolve(id)?.textContent ?? '').trim();
+  }
+
+  /** Replace one scene's HTML in memory and remount if it is the current scene.
+      Called after the studio patches an element's text into scene.html on disk:
+      the file watcher ignores our own writes, so nothing reloads automatically;
+      this makes the edit show immediately. */
+  replaceSceneHtml(scene: SceneData, html: string): void {
+    scene.html = html;
+    if (this.project.scenes.indexOf(scene) === this.mounted) {
+      this.mounted = -1; // force mount() to re-run markup/css on the next update
+      this.update(this.time);
+    }
   }
 
   /* ------------------------------- rAF loop ------------------------------ */

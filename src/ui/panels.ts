@@ -95,6 +95,11 @@ export class SidePanel {
       case "time":
         this.renderScript();
         return;
+      case "stage":
+        /* STAGE choreographs one scene; the script teleprompter is useful
+           context (the element schedule editor lives in the bottom dock) */
+        this.renderScript();
+        return;
     }
   }
 

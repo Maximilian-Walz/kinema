@@ -26,6 +26,22 @@
   transition:opacity .5s cubic-bezier(.2,.7,.3,1),transform .5s cubic-bezier(.2,.7,.3,1)}
 .el.on{opacity:1;transform:translateY(0)}
 
+/* ---- entrance-animation presets (the STAGE editor's "animation" dropdown) ----
+   The studio writes ScheduleEntry.fx = "up" | "fade" | ... and the engine keeps
+   a `.fx-<name>` base class on the element for the whole scene (the hidden
+   "before" state) while toggling `.on` to animate it in. Picking a preset in the
+   UI needs no edit to scene.html/scene.css. Like `.el`, motion lives entirely in
+   CSS so forward play and backward scrub look identical. */
+.fx-fade,.fx-up,.fx-down,.fx-left,.fx-right,.fx-pop{opacity:0;
+  transition:opacity .5s cubic-bezier(.2,.7,.3,1),transform .5s cubic-bezier(.2,.7,.3,1)}
+.fx-up{transform:translateY(28px)}
+.fx-down{transform:translateY(-28px)}
+.fx-left{transform:translateX(-44px)}
+.fx-right{transform:translateX(44px)}
+.fx-pop{transform:scale(.82)}
+.fx-fade.on,.fx-up.on,.fx-down.on,.fx-left.on,.fx-right.on,.fx-pop.on{
+  opacity:1;transform:none}
+
 /* a full-stage overlay; stack several and fade between them */
 .ovl{position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:40px;text-align:center;

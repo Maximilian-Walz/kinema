@@ -173,11 +173,19 @@ try {
       hidden: "#recordview",
     },
     {
+      key: "F4",
+      mode: "stage",
+      visible: "#stageview",
+      selector: ".sv-toolbar",
+      hidden: "#timeline",
+    },
+    /* keep TIME last so the active-chip assertion below sees "TIME" */
+    {
       key: "F3",
       mode: "time",
       visible: "#timeline",
       selector: ".tl-track",
-      hidden: "#tuneview",
+      hidden: "#stageview",
     },
   ];
   for (const m of modeChecks) {

@@ -13,6 +13,7 @@ import { SidePanel } from "./ui/panels";
 import { showPicker } from "./ui/picker";
 import { RecBar } from "./ui/recbar";
 import { RecordView } from "./ui/record-view";
+import { StageView } from "./ui/stage-view";
 import "./ui/styles.css";
 import { Timeline } from "./ui/timeline";
 import { Transport } from "./ui/transport";
@@ -131,9 +132,10 @@ async function bootStudio(): Promise<void> {
   const timeline = el("div", { id: "timeline" });
   const recordview = el("div", { id: "recordview" });
   const tuneview = el("div", { id: "tuneview" });
+  const stageview = el("div", { id: "stageview" });
 
   const app = document.getElementById("app")!;
-  app.append(stagearea, side, transport, timeline, recordview, tuneview);
+  app.append(stagearea, side, transport, timeline, recordview, tuneview, stageview);
 
   /* ------------------------------- wiring ------------------------------- */
   const player = new Player(project, content, sceneStyle);
@@ -157,14 +159,18 @@ async function bootStudio(): Promise<void> {
     playbackMeter,
   );
   const tl = new Timeline(timeline, player, takes, sync, history);
+  const stageView = new StageView(stageview, player, sync, history);
   new RecordView(recordview, player, takes, micMonitor);
   new TuneView(tuneview, player, takes);
   new DockResize();
   new RecBar(takes, micMonitor, player);
   /* mode switches re-flow the grid; trigger a rescale so the stage fits */
-  mode.events.on("change", () => {
+  mode.events.on("change", (m) => {
     sidePanel.onModeChange();
     rescale();
+    /* STAGE's lanes are display:none until now, so they measured zero width;
+       refit once the dock is visible (and cancel any pick when leaving) */
+    stageView.onModeChange(m === "stage");
   });
 
   /* --------------------------- stage scaling ---------------------------- */
@@ -234,7 +240,8 @@ async function bootStudio(): Promise<void> {
     } else if (e.key === "o" || e.key === "O") {
       player.setLoop({ start: player.loop?.start ?? 0, end: player.time });
     } else if (e.key === "Delete" || e.key === "Backspace") {
-      tl.deleteSelection();
+      if (mode.mode === "stage") stageView.deleteSelection();
+      else tl.deleteSelection();
     } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       /* Arrow-key navigation, in escalating granularity:
            plain     -> next/prev narration LINE

@@ -19,9 +19,9 @@ time. Each scene is three small files (see [project-format.md](project-format.md
 
 ## 2. Pick a workspace mode
 
-The studio has three top-level modes (`F1` / `F2` / `F3`, also clickable in the
-transport bar). The whole window re-flows per mode so only the surfaces you
-need for the job are on screen:
+The studio has four top-level modes (`F1` / `F2` / `F3` / `F4`, also clickable
+in the transport bar). The whole window re-flows per mode so only the surfaces
+you need for the job are on screen:
 
 - **RECORD** (`F1`) — teleprompter at the bottom with the current line large,
   prev/next dimmed; a pinned bar with arm/disarm mic, live waveform, level
@@ -36,6 +36,13 @@ need for the job are on screen:
 - **TIME** (`F3`) — full timeline at the bottom (scenes / script / captions /
   elements / voice), side panel is just the script teleprompter. Drag the
   divider at the top of the dock to resize it.
+- **STAGE** (`F4`) — choreograph one scene. The live preview stays up top; the
+  bottom dock is a scene-local element timeline plus an inspector. Click
+  **✛ pick element** then click any element on the stage to schedule it (no
+  typing ids), select a clip to retime it (drag, or type exact enter/exit),
+  give it an entrance **animation** preset, and edit its on-screen **text** —
+  which is patched straight into `scene.html`. Elements are auto-named from
+  their text/`data-label` with a tag chip, so you read "WHAT IT IS", not `title`.
 
 The line under the playhead is the implicit selection across all three modes,
 so clicking a section in the TUNE navigator or a line in the RECORD prompter

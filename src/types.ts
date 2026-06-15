@@ -4,6 +4,12 @@ export interface ScheduleEntry {
   exit?: number;
   /** class to toggle; defaults to "on" */
   cls?: string;
+  /** optional animation preset (e.g. "up", "fade", "pop"). When set, the engine
+      keeps a `fx-<name>` base class on the element for the whole scene (so it
+      sits in the preset's hidden state) and toggles `cls` on/off to animate it
+      in. Lets the studio choose an element's entrance animation without editing
+      scene.html or scene.css. The theme defines the `.fx-*` / `.fx-*.on` rules. */
+  fx?: string;
 }
 
 export interface TimedText {

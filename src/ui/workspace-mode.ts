@@ -9,6 +9,8 @@ import { el } from "./dom";
      RECORD   capture takes -- teleprompter + mic monitor + per-line rec button
      TUNE     audition and compare takes, configure post chain
      TIME     retime the animation against the recorded narration (full timeline)
+     STAGE    choreograph one scene -- live preview + per-element schedule editor
+              (pick elements off the stage, name them, retime, pick an animation)
 
    The active mode drives a `body.mode-*` class which the CSS grid uses to
    collapse or promote the timeline / side panel. The mode is persisted per
@@ -17,8 +19,8 @@ import { el } from "./dom";
    and are not touched here.
 ============================================================================ */
 
-export type Mode = "record" | "tune" | "time";
-export const MODES: Mode[] = ["record", "tune", "time"];
+export type Mode = "record" | "tune" | "time" | "stage";
+export const MODES: Mode[] = ["record", "tune", "time", "stage"];
 
 const LS_KEY = "video-studio.mode";
 
@@ -44,12 +46,14 @@ const LABEL: Record<Mode, string> = {
     record: "RECORD",
     tune: "TUNE",
     time: "TIME",
+    stage: "STAGE",
 };
 
 const TITLE: Record<Mode, string> = {
     record: "record takes -- teleprompter + microphone (F1)",
     tune: "audition and compare takes, tune post chain (F2)",
     time: "retime animation against narration on the full timeline (F3)",
+    stage: "choreograph one scene -- pick, name, retime and animate elements (F4)",
 };
 
 export class WorkspaceMode {
@@ -116,6 +120,9 @@ export class WorkspaceMode {
             } else if (e.key === "F3") {
                 e.preventDefault();
                 this.set("time");
+            } else if (e.key === "F4") {
+                e.preventDefault();
+                this.set("stage");
             }
         });
     }

@@ -51,6 +51,18 @@ export async function putTimings(scene: SceneData): Promise<void> {
   }));
 }
 
+/** Patch the inner text of one leaf element (#elId) in a scene's scene.html.
+    Server keeps the rest of the file intact and returns the updated HTML; it
+    rejects elements that have child markup or no text content. */
+export async function setElementText(sceneId: string, elId: string, text: string): Promise<string> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/element-text`), {
+    method: 'PUT',
+    body: JSON.stringify({ id: elId, text }),
+  }));
+  const j = await r.json();
+  return j.html as string;
+}
+
 export async function fetchTakes(): Promise<TakesMap> {
   return (await check(await fetch(withProject('/api/takes')))).json();
 }

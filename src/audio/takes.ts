@@ -1,7 +1,7 @@
 import * as api from "../api";
 import { Emitter } from "../emitter";
 import type { Player } from "../engine/player";
-import type { SectionTakes, TakeChain, TakesMap, TimedText } from "../types";
+import type { SceneData, SectionTakes, TakeChain, TakesMap, TimedText } from "../types";
 
 /* ----------------------------------------------------------------------------
    The post-production audio chain, shared by preview and audition (and mirrored
@@ -300,7 +300,7 @@ export class Takes {
   private findLineAcrossScenes(
     lineId: string,
   ): {
-    scene: typeof this.player.project.scenes[number];
+    scene: SceneData;
     line: TimedText;
     sceneIndex: number;
   } | null {

@@ -13,6 +13,7 @@
 body.mode-record{--st-mode:var(--st-red)}
 body.mode-tune{--st-mode:var(--st-green)}
 body.mode-time{--st-mode:var(--st-accent)}
+body.mode-stage{--st-mode:#39c5cf}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--st-bg);color:var(--st-text);
   font-family:system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden}
@@ -25,14 +26,17 @@ html,body{height:100%;margin:0;background:var(--st-bg);color:var(--st-text);
 /* The bottom dock is shared between TIME (timeline), RECORD (prompter), and
    TUNE (take comparator). All three elements live in the same grid area; CSS
    picks which is visible per mode. */
-#timeline,#recordview,#tuneview{grid-area:bottom;min-height:0}
-#recordview,#tuneview{display:none}
+#timeline,#recordview,#tuneview,#stageview{grid-area:bottom;min-height:0}
+#recordview,#tuneview,#stageview{display:none}
 
 body.mode-record #timeline{display:none}
 body.mode-record #recordview{display:flex;flex-direction:column}
 
 body.mode-tune #timeline,body.mode-tune #recordview{display:none}
 body.mode-tune #tuneview{display:flex}
+
+body.mode-stage #timeline,body.mode-stage #recordview,body.mode-stage #tuneview{display:none}
+body.mode-stage #stageview{display:flex;flex-direction:column}
 
 /* drag handle pinned to the top edge of the dock; raises a 6px hit area */
 #dock-resize{position:fixed;left:0;right:0;height:6px;z-index:90;
@@ -43,7 +47,7 @@ body.clean #dock-resize{display:none}
 
 /* clean mode: stage only, for screen capture */
 body.clean #app{grid-template-columns:1fr;grid-template-rows:1fr;grid-template-areas:"stage"}
-body.clean #side,body.clean #transport,body.clean #timeline,body.clean #recordview,body.clean #tuneview{display:none}
+body.clean #side,body.clean #transport,body.clean #timeline,body.clean #recordview,body.clean #tuneview,body.clean #stageview{display:none}
 
 /* mode chip group in the transport bar */
 .mode-switch{display:inline-flex;flex:none;gap:1px;background:var(--st-line);
@@ -303,46 +307,126 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
   color:var(--st-faint);z-index:30;pointer-events:none;
   background:rgba(13,17,23,.85);padding:1px 6px;border-radius:4px}
 
+/* Clips read as fills at rest; the outline is reserved for meaning. A clip
+   carries no resting border -- "selected" (accent ring + lift) and "current"
+   (playhead inside: brighter fill + 1px accent ring) are the only outlines.
+   Adjacent same-colour clips stay separated by the 1-2px width gap the layout
+   already leaves, so no border is needed to tell them apart. */
 .tl-clip{position:absolute;border-radius:6px;font-family:var(--st-mono);
   overflow:hidden;cursor:grab;z-index:5}
 .tl-clip:active{cursor:grabbing}
-.tl-clip.current{outline:1px solid var(--st-accent)}
+.tl-clip.current{outline:1px solid var(--st-accent);outline-offset:0}
 .tl-cliptext{display:block;overflow:hidden;white-space:nowrap;
   text-overflow:ellipsis;pointer-events:none}
 
 .tl-scene{top:5px;height:26px;background:var(--st-panel2);
-  border:1px solid var(--st-line);display:flex;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:8px;
   padding:0 8px;font-size:11px;color:var(--st-text);cursor:default}
-.tl-scene.current{background:rgba(163,113,247,.14);border-color:var(--st-accent);
-  outline:none}
+.tl-scene.current{background:rgba(163,113,247,.2)}
 .tl-scenename{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .tl-scenelen{margin-left:auto;color:var(--st-faint);font-size:10px}
 
-.tl-text{top:5px;height:24px;background:rgba(63,185,80,.13);
-  border:1px solid rgba(63,185,80,.45);color:#7ee787;font-size:10.5px;
-  padding:3px 8px}
-.tl-captions .tl-text{top:3px;height:20px;background:rgba(210,153,34,.13);
-  border-color:rgba(210,153,34,.5);color:var(--st-text);padding:1px 8px;
-  color:#e3b341}
-.tl-text.current{background:rgba(63,185,80,.28)}
-.tl-captions .tl-text.current{background:rgba(210,153,34,.28)}
+.tl-text{top:5px;height:24px;background:rgba(63,185,80,.2);
+  color:#9be8a4;font-size:10.5px;padding:3px 8px}
+.tl-captions .tl-text{top:3px;height:20px;background:rgba(210,153,34,.2);
+  color:#e3b341;padding:1px 8px}
+.tl-text.current{background:rgba(63,185,80,.42);color:#d6ffdc}
+.tl-captions .tl-text.current{background:rgba(210,153,34,.42);color:#ffe9b8}
 
-.tl-element{height:17px;background:rgba(88,166,255,.12);
-  border:1px solid rgba(88,166,255,.4);color:#79c0ff;font-size:10px;
-  padding:1px 6px}
-.tl-element.tl-marker{background:transparent;border:none;border-left:7px solid #79c0ff;
-  border-radius:0 6px 6px 0;background:linear-gradient(90deg,rgba(88,166,255,.18),transparent)}
-.tl-element.current{background:rgba(88,166,255,.3);color:#cfe8ff}
-.tl-element.tl-marker.current{background:linear-gradient(90deg,rgba(88,166,255,.45),transparent)}
+.tl-element{height:17px;background:rgba(88,166,255,.22);
+  color:#bcd8ff;font-size:10px;padding:1px 6px}
+/* a marker is zero-width, so its identity is the pin glyph (an inset left edge),
+   not a resting border; intensify the glyph for current rather than outline it */
+.tl-element.tl-marker{border-radius:0 6px 6px 0;box-shadow:inset 2px 0 0 #79c0ff;
+  background:linear-gradient(90deg,rgba(88,166,255,.5),rgba(88,166,255,.04))}
+.tl-element.current{background:rgba(88,166,255,.42);color:#eaf4ff}
+.tl-element.tl-marker.current{box-shadow:inset 3px 0 0 #cfe8ff;
+  background:linear-gradient(90deg,rgba(88,166,255,.7),rgba(88,166,255,.08))}
 
-.tl-take{top:5px;height:38px;background:rgba(63,185,80,.06);
-  border:1px solid rgba(63,185,80,.25);cursor:default}
+.tl-take{top:5px;height:38px;background:rgba(63,185,80,.1);cursor:default}
 .tl-wave{display:block;height:36px}
 
+/* resize handles are invisible at rest; they reveal an edge mark on clip
+   hover or while the clip is selected, and brighten on direct hover */
 .tl-handle{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:6}
-.tl-handle-l{left:0;border-left:2px solid rgba(230,237,243,.5)}
-.tl-handle-r{right:0;border-right:2px solid rgba(230,237,243,.5)}
+.tl-handle-l{left:0}
+.tl-handle-r{right:0}
+.tl-clip:hover .tl-handle-l,.tl-clip.selected .tl-handle-l{
+  box-shadow:inset 2px 0 0 rgba(230,237,243,.5)}
+.tl-clip:hover .tl-handle-r,.tl-clip.selected .tl-handle-r{
+  box-shadow:inset -2px 0 0 rgba(230,237,243,.5)}
 .tl-handle:hover{background:rgba(255,255,255,.15)}
+
+/* =============================== STAGE mode ============================== */
+#stageview{background:var(--st-panel);border-top:2px solid var(--st-mode)}
+.sv{height:100%;display:flex;flex-direction:column;min-height:0}
+.sv-toolbar{display:flex;align-items:center;gap:8px;padding:7px 12px;
+  border-bottom:1px solid var(--st-line)}
+.sv-title{font-family:var(--st-mono);font-size:12px;color:var(--st-text);
+  letter-spacing:.04em}
+.sv-pick.active{border-color:var(--st-mode);color:var(--st-mode);
+  box-shadow:0 0 0 1px var(--st-mode)}
+.sv-hint{margin-left:auto;font-family:var(--st-mono);font-size:10.5px;
+  color:var(--st-faint)}
+.sv-main{flex:1;display:flex;min-height:0}
+
+.sv-scroll{position:relative;flex:1;overflow:auto;padding:6px 12px 10px}
+.sv-ruler{position:relative;height:22px;border-bottom:1px solid var(--st-line);
+  cursor:ew-resize;margin-bottom:6px}
+.sv-tick{position:absolute;top:3px;font-family:var(--st-mono);font-size:10px;
+  color:var(--st-dim);border-left:1px solid var(--st-dim);padding-left:4px;
+  height:15px;pointer-events:none}
+.sv-lanes{position:relative;min-height:40px}
+.sv-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--st-mode);
+  box-shadow:0 0 8px var(--st-mode);pointer-events:none;z-index:40}
+.sv-snapguide{display:none;position:absolute;top:0;bottom:0;width:0;
+  border-left:1px solid #79c0ff;box-shadow:0 0 6px rgba(121,192,255,.8);
+  pointer-events:none;z-index:39}
+
+/* clips reuse .tl-clip/.tl-element styling (T12 fills); a touch taller here so
+   the tag chip + label sit comfortably */
+.sv-lanes .tl-element{height:20px;display:flex;align-items:center;gap:5px}
+.sv-lanes .tl-marker{padding-left:9px}
+.sv-tag{font-family:var(--st-mono);font-size:9px;letter-spacing:.06em;
+  text-transform:uppercase;color:#bcd8ff;background:rgba(88,166,255,.25);
+  padding:1px 4px;border-radius:3px;flex:none;line-height:1.4}
+.sv-missing{opacity:.65}
+.sv-missing .sv-tag,.sv-tag-missing{color:#ffb4a8;background:rgba(248,81,73,.22)}
+
+/* inspector */
+.sv-inspector{width:320px;flex:none;border-left:1px solid var(--st-line);
+  padding:12px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;
+  background:var(--st-panel)}
+.sv-insp-empty{color:var(--st-faint);font-family:var(--st-mono);font-size:11.5px;
+  margin-top:4px;line-height:1.5}
+.sv-insp-head{display:flex;align-items:center;gap:8px}
+.sv-insp-name{font-size:13px;color:var(--st-text);overflow:hidden;
+  white-space:nowrap;text-overflow:ellipsis}
+.sv-insp-id{font-family:var(--st-mono);font-size:10.5px;color:var(--st-faint);
+  margin-top:-7px}
+.sv-insp-warn{color:#ffb4a8;font-size:11px;line-height:1.4}
+.sv-insp-note{color:var(--st-faint);font-size:11px;line-height:1.4}
+.sv-field{display:flex;flex-direction:column;gap:3px}
+.sv-field-label{font-family:var(--st-mono);font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--st-faint)}
+.sv-insp-inline{display:flex;align-items:center;gap:6px}
+.sv-input,.sv-select{background:var(--st-panel2);color:var(--st-text);
+  border:1px solid var(--st-line);border-radius:6px;padding:5px 8px;
+  font-family:var(--st-mono);font-size:12px}
+.sv-input{flex:1;min-width:0}
+.sv-num{max-width:96px}
+.sv-mini{padding:4px 9px;font-size:11px}
+.sv-insp-status{font-family:var(--st-mono);font-size:12px;color:var(--st-dim);
+  width:14px;text-align:center;flex:none}
+.sv-del{margin-top:6px;color:#ffb4a8;border-color:rgba(248,81,73,.4)}
+.sv-del:hover{border-color:#f85149;background:rgba(248,81,73,.12)}
+
+/* pick-from-stage: force the scene's elements interactive (scene CSS may set
+   pointer-events:none on overlays) and highlight whatever the cursor is over */
+body.sv-picking #scenecontent,body.sv-picking #scenecontent *{pointer-events:auto!important}
+body.sv-picking #scenecontent{cursor:crosshair}
+body.sv-picking #scenecontent [id]:hover{outline:2px solid var(--st-mode);
+  outline-offset:1px;cursor:pointer}
 
 /* =============================== picker ================================= */
 .t-project{max-width:180px}

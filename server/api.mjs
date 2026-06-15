@@ -207,6 +207,66 @@ export function createApi({ registry }) {
       writeFileTracked(file, JSON.stringify(data, null, 2) + '\n');
     }
 
+    const VOID_TAGS = new Set([
+      'img', 'br', 'hr', 'input', 'meta', 'link', 'source', 'area',
+      'base', 'col', 'embed', 'param', 'track', 'wbr',
+    ]);
+
+    /* Patch only the inner text of the element with #elId in scene.html, leaving
+       the rest of the file byte-for-byte intact (so hand-authored formatting is
+       preserved). The studio keeps scene.html as the single source of truth for
+       on-screen text; this is a targeted text replacement, not an HTML rewrite.
+
+       Restricted to LEAF elements (no child markup): we find the element's open
+       tag by its id, reject void/self-closing tags, take the run up to the first
+       matching close tag, and refuse it if that run contains any '<' (i.e. the
+       element has children) -- those must still be edited in the file. Returns
+       the updated HTML. */
+    function setElementText(sid, elId, text) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      if (!safeName(elId)) throw new Error('bad element id');
+      const file = path.join(projectDir, 'scenes', sid, 'scene.html');
+      let html;
+      try { html = fs.readFileSync(file, 'utf8'); } catch { throw new Error('scene.html not found'); }
+
+      /* find the id="elId" attribute (whitespace before `id` avoids matching a
+         substring like data-grid="...") */
+      const idRe = /\sid\s*=\s*("([^"]*)"|'([^']*)')/g;
+      let m, hit = null;
+      while ((m = idRe.exec(html))) {
+        const val = m[2] !== undefined ? m[2] : m[3];
+        if (val === elId) { hit = m; break; }
+      }
+      if (!hit) throw new Error('no #' + elId + ' in scene.html');
+
+      const open = html.lastIndexOf('<', hit.index);
+      const openEnd = html.indexOf('>', hit.index);
+      if (open < 0 || openEnd < 0) throw new Error('malformed markup near #' + elId);
+      const openTag = html.slice(open, openEnd + 1);
+      const tagMatch = /^<\s*([a-zA-Z][\w-]*)/.exec(openTag);
+      if (!tagMatch) throw new Error('malformed tag near #' + elId);
+      const tag = tagMatch[1].toLowerCase();
+      if (VOID_TAGS.has(tag) || /\/\s*>$/.test(openTag)) {
+        throw new Error('#' + elId + ' has no text content (void/self-closing element)');
+      }
+
+      const innerStart = openEnd + 1;
+      const rest = html.slice(innerStart);
+      const closeRe = new RegExp('</\\s*' + tag + '\\s*>', 'i');
+      const cm = closeRe.exec(rest);
+      if (!cm) throw new Error('no closing </' + tag + '> for #' + elId);
+      const inner = rest.slice(0, cm.index);
+      if (inner.includes('<')) {
+        throw new Error('#' + elId + ' contains child markup; edit it in scene.html');
+      }
+
+      const escaped = String(text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const next = html.slice(0, innerStart) + escaped + rest.slice(cm.index);
+      writeFileTracked(file, next);
+      return next;
+    }
+
     /* recordings live one folder deeper than before: per section, not per scene */
     const sectionTakesDir = (sid, lid) => path.join(TAKES_DIR, sid, lid);
     const sectionKey = (sid, lid, file) => sid + '/' + lid + '/' + file;
@@ -273,7 +333,8 @@ export function createApi({ registry }) {
 
     return {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
-      loadProject, sceneIds, lineIds, writeTimings, sectionTakesDir, sectionKey,
+      loadProject, sceneIds, lineIds, writeTimings, setElementText,
+      sectionTakesDir, sectionKey,
       readTakesState, writeTakesState, listTakes, listSection,
     };
   }
@@ -351,6 +412,21 @@ export function createApi({ registry }) {
         const body = JSON.parse((await readBody(req)).toString('utf8'));
         ctx.writeTimings(id, body);
         json(res, 200, { ok: true });
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/element-text$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.id !== 'string' || typeof body.text !== 'string') {
+          json(res, 400, { error: 'id and text are required' }); return;
+        }
+        try {
+          const html = ctx.setElementText(id, body.id, body.text);
+          json(res, 200, { ok: true, html });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
 
       } else if (req.method === 'GET' && p === '/api/takes') {
         if (!ctx) return noProject();

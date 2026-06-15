@@ -50,7 +50,8 @@ Scene order is whatever `project.json` lists, not alphabetical.
   "schedule": [                // element enter/exit times, seconds, scene-local
     { "id": "title", "enter": 0.4 },                  // turns on and stays on
     { "id": "card",  "enter": 3.0, "exit": 9.5 },     // on only for a window
-    { "id": "card",  "enter": 5.0, "cls": "hl" }      // toggle a custom class
+    { "id": "card",  "enter": 5.0, "cls": "hl" },     // toggle a custom class
+    { "id": "note",  "enter": 6.0, "fx": "up" }       // entrance animation preset
   ],
   "captions": [ { "from": 4, "to": 9, "text": "lower-third caption" } ],
   "lines":    [ { "id": "ln-x1", "from": 0, "to": 8, "text": "narration line read on the prompter" } ]
@@ -71,6 +72,12 @@ element with that `#id`:
 - the class is `cls` if given, else `"on"`.
 - multiple entries can target the same id (e.g. one to reveal it, another to add
   a highlight class over a window).
+- `fx` (optional) names an **entrance-animation preset**. When set, the engine
+  keeps a `fx-<name>` base class on the element for the whole scene (so it sits
+  in the preset's hidden "before" state) and toggles `cls` to animate it in. The
+  theme defines the `.fx-<name>` / `.fx-<name>.on` rules (see `theme.css`:
+  `fade`, `up`, `down`, `left`, `right`, `pop`). The STAGE-mode editor sets this
+  from a dropdown, so you can pick an entrance animation without editing CSS.
 
 The engine never animates directly. It only flips classes. Put the motion in CSS
 transitions so a class change looks the same played forward or scrubbed backward.
@@ -108,6 +115,9 @@ first line's id (and its takes) and drops the second.
 - Include `<div id="caption"></div>` if the scene uses captions.
 - `scene.html` / `scene.css` / `project.json` changes on disk auto-reload the
   app. `scene.json` timing edits flow the other way (UI to disk, debounced ~0.5s).
+- STAGE mode can edit a leaf element's on-screen text; that one change is patched
+  into `scene.html` (the rest of the file is left byte-for-byte intact, so your
+  formatting survives). Elements with child markup are still edited by hand.
 
 ## theme.css helpers
 
