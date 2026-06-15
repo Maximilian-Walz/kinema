@@ -9,24 +9,25 @@ import { el } from "./dom";
 
    Layout (occupies the bottom dock that the timeline normally holds):
 
-     +-------------------------------------------------------------+
-     | [arm mic] [waveform] [meter] [clip warn]   [\u25cf rec this line]   |
-     +-------------------------------------------------------------+
-     | scene N \u00b7 Title                                              |
-     |                                                             |
-     |   previous line (dim)                                       |
-     |                                                             |
-     |   CURRENT LINE -- big, centred                              |
-     |                                                             |
-     |   next line (dim)                                           |
-     |   ...                                                       |
-     +-------------------------------------------------------------+
+     +----------------------------------------------------------------------+
+     | [\u25cf rec] [chain|hold] \u2502 [\u23f5 arm] [meter] [wave] [\u25cf] \u2502 [status \u2026]      |
+     +----------------------------------------------------------------------+
+     | scene N \u00b7 Title                                                      |
+     |                                                                      |
+     |   previous line (dim)                                                |
+     |                                                                      |
+     |   CURRENT LINE -- big, centred                                       |
+     |                                                                      |
+     |   next line (dim)                                                    |
+     |   ...                                                                |
+     +----------------------------------------------------------------------+
 
    The monitor bar mounts MicMonitor (the same singleton the TUNE/TAKES tab
    uses), so arming the mic in any mode keeps the widgets alive.
 
-   The big "rec this line" button records the line currently under the cursor
-   with the existing 3-2-1 count-in; on stop the recording is auto-picked.
+   The rec button records the line currently under the cursor with a 3-2-1
+   count-in; on stop the recording is auto-picked. Whether recording chains
+   into the next line at line-end is controlled by the chain/hold toggle.
 ============================================================================ */
 
 export class RecordView {
@@ -36,11 +37,20 @@ export class RecordView {
     private readonly micMonitor: MicMonitor;
 
     private monitorMeterHost!: HTMLElement;
+    /** Persistent slot inside monitorMeterHost that holds the live waveform
+        canvas when armed and is empty (just a styled placeholder) when not.
+        Created once at build time so the layout is identical in both states. */
+    private waveSlot!: HTMLElement;
+    /** Persistent slot for the live level meter widget (with its built-in
+        clip LED). Same lifetime / sizing guarantee as waveSlot. */
+    private meterSlot!: HTMLElement;
     private armBtn!: HTMLButtonElement;
+    private armIconEl!: HTMLElement;
+    private armLabelEl!: HTMLElement;
     private recBtn!: HTMLButtonElement;
+    private recIconEl!: HTMLElement;
+    private recLabelEl!: HTMLElement;
     private statusEl!: HTMLElement;
-    private clipWarn!: HTMLElement;
-    private clipPollId: number | null = null;
 
     private promptHost!: HTMLElement;
     private lineEls: {
@@ -79,38 +89,49 @@ export class RecordView {
 
     /* ------------------------------- build --------------------------------- */
 
+    /* Bar layout (left → right):
+         [ ● rec ] [ chain | hold ]   │   [ ⏵ arm ] [meter] [waveform] [● clip]   │   [ status … ]
+         action group                 monitor group                            messages
+       The action group is anchored to the left edge so the primary click /
+       R-key target is at a fixed position. The mic group occupies a stable
+       width even when the mic is disarmed so toggling arm doesn't reflow
+       the rest of the bar. Status text flexes to fill the remainder and
+       ellipsizes when long. */
     private build(): void {
-        /* monitor bar -- pinned at the top of the dock */
         const monitor = el("div", { class: "rv-monitor" });
 
-        this.armBtn = el("button", {
-            class: "rv-arm",
-            title: "open/release the microphone for level monitoring",
-        }) as HTMLButtonElement;
-        this.armBtn.onclick = async () => {
-            if (this.takes.monitoring) this.takes.stopMonitor();
-            else {
-                const err = await this.takes.startMonitor();
-                if (err) this.setStatus(err);
-            }
-        };
-
-        this.monitorMeterHost = el("div", { class: "rv-monitor-host" });
-
-        this.clipWarn = el("div", {
-            class: "rv-clip",
-            text: "input clipping",
-        });
-
+        /* --- action group: rec + chain/hold ---------------------------- */
         this.recBtn = el("button", {
             class: "rv-rec",
-            text: "\u25cf rec this line",
             title: "record the line under the cursor with a 3-2-1 count-in (r)",
         }) as HTMLButtonElement;
+        /* Labels use fixed-width slots so the rec/stop swap (and the count-in
+           digits) never reflow the bar. We build the button with two spans
+           and only swap their textContent; the .rv-rec rule reserves enough
+           min-width for the longest state. The .t-kbd chip uses the same
+           shared style as the transport-bar buttons. */
+        this.recIconEl = el("span", { class: "rv-btn-icon", text: "\u25cf" });
+        this.recLabelEl = el("span", { class: "rv-btn-label", text: "rec" });
+        this.recBtn.append(
+            this.recIconEl,
+            this.recLabelEl,
+            el("span", { class: "t-kbd", text: "R" }),
+        );
         this.recBtn.onclick = async () => {
             if (this.takes.recording || this.takes.counting) {
                 this.takes.stopRecording();
                 return;
+            }
+            /* Auto-arm if the user hasn't already. Recording without
+               monitoring is flying blind, and startRecordingWithCountIn
+               opens the mic anyway -- doing it via startMonitor() here
+               means the meter/waveform are live during the count-in too. */
+            if (!this.takes.monitoring) {
+                const armErr = await this.takes.startMonitor();
+                if (armErr) {
+                    this.setStatus(armErr);
+                    return;
+                }
             }
             const lineId = this.currentLineId();
             const err = await this.takes.startRecordingWithCountIn(
@@ -119,21 +140,178 @@ export class RecordView {
             if (err) this.setStatus(err);
         };
 
+        const chain = this.buildChainToggle();
+        const actionGroup = el(
+            "div",
+            { class: "rv-group rv-action" },
+            this.recBtn,
+            chain,
+        );
+
+        /* --- mic group: arm + meter + waveform + clip dot -------------- */
+        this.armBtn = el("button", {
+            class: "rv-arm",
+            title: "open the microphone so you can see input levels",
+        }) as HTMLButtonElement;
+        /* Same icon+label split as the rec button so the width never jumps
+           between the armed ("mute") and disarmed ("arm") states. */
+        this.armIconEl = el("span", {
+            class: "rv-btn-icon",
+            text: "\u23fa",
+        });
+        this.armLabelEl = el("span", {
+            class: "rv-btn-label",
+            text: "arm",
+        });
+        this.armBtn.append(this.armIconEl, this.armLabelEl);
+        this.armBtn.onclick = async () => {
+            if (this.takes.monitoring) this.takes.stopMonitor();
+            else {
+                const err = await this.takes.startMonitor();
+                if (err) this.setStatus(err);
+            }
+        };
+
+        /* Two persistent slots that host the MicMonitor widgets. The widgets
+           are mounted ONCE during build and stay there forever -- they read
+           from a silent router analyser when the mic is disarmed and from
+           the live mic when armed. Same DOM nodes, same dimensions, always. */
+        this.waveSlot = el("div", { class: "rv-slot rv-wave-slot" });
+        this.meterSlot = el("div", { class: "rv-slot rv-meter-slot" });
+        const wf = this.micMonitor.waveformEl;
+        const meter = this.micMonitor.meterEl;
+        if (wf) this.waveSlot.appendChild(wf);
+        if (meter) this.meterSlot.appendChild(meter);
+        this.micMonitor.start();
+        this.monitorMeterHost = el(
+            "div",
+            { class: "rv-monitor-host" },
+            this.waveSlot,
+            this.meterSlot,
+        );
+
+        const micGroup = el(
+            "div",
+            { class: "rv-group rv-mic" },
+            this.armBtn,
+            this.monitorMeterHost,
+        );
+
+        /* --- status messages ------------------------------------------ */
         this.statusEl = el("span", { class: "rv-status" });
 
         monitor.append(
-            this.armBtn,
-            this.monitorMeterHost,
-            this.clipWarn,
+            actionGroup,
+            el("span", { class: "rv-sep" }),
+            micGroup,
+            el("span", { class: "rv-sep" }),
             this.statusEl,
-            this.recBtn,
         );
 
-        /* prompter */
+        /* --- prompter --------------------------------------------------
+           The text-size zoom widget (A-/A+) is mounted as a sibling of the
+           scrollable prompter, inside a positioned wrapper. Putting it INSIDE
+           the prompter caused renderPrompter()'s replaceChildren() to wipe it
+           on every scene change. As an absolute-positioned overlay sibling it
+           survives prompter rebuilds. */
         this.promptHost = el("div", { class: "rv-prompter" });
+        const promptWrap = el(
+            "div",
+            { class: "rv-prompter-wrap" },
+            this.promptHost,
+            this.buildZoomControl(),
+        );
+        this.applyPrompterFontSize();
 
         this.root.classList.add("rv");
-        this.root.append(monitor, this.promptHost);
+        this.root.append(monitor, promptWrap);
+    }
+
+    /* ---------------------------- font-size ------------------------------- */
+
+    /* localStorage key + clamp range for the prompter base font size. The
+       size drives --rv-base on .rv-prompter; everything else (current-line
+       scale, max-width) scales off it, so wrap points stay aligned. */
+    private static readonly FONT_KEY = "rv.fontPx";
+    private static readonly FONT_MIN = 11;
+    private static readonly FONT_MAX = 28;
+    private static readonly FONT_DEFAULT = 15;
+
+    private getPrompterFontSize(): number {
+        const raw = Number(localStorage.getItem(RecordView.FONT_KEY));
+        if (!Number.isFinite(raw) || raw <= 0) return RecordView.FONT_DEFAULT;
+        return Math.max(
+            RecordView.FONT_MIN,
+            Math.min(RecordView.FONT_MAX, raw),
+        );
+    }
+
+    private setPrompterFontSize(px: number): void {
+        const clamped = Math.max(
+            RecordView.FONT_MIN,
+            Math.min(RecordView.FONT_MAX, Math.round(px)),
+        );
+        localStorage.setItem(RecordView.FONT_KEY, String(clamped));
+        this.applyPrompterFontSize();
+    }
+
+    private applyPrompterFontSize(): void {
+        const px = this.getPrompterFontSize();
+        this.promptHost.style.setProperty("--rv-base", `${px}px`);
+    }
+
+    private buildZoomControl(): HTMLElement {
+        const wrap = el("div", {
+            class: "rv-zoom",
+            title: "prompter text size",
+        });
+        const minus = el("button", {
+            text: "A\u2212",
+            title: "smaller prompter text",
+        }) as HTMLButtonElement;
+        const plus = el("button", {
+            text: "A+",
+            title: "larger prompter text",
+        }) as HTMLButtonElement;
+        minus.onclick = () =>
+            this.setPrompterFontSize(this.getPrompterFontSize() - 1);
+        plus.onclick = () =>
+            this.setPrompterFontSize(this.getPrompterFontSize() + 1);
+        wrap.append(minus, plus);
+        return wrap;
+    }
+
+    /* ----------------------------- chain mode ----------------------------- */
+
+    /* localStorage flag that controls what happens when a recording reaches
+       the end of its line. Persisted by the UI; Takes just reads the bool. */
+    private static readonly CHAIN_KEY = "rv.chainMode";
+
+    private getChainMode(): boolean {
+        return localStorage.getItem(RecordView.CHAIN_KEY) === "1";
+    }
+
+    private setChainMode(on: boolean, btn: HTMLButtonElement): void {
+        localStorage.setItem(RecordView.CHAIN_KEY, on ? "1" : "0");
+        this.takes.chainMode = on;
+        this.paintChainBtn(btn, on);
+    }
+
+    private paintChainBtn(btn: HTMLButtonElement, on: boolean): void {
+        btn.classList.toggle("on", on);
+        btn.textContent = on ? "\u21a6 chain" : "\u25fc hold";
+        btn.title = on
+            ? "chain: after a line, auto-start a take on the next line (click to switch to hold)"
+            : "hold: after a line, stay put so you can re-record (click to switch to chain)";
+    }
+
+    private buildChainToggle(): HTMLElement {
+        const btn = el("button", { class: "rv-chain" }) as HTMLButtonElement;
+        const initial = this.getChainMode();
+        this.takes.chainMode = initial;
+        this.paintChainBtn(btn, initial);
+        btn.onclick = () => this.setChainMode(!this.getChainMode(), btn);
+        return btn;
     }
 
     /* ------------------------------ prompter ------------------------------- */
@@ -219,67 +397,63 @@ export class RecordView {
         } else if (!cur) {
             this.lastCurrentId = null;
         }
-        /* keep the rec button label in sync with whether the cursor is on a line */
+        /* keep the rec button enabled state in sync; whether a line is under
+           the cursor is reflected in the prompter highlight, not the label */
         if (!this.takes.recording && !this.takes.counting) {
-            this.recBtn.textContent = cur
-                ? "\u25cf rec this line"
-                : "\u25cf rec";
+            this.recIconEl.textContent = "\u25cf";
+            this.recLabelEl.textContent = "rec";
             this.recBtn.disabled = false;
         }
     }
 
-    /** Scroll the current line into the centre of the prompter without
-        triggering any ancestor scroll. We compute the desired prompter
-        scrollTop ourselves rather than calling Element.scrollIntoView, which
-        in some Chrome configurations also nudges document.body even with
-        overflow:hidden -- making the whole grid jump up by ~150 px. */
+    /** Scroll the current line into the upper third of the prompter, without
+        triggering any ancestor scroll.
+
+        We compute the desired scrollTop ourselves rather than calling
+        Element.scrollIntoView, which in some Chrome configurations also
+        nudges document.body even with overflow:hidden -- making the whole
+        grid jump up by ~150 px.
+
+        We position the current line roughly one-third down from the top
+        rather than centred so the user sees more of what's coming up next
+        (their reading horizon) than what they've already read. offsetTop is
+        unreliable here -- the prompter has no `position` set, so it would
+        measure against a higher ancestor and yield a huge value, clamping
+        scrollTo() to the end. Use bounding rects instead. */
     private scrollLineIntoView(line: HTMLElement): void {
         const host = this.promptHost;
-        const offset = line.offsetTop + line.offsetHeight / 2 -
-            host.clientHeight / 2;
+        if (host.clientHeight <= 0) return;
+        const lr = line.getBoundingClientRect();
+        const hr = host.getBoundingClientRect();
+        const lineTop = lr.top - hr.top + host.scrollTop;
+        /* place the line's *top* ~28% down from the prompter's top edge so
+           the next ~70% of the viewport shows upcoming lines */
+        const offset = lineTop - host.clientHeight * 0.28;
         host.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
     }
 
     /* ----------------------------- monitor --------------------------------- */
 
+    /* Repaints just the arm button + tooltip on arm state changes. The
+       MicMonitor widgets are persistent (mounted once in build()) and read
+       from a silent router when disarmed, so there is no widget swap and
+       therefore no possibility of the host geometry drifting. */
     private refreshMonitor(): void {
         const armed = this.takes.monitoring;
-        this.armBtn.textContent = armed ? "disarm mic" : "arm mic";
+        this.armLabelEl.textContent = armed ? "mute" : "arm";
+        this.armBtn.title = armed
+            ? "release the microphone"
+            : "open the microphone so you can see input levels";
         this.armBtn.classList.toggle("live", armed);
-        if (armed && this.micMonitor.active) {
-            this.micMonitor.attach(this.monitorMeterHost);
-            this.startClipPoll();
-        } else {
-            this.monitorMeterHost.replaceChildren();
-            this.stopClipPoll();
-            this.clipWarn.classList.remove("visible");
-        }
-    }
-
-    private startClipPoll(): void {
-        this.stopClipPoll();
-        const led = this.micMonitor.meterClipEl;
-        if (!led) return;
-        this.clipPollId = window.setInterval(() => {
-            this.clipWarn.classList.toggle(
-                "visible",
-                led.classList.contains("clipped"),
-            );
-        }, 120);
-    }
-
-    private stopClipPoll(): void {
-        if (this.clipPollId !== null) {
-            clearInterval(this.clipPollId);
-            this.clipPollId = null;
-        }
+        this.monitorMeterHost.classList.toggle("disarmed", !armed);
     }
 
     /* --------------------------- record state ------------------------------ */
 
     private onRecording(on: boolean): void {
         this.recBtn.classList.toggle("live", on);
-        this.recBtn.textContent = on ? "\u25a0 stop" : "\u25cf rec this line";
+        this.recIconEl.textContent = on ? "\u25a0" : "\u25cf";
+        this.recLabelEl.textContent = on ? "stop" : "rec";
         this.root.classList.toggle("recording", on);
         if (!on) this.tick();
     }
@@ -292,7 +466,8 @@ export class RecordView {
             this.recBtn.classList.remove("counting");
         } else {
             this.recBtn.classList.add("counting");
-            this.recBtn.textContent = `${n}\u2026`;
+            this.recIconEl.textContent = String(n);
+            this.recLabelEl.textContent = "\u2026";
         }
     }
 

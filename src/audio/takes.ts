@@ -171,11 +171,23 @@ export class Takes {
   private recSceneIndex = -1;
   /** in-scene time at which the recording should auto-stop (line.to) */
   private recStopAt = Infinity;
+  /** True iff the most recent stopRecording() call was triggered by the
+      playhead reaching the line's end (not by the user pressing stop). Used
+      by chain mode to decide whether to auto-advance to the next line. */
+  private naturalStop = false;
+  /** Chain mode: when a recording ends naturally at line.to, automatically
+      seek to the next line and start a fresh count-in. Persisted by the UI;
+      Takes just reads the flag. */
+  chainMode = false;
 
   /** AbortController used to cancel an in-progress count-in */
   private countInAbort: AbortController | null = null;
   /** mic stream acquired during count-in (when monitor not already armed) */
   private countInStream: MediaStream | null = null;
+  /** scheduled click oscillator+gain pairs for the in-progress count-in, so
+      cancelCountIn() can mute clicks that have already been scheduled on the
+      audio clock but not yet played */
+  private countInClicks: { osc: OscillatorNode; gain: GainNode }[] = [];
 
   /* mic monitor: open stream + audio graph kept alive while armed */
   private monitorStream: MediaStream | null = null;
@@ -220,6 +232,7 @@ export class Takes {
     player.events.on("time", () => {
       /* stop a section recording the moment the playhead reaches the line end */
       if (this.recorder && this.player.localTime >= this.recStopAt) {
+        this.naturalStop = true;
         this.stopRecording();
       }
       this.sync();
@@ -280,6 +293,25 @@ export class Takes {
     return null;
   }
 
+  /** Find a line by id across all scenes. Returns the line + the scene it
+      belongs to + that scene's index, or null when no line has that id.
+      Used by recording so the caller can pass a lineId from any scene
+      (chain mode across scene boundaries). */
+  private findLineAcrossScenes(
+    lineId: string,
+  ): {
+    scene: typeof this.player.project.scenes[number];
+    line: TimedText;
+    sceneIndex: number;
+  } | null {
+    const scenes = this.player.project.scenes;
+    for (let i = 0; i < scenes.length; i++) {
+      const line = scenes[i].lines.find((ln) => ln.id === lineId);
+      if (line) return { scene: scenes[i], line, sceneIndex: i };
+    }
+    return null;
+  }
+
   /* ---------------------------- recording ------------------------------- */
 
   /** Record one section. `lineId` defaults to the line under the playhead;
@@ -287,10 +319,19 @@ export class Takes {
       auto-stops at the line's `to`. */
   async startRecording(lineId?: string): Promise<string | null> {
     if (this.recorder) return null;
-    const scene = this.player.scene;
-    const line = lineId
-      ? scene.lines.find((ln) => ln.id === lineId)
-      : (this.lineAt(scene, this.player.localTime) ?? scene.lines[0]);
+    let scene = this.player.scene;
+    let line: TimedText | undefined;
+    let sceneIndex = this.player.sceneIndex;
+    if (lineId) {
+      const hit = this.findLineAcrossScenes(lineId);
+      if (hit) {
+        scene = hit.scene;
+        line = hit.line;
+        sceneIndex = hit.sceneIndex;
+      }
+    } else {
+      line = this.lineAt(scene, this.player.localTime) ?? scene.lines[0];
+    }
     if (!line || !line.id) {
       return "no line to record (add a narration line first)";
     }
@@ -319,7 +360,7 @@ export class Takes {
       : "audio/webm";
     const rec = new MediaRecorder(stream, { mimeType: mime });
     const chunks: Blob[] = [];
-    this.recSceneIndex = this.player.sceneIndex;
+    this.recSceneIndex = sceneIndex;
     this.recStopAt = line.to;
     const sceneId = scene.id;
     const lid = line.id;
@@ -333,11 +374,23 @@ export class Takes {
       this.recorder = null;
       this.recordingLine = null;
       this.recStopAt = Infinity;
+      const wasNatural = this.naturalStop;
+      this.naturalStop = false;
       this.events.emit("recording", false);
       const blob = new Blob(chunks, { type: mime });
-      if (blob.size < 1000) return; // discarded, effectively empty
-      await api.uploadTake(sceneId, lid, blob, "webm");
-      await this.refresh();
+      if (blob.size >= 1000) {
+        await api.uploadTake(sceneId, lid, blob, "webm");
+        await this.refresh();
+      }
+      /* Chain mode: after a *natural* stop (playhead reached line end),
+         auto-advance to the next narration line and start its count-in.
+         A manual stop (user pressed stop / Escape) never chains. */
+      if (wasNatural && this.chainMode) {
+        const nextLineId = this.nextLineIdAcrossScenes(sceneId, lid);
+        if (nextLineId) {
+          void this.startRecordingWithCountIn(nextLineId);
+        }
+      }
     };
     this.recorder = rec;
     this.recordingLine = lid;
@@ -358,11 +411,38 @@ export class Takes {
     if (this.player.playing) this.player.setPlaying(false);
   }
 
+  /** Find the id of the next narration line on the global timeline after
+      `(sceneId, lineId)`. Returns null if there is none (end of project). */
+  private nextLineIdAcrossScenes(
+    sceneId: string,
+    lineId: string,
+  ): string | null {
+    const scenes = this.player.project.scenes;
+    const si = scenes.findIndex((s) => s.id === sceneId);
+    if (si < 0) return null;
+    const li = scenes[si].lines.findIndex((l) => l.id === lineId);
+    if (li >= 0 && li + 1 < scenes[si].lines.length) {
+      return scenes[si].lines[li + 1].id ?? null;
+    }
+    for (let i = si + 1; i < scenes.length; i++) {
+      if (scenes[i].lines.length) return scenes[i].lines[0].id ?? null;
+    }
+    return null;
+  }
+
   /** Play a short metronome click via Web Audio to ctx.destination.
       This goes to the speaker/headphones only; it is NOT on the mic capture
       stream (MediaRecorder records the input MediaStream, not ctx.destination),
-      so the click can never bleed into the take. */
-  private playClick(ctx: AudioContext, when: number, accent: boolean): void {
+      so the click can never bleed into the take.
+
+      Returns the nodes so the caller (the count-in loop) can hold references
+      and silence already-scheduled clicks if the user cancels the count-in
+      before they play. */
+  private playClick(
+    ctx: AudioContext,
+    when: number,
+    accent: boolean,
+  ): { osc: OscillatorNode; gain: GainNode } {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -373,6 +453,7 @@ export class Takes {
     gain.connect(ctx.destination);
     osc.start(when);
     osc.stop(when + 0.07);
+    return { osc, gain };
   }
 
   /** Start the count-in then begin recording.  Both the panel rec buttons and
@@ -381,11 +462,20 @@ export class Takes {
   async startRecordingWithCountIn(lineId?: string): Promise<string | null> {
     if (this.recorder || this.countInAbort) return null;
 
-    /* resolve the target line up-front so we can show the beat overlay */
-    const scene = this.player.scene;
-    const line = lineId
-      ? scene.lines.find((ln) => ln.id === lineId)
-      : (this.lineAt(scene, this.player.localTime) ?? scene.lines[0]);
+    /* resolve the target line up-front so we can show the beat overlay.
+       Lookup is project-wide so chain-mode can pass a lineId from the next
+       scene; startRecording does the seek when it actually starts. */
+    let scene = this.player.scene;
+    let line: TimedText | undefined;
+    if (lineId) {
+      const hit = this.findLineAcrossScenes(lineId);
+      if (hit) {
+        scene = hit.scene;
+        line = hit.line;
+      }
+    } else {
+      line = this.lineAt(scene, this.player.localTime) ?? scene.lines[0];
+    }
     if (!line || !line.id) {
       return "no line to record (add a narration line first)";
     }
@@ -418,11 +508,15 @@ export class Takes {
     const ctx = this.audioCtx();
     void ctx.resume();
 
-    /* schedule COUNT_IN_BEATS clicks; one accent on beat 1 */
+    /* schedule COUNT_IN_BEATS clicks; one accent on beat 1. Keep references
+       so cancelCountIn() can silence ones that haven't played yet. */
     const beatDur = 1.0; // seconds per beat
     const t0 = ctx.currentTime + 0.05; // small lead to avoid the first click being clipped
+    this.countInClicks = [];
     for (let i = 0; i < COUNT_IN_BEATS; i++) {
-      this.playClick(ctx, t0 + i * beatDur, i === 0);
+      this.countInClicks.push(
+        this.playClick(ctx, t0 + i * beatDur, i === 0),
+      );
     }
 
     /* emit countdown numbers and wait for each beat */
@@ -450,6 +544,7 @@ export class Takes {
     this.countInAbort = null;
     this.countingLine = null;
     this.countInStream = null; // ownership transfers to startRecording
+    this.countInClicks = []; // clicks have all played; drop refs
     this.events.emit("countdown", 0);
 
     /* if the monitor stream was armed before we started, startRecording will
@@ -507,6 +602,24 @@ export class Takes {
   private cleanUpCountIn(): void {
     this.countInAbort = null;
     this.countingLine = null;
+    /* Silence any count-in clicks that were scheduled on the audio clock but
+       haven't actually fired yet, otherwise the user hears "beep · [press
+       stop] · beep · beep" and thinks the abort didn't take. We cancel the
+       gain ramp first then stop the oscillator so there is no click artefact
+       on already-playing nodes. */
+    if (this.countInClicks.length) {
+      const now = this.ctx?.currentTime ?? 0;
+      for (const { osc, gain } of this.countInClicks) {
+        try {
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.setValueAtTime(0, now);
+          osc.stop(now);
+        } catch {
+          /* node may already have stopped on its own; ignore */
+        }
+      }
+      this.countInClicks = [];
+    }
     /* release any mic stream we opened just for the count-in */
     if (this.countInStream) {
       this.countInStream.getTracks().forEach((t) => t.stop());
@@ -789,6 +902,15 @@ export class Takes {
   private audioCtx(): AudioContext {
     if (!this.ctx) this.ctx = new AudioContext();
     return this.ctx;
+  }
+
+  /** Public accessor that lazily creates the AudioContext if needed. Use this
+      from collaborators that want to build persistent nodes (e.g. the
+      MicMonitor's silent router) eagerly without waiting for the first
+      recording/audition action. Returns the same shared instance as the
+      private audioCtx() helper used internally. */
+  getAudioContext(): AudioContext {
+    return this.audioCtx();
   }
 
   /** Ensure the gate AudioWorklet module is loaded, returning whether it is

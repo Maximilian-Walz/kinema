@@ -36,7 +36,7 @@ export class SidePanel {
       on every body render so their RAF loops stop. */
   private readonly takeStrips: TakeStrip[] = [];
 
-  /** overlay element sitting over #hud showing the countdown number */
+  /** overlay element mounted inside #stagearea showing the countdown number */
   private countdownOverlay: HTMLElement | null = null;
 
   constructor(
@@ -841,7 +841,7 @@ export class SidePanel {
   private createCountdownOverlay(): HTMLElement {
     const el2 = document.createElement("div");
     el2.className = "sp-countdown";
-    /* mount over #hud (inside #stagearea) so it is always visible */
+    /* mount inside #stagearea so it is always visible over the stage */
     const stagearea = document.getElementById("stagearea") ?? document.body;
     stagearea.appendChild(el2);
     return el2;

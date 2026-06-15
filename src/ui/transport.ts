@@ -5,75 +5,110 @@ import type { TimingSync } from "../timings";
 import { el } from "./dom";
 import type { ExportDialog } from "./export-dialog";
 import { openProject } from "./picker";
-import type { Mode, WorkspaceMode } from "./workspace-mode";
+import type { WorkspaceMode } from "./workspace-mode";
 
-/* Per-mode key cheatsheet shown on the right of the transport bar. Common
-   keys (mode switch, play/pause, clean, project nav) are listed for every
-   mode so the operator never has to remember a different alphabet per mode;
-   the mode-specific keys lead each line. */
-const MODE_KEY_HINT: Record<Mode, string> = {
-  record:
-    "r rec this line \u00b7 ESC stop \u00b7 SPACE play \u00b7 \u2190/\u2192 \u00b15s \u00b7 F2 tune \u00b7 F3 time",
-  tune:
-    "\u25b6 audition \u00b7 drag waveform to scrub \u00b7 SPACE play \u00b7 F1 record \u00b7 F3 time",
-  time:
-    "SPACE play \u00b7 drag clips \u00b7 I/O loop \u00b7 [ ] scene \u00b7 1-9 jump \u00b7 F1 record \u00b7 F2 tune \u00b7 C clean",
-};
+/** Add a small key indicator chip to a button (e.g. "SPACE" on Play).
+    Inserted at the end of the button so the label leads and the key follows. */
+function addKbd(btn: HTMLElement, key: string): void {
+  btn.appendChild(el("span", { class: "t-kbd", text: key }));
+}
 
-/* play/pause, scene navigation, timecode, record shortcut, clean mode */
+/* Single transport row. Ordering follows the operator's flow left-to-right:
+     CONTEXT   project picker, mode switcher
+     TRANSPORT play, restart, [\u27e8 scene-title + time \u27e9]    \u2190 fixed-width nav cluster
+     [spacer]  saved indicator
+     ACTIONS   export, clean
+
+   The nav cluster has a fixed flex-basis so the chevrons live at the same
+   horizontal position regardless of the current scene's title length \u2014 the
+   user can muscle-memory click \u27e8 / \u27e9 to step scenes. Recording lives only
+   in record mode (and on the global `R` shortcut), so there is no rec button
+   on the transport bar. */
 export class Transport {
   private readonly player: Player;
   private playBtn!: HTMLButtonElement;
-  private recBtn!: HTMLButtonElement;
   private timeEl!: HTMLElement;
   private sceneEl!: HTMLElement;
   private savedEl!: HTMLElement;
+  /** Cached play/pause glyph node so we can swap it without destroying the
+      key-chip child appended via addKbd(). */
+  private playLabel!: Text;
 
   constructor(
     root: HTMLElement,
     player: Player,
-    takes: Takes,
+    _takes: Takes,
     sync: TimingSync,
     mode: WorkspaceMode,
     exportDialog: ExportDialog,
   ) {
     this.player = player;
 
-    this.playBtn = el("button", { class: "t-play", text: "▶ play" });
+    this.playBtn = el("button", {
+      class: "t-play",
+      title: "play / pause",
+    }) as HTMLButtonElement;
+    this.playLabel = document.createTextNode("\u25b6");
+    this.playBtn.appendChild(this.playLabel);
+    addKbd(this.playBtn, "SPACE");
     this.playBtn.onclick = () => player.toggle();
-    const restart = el("button", {
-      text: "⟲ scene",
-      title: "restart scene (Shift+R)",
-    });
+
+    const restart = el("button", { title: "restart scene" });
+    restart.appendChild(document.createTextNode("\u27f2"));
+    addKbd(restart, "\u21e7R");
     restart.onclick = () => player.restartScene();
-    const prev = el("button", { text: "⟨", title: "previous scene ([)" });
+
+    const prev = el("button", {
+      class: "t-nav-arrow",
+      title: "previous scene (Ctrl+\u2190, or [)",
+    });
+    prev.appendChild(document.createTextNode("\u27e8"));
+    addKbd(prev, "Ctrl \u2190");
     prev.onclick = () => player.seekScene(player.sceneIndex - 1);
-    const next = el("button", { text: "⟩", title: "next scene (])" });
+
+    const next = el("button", {
+      class: "t-nav-arrow",
+      title: "next scene (Ctrl+\u2192, or ])",
+    });
+    /* Mirror the prev button: kbd chip first, chevron last, so the chevron
+       points outward (away from the title) on both sides. addKbd appends,
+       so we add it before the chevron text node. */
+    addKbd(next, "Ctrl \u2192");
+    next.appendChild(document.createTextNode("\u27e9"));
     next.onclick = () => player.seekScene(player.sceneIndex + 1);
 
+    /* The scene title + timecode share one centred column inside the nav
+       cluster. The cluster itself has a fixed flex-basis (see styles.css)
+       so this column expands/contracts but the surrounding chevrons stay
+       put across scenes. */
     this.sceneEl = el("span", { class: "t-scene" });
     this.timeEl = el("span", { class: "t-time" });
+    const sceneCol = el(
+      "div",
+      { class: "t-scene-col" },
+      this.sceneEl,
+      this.timeEl,
+    );
+    const nav = el(
+      "div",
+      { class: "t-nav" },
+      prev,
+      sceneCol,
+      next,
+    );
+
     this.savedEl = el("span", { class: "t-saved" });
 
-    this.recBtn = el("button", {
-      class: "t-rec",
-      text: "● rec",
-      title: "record with 3-2-1 count-in (r)",
-    });
-    this.recBtn.onclick = async () => {
-      if (takes.recording || takes.counting) takes.stopRecording();
-      else await takes.startRecordingWithCountIn();
-    };
-
     const clean = el("button", {
-      text: "◻ clean (C)",
-      title: "stage only — for screen capture",
+      title: "clean stage \u2014 for screen capture",
     });
+    clean.appendChild(document.createTextNode("\u25fb"));
+    addKbd(clean, "C");
     clean.onclick = () => document.body.classList.toggle("clean");
 
     const exportBtn = el("button", {
       class: "t-export",
-      text: "⤓ export",
+      text: "\u2913 export",
       title: "render the project to MP4",
     });
     exportBtn.onclick = () => exportDialog.open();
@@ -86,55 +121,27 @@ export class Transport {
     this.fillPicker(picker);
 
     const modeSwitch = mode.buildSwitcher();
-    const keysEl = el("span", { class: "t-keys" });
-    const paintKeys = (): void => {
-      keysEl.textContent = MODE_KEY_HINT[mode.mode];
-    };
-    paintKeys();
-    mode.events.on("change", paintKeys);
 
     root.append(
+      picker,
+      modeSwitch,
+      el("span", { class: "t-sep" }),
       this.playBtn,
       restart,
-      prev,
-      next,
-      this.sceneEl,
-      this.timeEl,
+      nav,
       this.savedEl,
       el("span", { class: "t-spacer" }),
-      modeSwitch,
-      picker,
-      this.recBtn,
       exportBtn,
       exportBadge,
       clean,
-      keysEl,
     );
 
     player.events.on("time", () => this.tick());
     player.events.on("play", (p) => {
-      this.playBtn.textContent = p ? "❚❚ pause" : "▶ play";
+      this.playLabel.data = p ? "\u275a\u275a" : "\u25b6";
     });
-    takes.events.on("recording", (on) => {
-      this.recBtn.classList.toggle("live", on);
-      this.recBtn.classList.remove("counting");
-      this.recBtn.textContent = on ? "■ stop" : "● rec";
-    });
-    takes.events.on("countdown", (n) => {
-      if (n === null) {
-        /* cancelled */
-        this.recBtn.classList.remove("counting");
-        this.recBtn.textContent = "● rec";
-      } else if (n === 0) {
-        /* handed off to recording -- recording event will fire shortly */
-        this.recBtn.classList.remove("counting");
-      } else {
-        this.recBtn.classList.add("counting");
-        this.recBtn.textContent = `${n}…`;
-      }
-    });
-    sync.events.on("saved", () => this.flashSaved("✓ saved"));
-    sync.events.on("error", () => this.flashSaved("✗ save failed", true));
+    sync.events.on("saved", () => this.flashSaved("\u2713 saved"));
+    sync.events.on("error", () => this.flashSaved("\u2717 save failed", true));
     this.tick();
   }
 
@@ -169,11 +176,11 @@ export class Transport {
     const P = this.player;
     const { index, local } = P.cursor();
     const scene = P.project.scenes[index];
-    this.sceneEl.textContent = `${
+    this.sceneEl.textContent = `Scene ${
       index + 1
-    }/${P.project.scenes.length} ${scene.title}`;
-    this.timeEl.textContent = `${fmtMs(local)} / ${fmt(scene.len)}  ·  video ${
-      fmt(P.time)
-    } / ${fmt(P.total)}`;
+    } of ${P.project.scenes.length} \u00b7 ${scene.title}`;
+    this.timeEl.textContent = `${fmtMs(local)} / ${
+      fmt(scene.len)
+    }   \u00b7   total ${fmt(P.time)} / ${fmt(P.total)}`;
   }
 }

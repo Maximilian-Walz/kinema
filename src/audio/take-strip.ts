@@ -42,13 +42,15 @@ export class TakeStrip {
     private readonly sceneId: string;
     private readonly lineId: string;
     private readonly file: string;
-    private readonly w: number;
     private readonly h: number;
+    private readonly dpr: number;
+    private readonly color: string;
     private duration = 0;
     private peaks: Float32Array | null = null;
     private rafId = 0;
     private destroyed = false;
     private readonly onTakesChange: () => void;
+    private readonly resizeObs: ResizeObserver;
 
     constructor(
         takes: Takes,
@@ -62,19 +64,20 @@ export class TakeStrip {
         this.lineId = lineId;
         this.file = file;
 
-        const dpr = Math.max(1, opts.dpr ?? window.devicePixelRatio ?? 1);
-        this.w = opts.width ?? 320;
+        this.dpr = Math.max(1, opts.dpr ?? window.devicePixelRatio ?? 1);
         this.h = opts.height ?? 40;
+        this.color = opts.color ?? DEFAULT_COLOR;
 
+        /* Canvas backing-store width is sized from the rendered CSS width
+           (set up below by ResizeObserver) so the waveform stays crisp on
+           HiDPI displays and after the container is resized. Setting the
+           backing-store size to a fixed `width` option would only stay sharp
+           when the canvas happens to render at exactly that CSS width. */
         this.canvas = document.createElement("canvas");
-        this.canvas.width = this.w * dpr;
-        this.canvas.height = this.h * dpr;
         this.canvas.style.width = "100%";
         this.canvas.style.height = this.h + "px";
         this.canvas.style.display = "block";
         this.canvas.style.cursor = "pointer";
-        const ctx2d = this.canvas.getContext("2d");
-        if (ctx2d) ctx2d.scale(dpr, dpr);
 
         this.playhead = document.createElement("div");
         this.playhead.className = "vs-take-cursor";
@@ -115,16 +118,23 @@ export class TakeStrip {
         this.onTakesChange = () => this.tickOnce();
         this.takes.events.on("change", this.onTakesChange);
 
-        void this.load(opts.color ?? DEFAULT_COLOR);
+        /* Track the canvas's rendered width and resize the backing store to
+           match (× dpr). Without this, the canvas backing pixels get stretched
+           by CSS `width:100%` and the waveform looks blurry. */
+        this.resizeObs = new ResizeObserver(() => this.resizeAndDraw());
+        this.resizeObs.observe(this.canvas);
+
+        void this.load();
         this.startRaf();
     }
 
     destroy(): void {
         this.destroyed = true;
         cancelAnimationFrame(this.rafId);
+        this.resizeObs.disconnect();
     }
 
-    private async load(color: string): Promise<void> {
+    private async load(): Promise<void> {
         const url = new URL(
             api.takeUrl(this.sceneId, this.lineId, this.file),
             location.href,
@@ -134,25 +144,42 @@ export class TakeStrip {
             if (this.destroyed) return;
             this.peaks = peaks;
             this.duration = duration;
-            this.draw(color);
+            this.resizeAndDraw();
             this.tickOnce();
         } catch {
             /* decode failed -- leave waveform blank, scrubbing becomes a no-op */
         }
     }
 
-    private draw(color: string): void {
+    /** Re-size the canvas backing store to match the current CSS width (× dpr)
+        and redraw the waveform. Called on mount, on load, and whenever the
+        ResizeObserver fires. */
+    private resizeAndDraw(): void {
+        if (this.destroyed) return;
+        const cssW = Math.max(1, Math.floor(this.canvas.clientWidth));
+        const cssH = this.h;
+        const bw = Math.round(cssW * this.dpr);
+        const bh = Math.round(cssH * this.dpr);
+        if (this.canvas.width !== bw) this.canvas.width = bw;
+        if (this.canvas.height !== bh) this.canvas.height = bh;
+        this.draw();
+    }
+
+    private draw(): void {
         const ctx = this.canvas.getContext("2d");
-        if (!ctx || !this.peaks) return;
-        const w = this.w;
-        const h = this.h;
-        ctx.clearRect(0, 0, w, h);
-        ctx.fillStyle = color;
-        for (let x = 0; x < w; x++) {
-            const i = Math.floor((x / w) * this.peaks.length);
+        if (!ctx) return;
+        const bw = this.canvas.width;
+        const bh = this.canvas.height;
+        ctx.clearRect(0, 0, bw, bh);
+        if (!this.peaks) return;
+        ctx.fillStyle = this.color;
+        /* Draw one bar per backing-store pixel column for maximum sharpness on
+           HiDPI; bar width is 1 backing px (sub-CSS pixel). */
+        for (let x = 0; x < bw; x++) {
+            const i = Math.floor((x / bw) * this.peaks.length);
             const v = Math.max(0.04, this.peaks[i]);
-            const bh = Math.max(1, v * (h - 2));
-            ctx.fillRect(x, (h - bh) / 2, 1, bh);
+            const barH = Math.max(this.dpr, v * (bh - 2 * this.dpr));
+            ctx.fillRect(x, (bh - barH) / 2, 1, barH);
         }
     }
 

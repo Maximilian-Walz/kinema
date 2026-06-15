@@ -43,7 +43,7 @@ body.clean #dock-resize{display:none}
 
 /* clean mode: stage only, for screen capture */
 body.clean #app{grid-template-columns:1fr;grid-template-rows:1fr;grid-template-areas:"stage"}
-body.clean #side,body.clean #transport,body.clean #timeline,body.clean #recordview,body.clean #tuneview,body.clean #hud{display:none}
+body.clean #side,body.clean #transport,body.clean #timeline,body.clean #recordview,body.clean #tuneview{display:none}
 
 /* mode chip group in the transport bar */
 .mode-switch{display:inline-flex;flex:none;gap:1px;background:var(--st-line);
@@ -76,8 +76,6 @@ select{background:var(--st-panel2);color:var(--st-text);border:1px solid var(--s
   outline:1px solid var(--st-line)}
 body.clean #frame{outline:none}
 #stage{position:absolute;top:0;left:0;transform-origin:top left;overflow:hidden}
-#hud{position:absolute;top:10px;right:14px;font-family:var(--st-mono);
-  font-size:12px;color:var(--st-faint);pointer-events:none}
 
 /* ============================== side panel =============================== */
 #side{grid-area:side;border-left:1px solid var(--st-line);
@@ -88,20 +86,31 @@ body.clean #frame{outline:none}
   flex-direction:column;gap:12px;min-height:0}
 .sp-scenetitle{font-family:var(--st-mono);font-size:11.5px;color:var(--st-faint);
   letter-spacing:.12em}
-/* top-of-app recording banner (RecBar singleton) */
+/* top-of-app recording banner (RecBar singleton). Compact, centred:
+   [\u25cf] [REC] [scene/line context]  [elapsed]  [small peak meter]  [\u25a0 stop]
+   The meter is intentionally small (160 px); the record-view bar already
+   shows a full waveform + meter, this banner just confirms "still hearing
+   you" from any mode. */
 #recbar{position:fixed;top:0;left:0;right:0;z-index:150;
-  display:flex;align-items:center;gap:10px;padding:8px 16px;
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  padding:5px 16px;height:32px;box-sizing:border-box;
   background:rgba(248,81,73,.18);border-bottom:1px solid var(--st-red);
-  font-family:var(--st-mono);font-size:12.5px;color:#ffd0cc;
+  font-family:var(--st-mono);font-size:12px;color:#ffd0cc;
   backdrop-filter:blur(2px)}
-body.recording #app{padding-top:38px}
+/* Banner overlays the top of the app; no padding push -- the app keeps its
+   layout and the banner just floats above the stage. A subtle drop shadow
+   keeps it readable over the dark content underneath. */
+#recbar{box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .rb-dot{width:9px;height:9px;border-radius:50%;background:var(--st-red);
   animation:blink 1.2s infinite;flex:none}
-.rb-label{letter-spacing:.06em}
-.rb-monitor{flex:1;min-width:0;display:flex;align-items:center;gap:10px}
-.rb-monitor .vs-meter{flex:1;flex-direction:row}
-.rb-monitor .vs-meter canvas{width:100% !important}
-.rb-stop{flex:none;border-color:#ffa198;color:#ffd0cc}
+.rb-tag{flex:none;font-weight:700;letter-spacing:.16em;color:#ffd0cc}
+.rb-context{flex:0 1 auto;min-width:0;color:#ffd0cc;letter-spacing:.02em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:42ch}
+.rb-time{flex:none;color:#ffd0cc;font-variant-numeric:tabular-nums;
+  letter-spacing:.04em;padding:0 8px;border-left:1px solid rgba(255,255,255,.18);
+  border-right:1px solid rgba(255,255,255,.18)}
+.rb-stop{flex:none;border-color:#ffa198;color:#ffd0cc;
+  padding:2px 9px;font-size:12px;line-height:1;min-width:0}
 .rb-stop:hover{background:var(--st-red);color:#0d1117}
 @keyframes blink{50%{opacity:.35}}
 
@@ -159,23 +168,77 @@ body.recording #app{padding-top:38px}
 .sp-playback-meter .vs-meter canvas{width:100% !important}
 
 /* =============================== transport =============================== */
+/* Single horizontal row, ordered left-to-right by purpose:
+     CONTEXT   project picker, mode switch
+     TRANSPORT play / restart / \u27e8 / scene title / \u27e9 / time / saved
+     [spacer]
+     ACTIONS   record, export, clean
+   Discoverable keyboard shortcuts are painted onto their owning buttons via
+   the .t-kbd chip, so there is no separate cheatsheet bar. */
 #transport{grid-area:transport;display:flex;align-items:center;gap:10px;
-  padding:8px 14px;background:var(--st-panel);border-top:1px solid var(--st-line);
-  font-family:var(--st-mono);font-size:12.5px;color:var(--st-dim);min-width:0}
-/* Every transport item is a fixed-size chip; only `.t-spacer` flexes. The
-   t-time block can shrink + wrap its time string when room is tight. */
-#transport > *{flex:none}
-.t-time{flex:1 1 auto;min-width:0;color:var(--st-dim);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.t-spacer{flex:1 1 auto;min-width:8px}
-.t-play{min-width:90px}
-.t-scene{color:var(--st-text);margin-left:6px}
-.t-saved{color:var(--st-green);min-width:70px}
+  padding:8px 14px;background:var(--st-panel);
+  border-top:1px solid var(--st-line);font-family:var(--st-mono);
+  font-size:12.5px;color:var(--st-dim);min-width:0;overflow:hidden}
+/* By default every transport child is a fixed-size chip. The flexible
+   items (scene title, time, spacer) override below. Selectors are scoped to
+   `#transport >` so they beat the universal-selector rule; bare class
+   selectors are silently clobbered by `#transport > *`. */
+#transport > *{flex:none;min-width:0}
+#transport > .t-spacer{flex:1 1 auto;min-width:0}
+#transport > .t-sep{width:1px;height:20px;background:var(--st-line);
+  margin:0 2px}
+
+/* Scene navigation cluster: [⟨] [title + time] [⟩]. The cluster has a
+   fixed flex-basis so the chevrons live at the same horizontal position
+   regardless of the current scene's title length — the user can muscle-memory
+   click ⟨/⟩ to step scenes. The inner title column shrinks/ellipsizes when
+   the title is long; the cluster as a whole only shrinks when the bar itself
+   is genuinely cramped. */
+#transport > .t-nav{flex:0 1 360px;display:flex;align-items:center;gap:6px;
+  min-width:0;padding:0 4px}
+/* Nav arrows host the chevron and (optionally) a key chip. Lay them out as
+   inline-flex so the gap between chevron and chip is exactly `gap`, and
+   both children share the same baseline regardless of font-size mismatch
+   between the chevron glyph and the smaller monospace chip. */
+.t-nav-arrow{flex:none;display:inline-flex;align-items:center;gap:6px;
+  padding:6px 10px;font-size:14px;line-height:1}
+.t-scene-col{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px;line-height:1.15;
+  padding:0 4px}
+.t-scene{color:var(--st-text);font-size:12.5px;font-weight:500;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  letter-spacing:.01em}
+.t-time{color:var(--st-faint);font-size:10.5px;font-variant-numeric:tabular-nums;
+  letter-spacing:.04em;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+
+.t-play{min-width:0}
+.t-saved{color:var(--st-green);min-width:0;font-size:11px;
+  letter-spacing:.04em}
 .t-saved.error{color:var(--st-red)}
 .t-rec{border-color:var(--st-red);color:#ffa198}
 .t-rec.live{background:var(--st-red);color:#0d1117;font-weight:700;
   animation:blink 1.2s infinite}
 .t-rec.counting{border-color:#e3b341;color:#e3b341;animation:blink 1s infinite}
+
+/* In-button key indicator (e.g. "SPACE" on Play, "R" on Rec). Sits at the
+   end of the button label, dim and small, so the action stays primary and
+   the shortcut is a hint rather than competing text. */
+.t-kbd{display:inline-block;margin-left:8px;padding:0 5px;
+  border:1px solid var(--st-line);border-radius:4px;
+  font-family:var(--st-mono);font-size:9.5px;line-height:14px;
+  color:var(--st-faint);background:rgba(0,0,0,.25);
+  letter-spacing:.04em;vertical-align:1px}
+button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
+.t-rec.live .t-kbd,.t-rec.counting .t-kbd{display:none}
+/* Nav-arrow chevrons drop the key chip when the bar is narrow so they stay
+   visually balanced around the title; the keys are still bound. The "next"
+   button puts the kbd chip BEFORE the chevron (so the chevron points
+   outward, away from the title); .t-nav-arrow uses flexbox `gap` for the
+   spacing instead of margins so prev/next stay symmetric without per-side
+   margin tweaks. */
+.t-nav-arrow .t-kbd{margin:0;vertical-align:0}
+@media (max-width:1100px){.t-nav-arrow .t-kbd{display:none}}
 
 /* countdown overlay: a large number centred over the stage area */
 .sp-countdown{position:absolute;inset:0;display:flex;align-items:center;
@@ -189,8 +252,6 @@ body.recording #app{padding-top:38px}
   40%{transform:scale(0.92);opacity:1}
   100%{transform:scale(1);opacity:1}
 }
-.t-keys{color:var(--st-faint);font-size:11px}
-@media (max-width:1500px){.t-keys{display:none}}
 
 /* =============================== timeline ================================ */
 #timeline{grid-area:bottom;display:flex;flex-direction:column;
@@ -314,48 +375,130 @@ body.recording #app{padding-top:38px}
    per mode. */
 #recordview{background:var(--st-panel);border-top:1px solid var(--st-red);
   color:var(--st-text);overflow:hidden}
-.rv-monitor{display:flex;align-items:center;gap:10px;padding:8px 16px;
+
+/* Monitor bar -- three flex groups separated by vertical dividers:
+     [\u25cf rec] [chain|hold]  \u2502  [\u23f5 arm] [meter] [waveform] [\u25cf clip]  \u2502  [status]
+   Action group sits at the left edge so the primary click target is at a
+   fixed position. The mic group keeps a stable size whether the mic is
+   armed or not, so arming doesn't reflow the rest of the bar. The bar has
+   a fixed min-height equal to the tallest armed-state child (the 36 px
+   waveform canvas), so the whole bar's height never jitters when the
+   waveform appears/disappears. */
+.rv-monitor{display:flex;align-items:center;gap:12px;padding:8px 16px;
   background:rgba(248,81,73,.05);border-bottom:1px solid var(--st-line);
-  font-family:var(--st-mono);font-size:12px}
-.rv-arm{flex:none}
-.rv-arm.live{border-color:#7ee787;color:#7ee787}
-/* The waveform stretches to fill, the level meter stays compact. The Mic
-   monitor mounts the waveform <canvas> as a direct child and the meter as a
-   .vs-meter sibling (see audio/monitor.ts). */
-.rv-monitor-host{flex:1;min-width:160px;display:flex;flex-direction:row;
-  align-items:center;gap:10px}
-.rv-monitor-host > canvas{flex:1 1 auto;min-width:0;width:100% !important;
-  height:36px;border-radius:3px}
-.rv-monitor-host .vs-meter{flex:none}
-.rv-monitor-host .vs-meter canvas{width:160px !important}
-.rv-clip{display:none;font-size:11px;color:#f85149;padding:2px 6px;
-  border:1px solid #f85149;border-radius:6px}
-.rv-clip.visible{display:inline-block}
-.rv-status{flex:none;color:var(--st-dim);font-size:11.5px;
-  max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  font-family:var(--st-mono);font-size:12px;min-width:0;
+  min-height:52px;box-sizing:border-box}
+.rv-group{display:flex;align-items:center;gap:8px;min-width:0;
+  min-height:36px}
+.rv-action{flex:none}
+.rv-mic{flex:1 1 auto;min-width:240px}
+.rv-sep{flex:none;width:1px;align-self:stretch;background:var(--st-line);
+  margin:2px 0}
+
 .rv-rec{flex:none;border-color:var(--st-red);color:#ffa198;
-  padding:8px 16px;font-size:13px;letter-spacing:.04em}
+  padding:8px 16px;font-size:13px;letter-spacing:.04em;
+  display:inline-flex;align-items:center;gap:8px;
+  /* fixed width so rec/stop/digit swap never reflows the bar */
+  min-width:96px;justify-content:center}
 .rv-rec.live{background:var(--st-red);color:#0d1117;font-weight:700;
   animation:blink 1.2s infinite}
 .rv-rec.counting{border-color:#e3b341;color:#e3b341;animation:blink 1s infinite}
 
-.rv-prompter{flex:1 1 0;min-height:0;overflow-y:auto;
+/* chain/hold toggle: controls what happens at the end of a line during
+   recording. "hold" (off, default) stops cleanly so the user can re-record;
+   "chain" (on) auto-starts a take on the next line. Sits beside the rec
+   button because it directly modifies the rec button's behaviour. */
+.rv-chain{flex:none;font-size:11px;padding:5px 10px;letter-spacing:.04em;
+  min-width:88px;text-align:center}
+.rv-chain.on{border-color:#7ee787;color:#7ee787}
+
+.rv-arm{flex:none;display:inline-flex;align-items:center;gap:8px;
+  /* same fixed-width treatment as .rv-rec so arm/mute swap never reflows */
+  min-width:96px;justify-content:center;font-size:12.5px}
+.rv-arm.live{border-color:#7ee787;color:#7ee787}
+
+/* Shared layout for buttons with [icon][label] structure. The icon is a
+   single glyph reserved in a fixed-width slot, the label takes its own
+   slot; together they keep the button width identical across state changes
+   (rec/stop, arm/mute, count-in digits). */
+.rv-btn-icon{display:inline-block;width:1em;text-align:center;line-height:1;
+  font-feature-settings:"tnum"}
+.rv-btn-label{display:inline-block;min-width:34px;text-align:left}
+/* The waveform stretches to fill, the level meter stays compact. The Mic
+   monitor mounts the waveform <canvas> as a direct child and the meter as a
+   .vs-meter sibling (see audio/monitor.ts). When the mic is disarmed the
+   host is empty but its flex still reserves space so the bar doesn't reflow. */
+/* The mic-monitor host contains two persistent flex slots that ALWAYS hold
+   the live MicMonitor widgets. The widgets read from a silent router when
+   disarmed and from the live mic when armed -- there is no placeholder, no
+   widget swap, and therefore no possible width or height drift. When
+   disarmed we just dim the host slightly so the user can tell. */
+.rv-monitor-host{flex:1 1 auto;min-width:0;display:flex;flex-direction:row;
+  align-items:center;gap:10px;height:36px}
+.rv-monitor-host.disarmed{opacity:.55;filter:saturate(0.5)}
+.rv-slot{display:flex;align-items:center;justify-content:flex-start}
+.rv-wave-slot{flex:1 1 auto;min-width:0;height:36px}
+.rv-meter-slot{flex:none;height:36px}
+/* Force the waveform canvas to fill the wave slot (overriding the inline
+   width/height the LiveWaveform constructor sets). The meter widget keeps
+   its native size since it has a fixed canvas-plus-LED footprint. */
+.rv-wave-slot > canvas{width:100% !important;height:36px !important;
+  display:block;border-radius:3px;min-width:0}
+
+.rv-status{flex:1 1 auto;min-width:0;color:var(--st-dim);font-size:11.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+
+/* prompter sits inside .rv-prompter-wrap so the absolute-positioned zoom
+   overlay can be a sibling. Wrap stretches to fill the remaining dock height
+   and clips its overflow so the absolute overlay never escapes. */
+.rv-prompter-wrap{position:relative;flex:1 1 0;min-height:0;overflow:hidden}
+
+.rv-prompter{position:absolute;inset:0;overflow-y:auto;
   padding:30px 16px 50vh;
-  display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+  display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;
+  /* base text size for prompter lines. JS bumps this with A-/A+ and persists
+     to localStorage. All line widths and paddings are expressed in `em` so
+     they scale with this var -- which keeps word-wrap positions identical
+     between a "current" line (larger) and the dim lines around it, instead
+     of letting words jump to a new row as the active line zooms in. */
+  --rv-base:15px;
+  --rv-width:38em}
 .rv-scenetitle{font-family:var(--st-mono);font-size:11.5px;
   color:var(--st-faint);letter-spacing:.14em;text-align:center;
   text-transform:uppercase}
-.rv-lines{display:flex;flex-direction:column;gap:18px;align-items:center}
-.rv-line{max-width:780px;text-align:center;padding:12px 18px;
-  font-size:17px;line-height:1.55;color:var(--st-faint);
-  border-radius:10px;cursor:pointer;
-  transition:color .25s,opacity .25s,background .25s,font-size .25s}
-.rv-line.prev,.rv-line.next{color:var(--st-dim);font-size:18px;opacity:.7}
+.rv-lines{display:flex;flex-direction:column;gap:1em;align-items:center}
+.rv-line{width:var(--rv-width);max-width:100%;text-align:center;
+  padding:.55em 1.1em;
+  font-size:var(--rv-base);line-height:1.55;color:var(--st-faint);
+  border:1px solid transparent;border-radius:10px;cursor:pointer;
+  transition:color .25s,opacity .25s,background .25s,
+    font-size .25s,width .25s,padding .25s}
+.rv-line.prev,.rv-line.next{color:var(--st-dim);
+  font-size:calc(var(--rv-base) * 1.05);opacity:.7}
 .rv-line.done{opacity:.35}
-.rv-line.current{color:var(--st-text);font-size:clamp(22px,2.6vw,32px);
-  font-weight:600;background:rgba(248,81,73,.06);
-  border:1px solid rgba(248,81,73,.35);opacity:1;line-height:1.4}
+/* The current line scales the same `em`-based width as its siblings, so its
+   wrap points stay aligned with the surrounding (smaller) lines -- words
+   don't shift mid-read when the line becomes active. */
+.rv-line.current{color:var(--st-text);
+  font-size:calc(var(--rv-base) * 1.35);font-weight:600;
+  background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.35);
+  opacity:1;line-height:1.4}
 .rv-empty{color:var(--st-faint);font-family:var(--st-mono);font-size:12.5px}
+
+/* prompter text-size zoom (A-/A+). Absolute-positioned overlay on the
+   .rv-prompter-wrap so it survives renderPrompter()'s replaceChildren()
+   (a sticky child of the prompter itself would be wiped on every scene
+   change). Sits in the top-right corner of the prompter; backdrop-blur
+   keeps it readable over the text. */
+.rv-zoom{position:absolute;top:6px;right:6px;z-index:2;
+  display:inline-flex;align-items:center;gap:1px;flex:none;
+  border:1px solid var(--st-line);border-radius:7px;overflow:hidden;
+  background:rgba(13,17,23,.85);backdrop-filter:blur(2px)}
+.rv-zoom button{border:none;border-radius:0;padding:5px 9px;font-size:11px;
+  background:transparent;color:var(--st-dim);min-width:0}
+.rv-zoom button:hover{color:var(--st-text);background:var(--st-panel2)}
+
+/* (chain/hold styles moved up into the monitor-bar block alongside .rv-rec) */
 
 /* ===================== record-mode side panel ============================ */
 /* Compact card for the line under the cursor (last 2 takes + section list). */

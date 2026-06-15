@@ -9,38 +9,51 @@ import type { Takes } from "./takes";
    every time a view re-renders, and their canvases are single-parent DOM
    nodes -- multiple views can't legally show the same instance at once.
 
-   So we own one Meter + LiveWaveform per audio source (mic monitor and the
-   master playback bus) here, give views a tiny mount/unmount API, and let the
-   widgets follow whichever view is currently asking. The lifetimes are tied to
-   the analyser nodes, not to any individual view -- arming the mic creates the
-   pair, disarming destroys them.
+   MicMonitor owns ONE pair of widgets (one Meter + one LiveWaveform) that
+   live for the entire app lifetime. Both are bound to a routing AnalyserNode
+   we own here, not directly to the mic. When the mic arms we connect the
+   mic's source to that router; when it disarms we disconnect. The widgets
+   never change, never get destroyed, and always show the same DOM nodes at
+   the same dimensions -- so a "placeholder" is just the same widget drawing
+   silence. No swap, no size drift, by construction.
 ============================================================================ */
 
 export class MicMonitor {
+    private readonly takes: Takes;
+
+    /* the persistent widget pair + the analyser they read from */
     private meter: Meter | null = null;
     private waveform: LiveWaveform | null = null;
+    private routerAnalyser: AnalyserNode | null = null;
+
+    /* the currently-connected mic source (when armed), so we can disconnect
+       it cleanly when the mic is released */
+    private boundSource: AudioNode | null = null;
+
     private currentHost: HTMLElement | null = null;
 
     constructor(takes: Takes) {
+        this.takes = takes;
         takes.events.on("monitor", (analyser) => this.bind(analyser));
     }
 
-    /** True while the mic is armed (the analyser exists). */
+    /** True while the mic is armed. Widgets ALWAYS exist regardless. */
     get active(): boolean {
-        return this.meter !== null;
+        return this.boundSource !== null;
     }
 
     /** Mount the meter + live waveform inside `host`, replacing whatever was
-      already there. Safe to call repeatedly. No-op while the mic is disarmed. */
+      already there. Safe to call repeatedly. Works whether the mic is armed
+      or not -- when disarmed the widgets just draw silence at the same
+      dimensions. */
     attach(host: HTMLElement): void {
+        this.ensureWidgets();
         if (!this.meter || !this.waveform) return;
         if (this.currentHost && this.currentHost !== host) {
             this.currentHost.replaceChildren();
         }
         this.currentHost = host;
         host.replaceChildren();
-        /* waveform first (taller), then meter underneath -- views can re-style via
-       parent class; this module owns lifecycle, not layout */
         host.append(this.waveform.canvas, this.meter.element);
         this.meter.start();
         this.waveform.start();
@@ -58,47 +71,64 @@ export class MicMonitor {
     /** Direct access for callers that want to place meter and waveform in
       different containers (e.g. the recbar wants only the meter inline). */
     get meterEl(): HTMLElement | null {
+        this.ensureWidgets();
         return this.meter?.element ?? null;
     }
     get waveformEl(): HTMLCanvasElement | null {
+        this.ensureWidgets();
         return this.waveform?.canvas ?? null;
     }
     get meterClipEl(): HTMLElement | null {
         return this.meter?.element.querySelector(".vs-meter-clip") ?? null;
     }
 
-    /** Start the widget animation loops (no-op while disarmed). Callers should
-      invoke after mounting elements that were obtained via meterEl/waveformEl. */
+    /** Start the widget animation loops. */
     start(): void {
+        this.ensureWidgets();
         this.meter?.start();
         this.waveform?.start();
     }
 
+    /** Lazily build the persistent widget pair the first time anyone asks for
+        them. We use the Takes AudioContext (which is created on the first audio
+        operation) and a silent router analyser; the meter reads silence until a
+        real mic source is connected. */
+    private ensureWidgets(): void {
+        if (this.meter && this.waveform && this.routerAnalyser) return;
+        const ctx = this.takes.getAudioContext();
+        this.routerAnalyser = ctx.createAnalyser();
+        this.routerAnalyser.fftSize = 2048;
+        /* NOT connected to ctx.destination -- no feedback */
+        this.meter = new Meter(this.routerAnalyser, {
+            orientation: "horizontal",
+            width: 120,
+            height: 14,
+        });
+        this.waveform = new LiveWaveform(this.routerAnalyser, {
+            width: 200,
+            height: 40,
+        });
+    }
+
+    /** Called when Takes emits 'monitor' with the live analyser node (or null).
+        Instead of rebuilding the widgets, we route the source from the live
+        analyser INTO our persistent router so the widgets read live audio. */
     private bind(analyser: AnalyserNode | null): void {
-        /* tear down whatever is currently bound; the canvases are single-parent
-       DOM nodes so we have to dispose them before re-creating */
-        if (this.currentHost) {
-            this.currentHost.replaceChildren();
-            this.currentHost = null;
+        this.ensureWidgets();
+        /* disconnect any previously-bound source */
+        if (this.boundSource && this.routerAnalyser) {
+            try {
+                this.boundSource.disconnect(this.routerAnalyser);
+            } catch {
+                /* ignore: source may already be disconnected */
+            }
+            this.boundSource = null;
         }
-        if (this.meter) {
-            this.meter.stop();
-            this.meter = null;
-        }
-        if (this.waveform) {
-            this.waveform.stop();
-            this.waveform = null;
-        }
-        if (analyser) {
-            this.meter = new Meter(analyser, {
-                orientation: "horizontal",
-                width: 120,
-                height: 14,
-            });
-            this.waveform = new LiveWaveform(analyser, {
-                width: 200,
-                height: 40,
-            });
+        if (analyser && this.routerAnalyser) {
+            /* The analyser Takes hands us IS connected to the mic source.
+               Plumb it into our router so the widgets see the same signal. */
+            analyser.connect(this.routerAnalyser);
+            this.boundSource = analyser;
         }
     }
 }

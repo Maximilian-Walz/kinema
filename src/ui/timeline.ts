@@ -361,11 +361,10 @@ export class Timeline {
             const local = time - this.player.offsets[si];
             return local >= item.from && local < item.to;
           },
-          edges:
-            () => [
-              this.player.offsets[si] + item.from,
-              this.player.offsets[si] + item.to,
-            ],
+          edges: () => [
+            this.player.offsets[si] + item.from,
+            this.player.offsets[si] + item.to,
+          ],
           beginMove: () => {
             const oF = item.from, oT = item.to;
             return (delta) => {
@@ -561,10 +560,13 @@ export class Timeline {
         const sect = this.takes.section(scene.id, lineId)!;
         const span = ln.to - ln.from;
         const w = Math.max(8, Math.floor(span * this.pps) - 2);
+        const dpr = Math.max(1, window.devicePixelRatio ?? 1);
+        const h = 36;
         const cv = el("canvas", { class: "tl-wave" }) as HTMLCanvasElement;
-        cv.width = Math.min(8192, w);
-        cv.height = 36;
+        cv.width = Math.min(8192, Math.round(w * dpr));
+        cv.height = Math.round(h * dpr);
         cv.style.width = w + "px";
+        cv.style.height = h + "px";
         const holder = el("div", { class: "tl-clip tl-take" }, cv);
         const left = (): number => P.offsets[i] + ln.from + (sect.offset || 0);
         const place = (): void => {
@@ -737,10 +739,24 @@ export class Timeline {
   /* ---------------------- seek / loop / marquee drags -------------------- */
 
   private seekDrag(e: PointerEvent): void {
+    /* Flag the timeline as `dragging` so the player's "scene" event handler
+       (fired when the playhead crosses a scene boundary) does NOT rebuild the
+       canvas mid-drag. A rebuild swaps out this.canvas's children, which
+       drops the pointer-capture target and silently kills the drag.
+
+       The ELEMENTS track only shows the current scene though, so if the user
+       scrubbed across a boundary it would be stale until the next rebuild
+       trigger. Remember the scene we started in and rebuild on drag-end if
+       it changed. */
+    this.dragging = true;
+    const startScene = this.player.sceneIndex;
     const seek = (ev: PointerEvent): void =>
       this.player.seek(this.timeAt(ev.clientX));
     seek(e);
-    this.capture(e, seek, () => {});
+    this.capture(e, seek, () => {
+      this.dragging = false;
+      if (this.player.sceneIndex !== startScene) this.rebuild();
+    });
   }
 
   private loopDrag(e: PointerEvent): void {
