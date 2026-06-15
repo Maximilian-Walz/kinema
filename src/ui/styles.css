@@ -7,6 +7,7 @@
   --st-text:#e6edf3; --st-dim:#8b949e; --st-faint:#586069;
   --st-accent:#a371f7; --st-green:#3fb950; --st-red:#f85149;
   --st-mono:'SF Mono','Cascadia Code',Consolas,monospace;
+  --dock-h:270px;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--st-bg);color:var(--st-text);
@@ -14,7 +15,7 @@ html,body{height:100%;margin:0;background:var(--st-bg);color:var(--st-text);
 
 #app{height:100vh;display:grid;
   grid-template-columns:1fr 400px;
-  grid-template-rows:1fr auto 270px;
+  grid-template-rows:1fr auto var(--dock-h);
   grid-template-areas:"stage side" "transport transport" "bottom bottom"}
 
 /* The bottom dock is shared between TIME (timeline), RECORD (prompter), and
@@ -23,13 +24,18 @@ html,body{height:100%;margin:0;background:var(--st-bg);color:var(--st-text);
 #timeline,#recordview,#tuneview{grid-area:bottom;min-height:0}
 #recordview,#tuneview{display:none}
 
-body.mode-record #app{grid-template-rows:1fr auto minmax(300px, 45vh);}
 body.mode-record #timeline{display:none}
 body.mode-record #recordview{display:flex;flex-direction:column}
 
-body.mode-tune #app{grid-template-rows:1fr auto minmax(280px, 40vh);}
 body.mode-tune #timeline,body.mode-tune #recordview{display:none}
 body.mode-tune #tuneview{display:flex}
+
+/* drag handle pinned to the top edge of the dock; raises a 6px hit area */
+#dock-resize{position:fixed;left:0;right:0;height:6px;z-index:90;
+  bottom:var(--dock-h);cursor:ns-resize;background:transparent;
+  transition:background .15s}
+#dock-resize:hover,#dock-resize.dragging{background:rgba(163,113,247,.55)}
+body.clean #dock-resize{display:none}
 
 /* clean mode: stage only, for screen capture */
 body.clean #app{grid-template-columns:1fr;grid-template-rows:1fr;grid-template-areas:"stage"}
@@ -370,9 +376,12 @@ body.clean #frame{outline:none}
 
 /* ===================== record-mode side panel ============================ */
 /* In RECORD and TUNE modes the side panel hides its tabs and renders a
-   mode-specific view (record card / post chain). */
+   mode-specific view (record card / post chain). TIME mode also drops the
+   tabs -- the side panel is exclusively the script teleprompter; export is
+   reachable from the transport bar. */
 body.mode-record .sp-tabs,
-body.mode-tune .sp-tabs{display:none}
+body.mode-tune .sp-tabs,
+body.mode-time .sp-tabs{display:none}
 .sp-rec-card{border:1px solid var(--st-line);border-radius:10px;padding:10px 12px;
   display:flex;flex-direction:column;gap:8px}
 .sp-rec-card-line{font-size:13.5px;line-height:1.45;color:var(--st-text)}

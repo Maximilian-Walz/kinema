@@ -9,6 +9,7 @@ import { el } from "./ui/dom";
 import { SidePanel } from "./ui/panels";
 import { showPicker } from "./ui/picker";
 import "./ui/styles.css";
+import { DockResize } from "./ui/dock-resize";
 import { Timeline } from "./ui/timeline";
 import { Transport } from "./ui/transport";
 import { WorkspaceMode } from "./ui/workspace-mode";
@@ -104,6 +105,7 @@ async function bootStudio(): Promise<void> {
   const tl = new Timeline(timeline, player, takes, sync, history);
   new RecordView(recordview, player, takes, micMonitor);
   new TuneView(tuneview, player, takes);
+  new DockResize();
   /* mode switches re-flow the grid; trigger a rescale so the stage fits */
   mode.events.on("change", () => {
     sidePanel.onModeChange();

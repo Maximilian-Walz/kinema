@@ -170,6 +170,13 @@ export class SidePanel {
       this.renderTuneSide();
       return;
     }
+    /* TIME mode: side panel is the teleprompter (with export reachable from
+       the transport bar in T8). Only allow the tab switcher to override the
+       view when the user explicitly opened the EXPORT tab. */
+    if (this.mode.mode === "time" && this.tab !== "export") {
+      this.renderScript();
+      return;
+    }
     if (this.tab === "script") this.renderScript();
     else if (this.tab === "takes") this.renderTakes();
     else this.renderExport();
