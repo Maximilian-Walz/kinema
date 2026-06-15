@@ -15,6 +15,8 @@
      - schedule enter/exit are within [0, len] and enter <= exit
      - lines/captions have from <= to, sit within [0, len], and are ordered
        (overlap / out-of-range here is a warning, not a failure)
+     - line ids, when present, match [\w.-]+ and are unique within the scene
+       (a voice take is keyed by its line's id)
      - a scene using captions includes <div id="caption"></div> (warning)
 
    Errors fail the run (exit 1); warnings are printed but exit 0.
@@ -99,6 +101,19 @@ function checkScene(sid, dir) {
   };
   checkSpans('lines', data.lines, false);
   checkSpans('captions', data.captions, true);
+
+  /* line ids key voice takes: when present, must be safe and unique per scene */
+  const seenIds = new Set();
+  for (const [i, ln] of (data.lines || []).entries()) {
+    if (ln.id === undefined) continue;
+    if (typeof ln.id !== 'string' || !/^[\w.-]+$/.test(ln.id)) {
+      e(`lines[${i}]: id ${JSON.stringify(ln.id)} must match [\\w.-]+`);
+    } else if (seenIds.has(ln.id)) {
+      e(`lines[${i}]: duplicate line id "${ln.id}"`);
+    } else {
+      seenIds.add(ln.id);
+    }
+  }
 
   return { errors, warnings };
 }

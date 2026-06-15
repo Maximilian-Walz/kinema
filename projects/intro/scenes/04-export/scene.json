@@ -2,24 +2,81 @@
   "title": "EXPORT TO MP4",
   "len": 21,
   "schedule": [
-    { "id": "p1", "enter": 0.5 },
-    { "id": "a1", "enter": 2.4 },
-    { "id": "p2", "enter": 2.7 },
-    { "id": "a2", "enter": 10.8 },
-    { "id": "p3", "enter": 11.0 },
-    { "id": "a3", "enter": 15.8 },
-    { "id": "p4", "enter": 16.0 },
-    { "id": "enote", "enter": 17.5 }
+    {
+      "id": "p1",
+      "enter": 0.5
+    },
+    {
+      "id": "a1",
+      "enter": 2.4
+    },
+    {
+      "id": "p2",
+      "enter": 2.7
+    },
+    {
+      "id": "a2",
+      "enter": 10.8
+    },
+    {
+      "id": "p3",
+      "enter": 11
+    },
+    {
+      "id": "a3",
+      "enter": 15.8
+    },
+    {
+      "id": "p4",
+      "enter": 16
+    },
+    {
+      "id": "enote",
+      "enter": 17.5
+    }
   ],
   "captions": [
-    { "from": 2.4, "to": 10.6, "text": "frozen-time render = identical frames" },
-    { "from": 10.8, "to": 20.6, "text": "frames to ffmpeg to MP4, with your takes" }
+    {
+      "from": 2.4,
+      "to": 10.6,
+      "text": "frozen-time render = identical frames"
+    },
+    {
+      "from": 10.8,
+      "to": 20.6,
+      "text": "frames to ffmpeg to MP4, with your takes"
+    }
   ],
   "lines": [
-    { "from": 0, "to": 2.2, "text": "When it looks right, export." },
-    { "from": 2.4, "to": 6.8, "text": "The studio renders every frame in headless Chrome with time frozen," },
-    { "from": 7.0, "to": 10.6, "text": "so the motion is identical on every single run." },
-    { "from": 10.8, "to": 15.6, "text": "It pipes the frames to ffmpeg, then muxes in your picked takes." },
-    { "from": 15.8, "to": 20.6, "text": "Out comes one MP4 - frame for frame, the video you built." }
+    {
+      "id": "04-export-l1",
+      "from": 0,
+      "to": 2.2,
+      "text": "When it looks right, export."
+    },
+    {
+      "id": "04-export-l2",
+      "from": 2.4,
+      "to": 6.8,
+      "text": "The studio renders every frame in headless Chrome with time frozen,"
+    },
+    {
+      "id": "04-export-l3",
+      "from": 7,
+      "to": 10.6,
+      "text": "so the motion is identical on every single run."
+    },
+    {
+      "id": "04-export-l4",
+      "from": 10.8,
+      "to": 15.6,
+      "text": "It pipes the frames to ffmpeg, then muxes in your picked takes."
+    },
+    {
+      "id": "04-export-l5",
+      "from": 15.8,
+      "to": 20.6,
+      "text": "Out comes one MP4 - frame for frame, the video you built."
+    }
   ]
 }

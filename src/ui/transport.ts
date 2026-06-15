@@ -19,7 +19,7 @@ export class Transport {
 
     this.playBtn = el('button', { class: 't-play', text: '▶ play' });
     this.playBtn.onclick = () => player.toggle();
-    const restart = el('button', { text: '⟲ scene', title: 'restart scene (R)' });
+    const restart = el('button', { text: '⟲ scene', title: 'restart scene (Shift+R)' });
     restart.onclick = () => player.restartScene();
     const prev = el('button', { text: '⟨', title: 'previous scene ([)' });
     prev.onclick = () => player.seekScene(player.sceneIndex - 1);
@@ -30,10 +30,10 @@ export class Transport {
     this.timeEl = el('span', { class: 't-time' });
     this.savedEl = el('span', { class: 't-saved' });
 
-    this.recBtn = el('button', { class: 't-rec', text: '● rec' });
+    this.recBtn = el('button', { class: 't-rec', text: '● rec', title: 'record with 3-2-1 count-in (r)' });
     this.recBtn.onclick = async () => {
-      if (takes.recording) takes.stopRecording();
-      else await takes.startRecording();
+      if (takes.recording || takes.counting) takes.stopRecording();
+      else await takes.startRecordingWithCountIn();
     };
 
     const clean = el('button', { text: '◻ clean (C)', title: 'stage only — for screen capture' });
@@ -47,7 +47,7 @@ export class Transport {
       this.sceneEl, this.timeEl, this.savedEl,
       el('span', { class: 't-spacer' }),
       picker, this.recBtn, clean,
-      el('span', { class: 't-keys', text: 'SPACE play · ←/→ ±5s (shift ±1s) · [ ] scene · 1-9 jump · C clean' }),
+      el('span', { class: 't-keys', text: 'SPACE play · r rec · Shift+R restart · ←/→ ±5s (shift ±1s) · [ ] scene · 1-9 jump · C clean' }),
     );
 
     player.events.on('time', () => this.tick());
@@ -56,7 +56,21 @@ export class Transport {
     });
     takes.events.on('recording', (on) => {
       this.recBtn.classList.toggle('live', on);
+      this.recBtn.classList.remove('counting');
       this.recBtn.textContent = on ? '■ stop' : '● rec';
+    });
+    takes.events.on('countdown', (n) => {
+      if (n === null) {
+        /* cancelled */
+        this.recBtn.classList.remove('counting');
+        this.recBtn.textContent = '● rec';
+      } else if (n === 0) {
+        /* handed off to recording -- recording event will fire shortly */
+        this.recBtn.classList.remove('counting');
+      } else {
+        this.recBtn.classList.add('counting');
+        this.recBtn.textContent = `${n}…`;
+      }
     });
     sync.events.on('saved', () => this.flashSaved('✓ saved'));
     sync.events.on('error', () => this.flashSaved('✗ save failed', true));

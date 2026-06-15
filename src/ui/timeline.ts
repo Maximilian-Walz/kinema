@@ -423,46 +423,50 @@ export class Timeline {
   private buildTakesTrack(): HTMLElement {
     const P = this.player;
     const track = el('div', { class: 'tl-track tl-takes' }, this.label('VOICE'));
+    /* one waveform clip per section: left = line.from, width = line length;
+       dragging aligns that section's take (per-file offset). */
     P.project.scenes.forEach((scene, i) => {
-      const file = this.takes.candidate(scene.id);
-      if (!file) return;
-      const info = this.takes.map[scene.id];
-      const w = Math.max(8, Math.floor(scene.len * this.pps) - 2);
-      const cv = el('canvas', { class: 'tl-wave' }) as HTMLCanvasElement;
-      cv.width = Math.min(8192, w);
-      cv.height = 36;
-      cv.style.width = w + 'px';
-      const holder = el('div', { class: 'tl-clip tl-take' }, cv);
-      const place = (): void => {
-        holder.style.left = (P.offsets[i] + (info.offset || 0)) * this.pps + 'px';
-        holder.title = `${file} · offset ${(info.offset || 0).toFixed(2)}s — drag to align with the scene`;
-      };
-      this.clips.push({
-        div: holder, place,
-        edges: () => [P.offsets[i] + (info.offset || 0)],
-      });
+      scene.lines.forEach((ln) => {
+        const lineId = ln.id;
+        const file = lineId ? this.takes.candidate(scene.id, lineId) : null;
+        if (!lineId || !file) return;
+        const sect = this.takes.section(scene.id, lineId)!;
+        const span = ln.to - ln.from;
+        const w = Math.max(8, Math.floor(span * this.pps) - 2);
+        const cv = el('canvas', { class: 'tl-wave' }) as HTMLCanvasElement;
+        cv.width = Math.min(8192, w);
+        cv.height = 36;
+        cv.style.width = w + 'px';
+        const holder = el('div', { class: 'tl-clip tl-take' }, cv);
+        const left = (): number => P.offsets[i] + ln.from + (sect.offset || 0);
+        const place = (): void => {
+          holder.style.left = left() * this.pps + 'px';
+          holder.title = `${file} · offset ${(sect.offset || 0).toFixed(2)}s — drag to align with the line`;
+        };
+        this.clips.push({ div: holder, place, edges: () => [left()] });
 
-      holder.onpointerdown = (e) => {
-        e.stopPropagation();
-        const orig = info.offset || 0;
-        let timer: number | undefined;
-        this.beginDrag(e, {
-          scenes: [],
-          excluded: new Set([holder]),
-          edges: [P.offsets[i] + orig],
-          apply: (delta) => {
-            info.offset = Math.max(-30, Math.min(30, round(orig + delta, FINE)));
-            clearTimeout(timer);
-            timer = window.setTimeout(() => {
-              void api.setTakeOffset(scene.id, file, info.offset);
-            }, 400);
-          },
+        holder.onpointerdown = (e) => {
+          e.stopPropagation();
+          const orig = sect.offset || 0;
+          let timer: number | undefined;
+          this.beginDrag(e, {
+            scenes: [],
+            excluded: new Set([holder]),
+            edges: [P.offsets[i] + ln.from + orig],
+            apply: (delta) => {
+              sect.offset = Math.max(-30, Math.min(30, round(orig + delta, FINE)));
+              clearTimeout(timer);
+              timer = window.setTimeout(() => {
+                void api.setTakeOffset(scene.id, lineId, file, sect.offset);
+              }, 400);
+            },
+          });
+        };
+        track.appendChild(holder);
+        place();
+        void getPeaks(takeUrl(scene.id, lineId, file)).then(({ peaks, duration }) => {
+          if (cv.isConnected) drawWaveform(cv, peaks, duration, span, '#7ee787');
         });
-      };
-      track.appendChild(holder);
-      place();
-      void getPeaks(takeUrl(scene.id, file)).then(({ peaks, duration }) => {
-        if (cv.isConnected) drawWaveform(cv, peaks, duration, scene.len, '#7ee787');
       });
     });
     return track;

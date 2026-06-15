@@ -1,4 +1,4 @@
-import type { ExportStatus, ProjectData, ProjectInfo, SceneData, TakesMap } from './types';
+import type { ExportStatus, ProjectData, ProjectInfo, SceneData, TakeChain, TakesMap } from './types';
 
 /* Which project this page is editing. Read once from ?project=<id> in the URL
    (render mode and a future picker both set it); empty means "the server's
@@ -55,27 +55,34 @@ export async function fetchTakes(): Promise<TakesMap> {
   return (await check(await fetch(withProject('/api/takes')))).json();
 }
 
-export async function uploadTake(sceneId: string, blob: Blob, ext: string): Promise<void> {
-  await check(await fetch(withProject(`/api/takes/${sceneId}?ext=${ext}`), { method: 'POST', body: blob }));
+export async function uploadTake(sceneId: string, lineId: string, blob: Blob, ext: string): Promise<void> {
+  await check(await fetch(withProject(`/api/takes/${sceneId}/${lineId}?ext=${ext}`), { method: 'POST', body: blob }));
 }
 
-export async function pickTake(sceneId: string, file: string): Promise<void> {
-  await check(await fetch(withProject(`/api/takes/${sceneId}/${file}/pick`), { method: 'POST' }));
+export async function pickTake(sceneId: string, lineId: string, file: string): Promise<void> {
+  await check(await fetch(withProject(`/api/takes/${sceneId}/${lineId}/${file}/pick`), { method: 'POST' }));
 }
 
-export async function deleteTake(sceneId: string, file: string): Promise<void> {
-  await check(await fetch(withProject(`/api/takes/${sceneId}/${file}`), { method: 'DELETE' }));
+export async function deleteTake(sceneId: string, lineId: string, file: string): Promise<void> {
+  await check(await fetch(withProject(`/api/takes/${sceneId}/${lineId}/${file}`), { method: 'DELETE' }));
 }
 
-export async function setTakeOffset(sceneId: string, file: string, offset: number): Promise<void> {
-  await check(await fetch(withProject(`/api/takes/${sceneId}/${file}/offset`), {
+export async function setTakeOffset(sceneId: string, lineId: string, file: string, offset: number): Promise<void> {
+  await check(await fetch(withProject(`/api/takes/${sceneId}/${lineId}/${file}/offset`), {
     method: 'POST',
     body: JSON.stringify({ offset }),
   }));
 }
 
-export function takeUrl(sceneId: string, file: string): string {
-  return withProject(`/takes/${sceneId}/${file}`);
+export async function setTakeChain(sceneId: string, lineId: string, file: string, chain: TakeChain): Promise<void> {
+  await check(await fetch(withProject(`/api/takes/${sceneId}/${lineId}/${file}/chain`), {
+    method: 'POST',
+    body: JSON.stringify(chain),
+  }));
+}
+
+export function takeUrl(sceneId: string, lineId: string, file: string): string {
+  return withProject(`/takes/${sceneId}/${lineId}/${file}`);
 }
 
 export async function startExport(fps: number, scene: string | null): Promise<void> {

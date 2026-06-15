@@ -6,19 +6,25 @@
    to the default project when absent; an unknown id is a 404. The registry is
    passed in by the plugin (server/plugin.mjs).
 
+   Takes are per section: a section is one script line, keyed by its stable
+   line id. Recordings live under takes/<sceneId>/<lineId>/take-*.webm; picks,
+   offsets and chains are keyed by section (offsets/chains stay per file).
+
    Routes:
-     GET    /api/projects                   [{ id, name, path, default }]
-     GET    /api/project[?project=<id>]     project + all scenes (data, html, css)
-     PUT    /api/scenes/:id/timings         write len/schedule/captions/lines back
-                                            into the scene's scene.json
-     GET    /api/takes                      all takes + candidate per scene
-     POST   /api/takes/:sceneId?ext=webm    upload a take (auto-picked)
-     POST   /api/takes/:sceneId/:file/pick  pick as candidate
-     DELETE /api/takes/:sceneId/:file       soft delete (moved to trash/)
-     GET    /takes/:sceneId/:file           serve a take
-     POST   /api/export {fps, scene}        start MP4 export (scene id or null)
-     GET    /api/export/status              poll the single export job
-     GET    /exports/:file                  serve an exported MP4
+     GET    /api/projects                            [{ id, name, path, default }]
+     GET    /api/project[?project=<id>]              project + all scenes (data, html, css)
+     PUT    /api/scenes/:id/timings                  write len/schedule/captions/lines back
+                                                     into the scene's scene.json
+     GET    /api/takes                                takes + candidate per section
+     POST   /api/takes/:sceneId/:lineId?ext=webm     upload a take (auto-picked)
+     POST   /api/takes/:sceneId/:lineId/:file/pick   pick as candidate
+     POST   /api/takes/:sceneId/:lineId/:file/offset set the alignment offset
+     POST   /api/takes/:sceneId/:lineId/:file/chain  set the audio chain (gain etc.)
+     DELETE /api/takes/:sceneId/:lineId/:file        soft delete (moved to trash/)
+     GET    /takes/:sceneId/:lineId/:file            serve a take
+     POST   /api/export {fps, scene}                 start MP4 export (scene id or null)
+     GET    /api/export/status                       poll the single export job
+     GET    /exports/:file                           serve an exported MP4
 ============================================================================ */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -30,6 +36,13 @@ const MIME = {
 };
 
 const safeName = (s) => typeof s === 'string' && /^[\w.-]+$/.test(s) && !s.includes('..');
+
+/* stable line id: short, unique within a scene, matches safeName so it can be a
+   path segment. Format: "ln-" + a few base36 chars. */
+let idSeq = 0;
+function newLineId() {
+  return 'ln-' + Date.now().toString(36) + (idSeq++).toString(36);
+}
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -123,6 +136,20 @@ export function createApi({ registry }) {
         const dir = path.join(projectDir, 'scenes', sid);
         const data = readJson(path.join(dir, 'scene.json'), null);
         if (!data) throw new Error('scene.json missing for scene ' + sid);
+        /* fill any missing line ids and persist them so takes keyed by line id
+           are stable across sessions. Scenes authored without ids still load;
+           this is the "filled on first write" point for them. */
+        const lines = data.lines || [];
+        const seen = new Set();
+        let filled = false;
+        for (const ln of lines) {
+          if (!ln.id || !safeName(ln.id) || seen.has(ln.id)) { ln.id = newLineId(); filled = true; }
+          seen.add(ln.id);
+        }
+        if (filled) {
+          data.lines = lines;
+          writeFileTracked(path.join(dir, 'scene.json'), JSON.stringify(data, null, 2) + '\n');
+        }
         return {
           id: sid,
           title: data.title || sid,
@@ -130,7 +157,7 @@ export function createApi({ registry }) {
           behaviors: data.behaviors || [],
           schedule: data.schedule || [],
           captions: data.captions || [],
-          lines: data.lines || [],
+          lines,
           html: readText(path.join(dir, 'scene.html')),
           css: readText(path.join(dir, 'scene.css')),
         };
@@ -150,8 +177,25 @@ export function createApi({ registry }) {
       return proj.scenes || [];
     }
 
+    /* the stable line ids of one scene, straight off disk (no id-fill write) */
+    function lineIds(sid) {
+      const data = readJson(path.join(projectDir, 'scenes', sid, 'scene.json'), null);
+      return data && Array.isArray(data.lines)
+        ? data.lines.map((ln) => ln.id).filter((id) => safeName(id))
+        : [];
+    }
+
     /* writes the editable timing fields back into scene.json, preserving
-       everything else (title, behaviors, future fields) */
+       everything else (title, behaviors, future fields). Every line gets a
+       stable id: existing ids are kept, gaps are filled, so takes keyed by line
+       id survive edits, inserts and reorders. */
+    function ensureLineIds(lines, seen) {
+      for (const ln of lines) {
+        if (!ln.id || !safeName(ln.id) || seen.has(ln.id)) ln.id = newLineId();
+        seen.add(ln.id);
+      }
+      return lines;
+    }
     function writeTimings(sid, body) {
       const file = path.join(projectDir, 'scenes', sid, 'scene.json');
       const data = readJson(file, null);
@@ -159,51 +203,78 @@ export function createApi({ registry }) {
       if (typeof body.len === 'number' && body.len > 0) data.len = body.len;
       if (Array.isArray(body.schedule)) data.schedule = body.schedule;
       if (Array.isArray(body.captions)) data.captions = body.captions;
-      if (Array.isArray(body.lines)) data.lines = body.lines;
+      if (Array.isArray(body.lines)) data.lines = ensureLineIds(body.lines, new Set());
       writeFileTracked(file, JSON.stringify(data, null, 2) + '\n');
     }
 
-    const sceneTakesDir = (sid) => path.join(TAKES_DIR, sid);
+    /* recordings live one folder deeper than before: per section, not per scene */
+    const sectionTakesDir = (sid, lid) => path.join(TAKES_DIR, sid, lid);
+    const sectionKey = (sid, lid, file) => sid + '/' + lid + '/' + file;
 
-    /* takes.json: { picks: {sceneId: file}, offsets: {"sceneId/file": seconds} }
-       (legacy format was the flat picks object) */
+    /* takes.json: {
+         picks:   { sceneId: { lineId: file } },
+         offsets: { "sceneId/lineId/file": seconds },
+         chains:  { "sceneId/lineId/file": ... }   // per file, owned by tickets 03-08
+       }
+       Per-scene picks were disposable test data; there is no migration. */
     function readTakesState() {
       const raw = readJson(PICKS_FILE, {});
-      if (raw.picks || raw.offsets) return { picks: raw.picks || {}, offsets: raw.offsets || {} };
-      return { picks: raw, offsets: {} };
+      return {
+        picks: raw.picks && typeof raw.picks === 'object' ? raw.picks : {},
+        offsets: raw.offsets || {},
+        chains: raw.chains || {},
+      };
     }
     function writeTakesState(state) {
       writeFileTracked(PICKS_FILE, JSON.stringify(state, null, 2));
     }
 
+    /* list one section's recordings, oldest first */
+    function listSection(sid, lid) {
+      const dir = sectionTakesDir(sid, lid);
+      if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return [];
+      return fs.readdirSync(dir)
+        .filter((f) => /\.(webm|ogg|wav|mp3|m4a)$/i.test(f))
+        .map((f) => {
+          const st = fs.statSync(path.join(dir, f));
+          return { file: f, size: st.size, created: st.mtimeMs };
+        })
+        .sort((a, b) => a.created - b.created);
+    }
+
+    /* takes grouped by scene then by line id (section). Walks the on-disk
+       takes/<sceneId>/<lineId>/ tree; trash/ and stray files are ignored. */
     function listTakes() {
-      const { picks, offsets } = readTakesState();
+      const { picks, offsets, chains } = readTakesState();
       const out = {};
       if (!fs.existsSync(TAKES_DIR)) return out;
-      for (const d of fs.readdirSync(TAKES_DIR)) {
-        const dir = path.join(TAKES_DIR, d);
-        if (!fs.statSync(dir).isDirectory() || !safeName(d)) continue;
-        const takes = fs.readdirSync(dir)
-          .filter((f) => /\.(webm|ogg|wav|mp3|m4a)$/i.test(f))
-          .map((f) => {
-            const st = fs.statSync(path.join(dir, f));
-            return { file: f, size: st.size, created: st.mtimeMs };
-          })
-          .sort((a, b) => a.created - b.created);
-        const candidate = picks[d] || null;
-        out[d] = {
-          candidate,
-          offset: candidate ? offsets[d + '/' + candidate] || 0 : 0,
-          takes,
-        };
+      for (const sd of fs.readdirSync(TAKES_DIR)) {
+        const sceneDir = path.join(TAKES_DIR, sd);
+        if (!safeName(sd) || !fs.statSync(sceneDir).isDirectory()) continue;
+        const sections = {};
+        for (const ld of fs.readdirSync(sceneDir)) {
+          const lineDir = path.join(sceneDir, ld);
+          if (!safeName(ld) || !fs.statSync(lineDir).isDirectory()) continue;
+          const takes = listSection(sd, ld);
+          if (!takes.length) continue;
+          const candidate = (picks[sd] && picks[sd][ld]) || null;
+          const chain = candidate ? chains[sectionKey(sd, ld, candidate)] : undefined;
+          sections[ld] = {
+            candidate,
+            offset: candidate ? offsets[sectionKey(sd, ld, candidate)] || 0 : 0,
+            ...(chain ? { chain } : {}),
+            takes,
+          };
+        }
+        if (Object.keys(sections).length) out[sd] = sections;
       }
       return out;
     }
 
     return {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
-      loadProject, sceneIds, writeTimings, sceneTakesDir,
-      readTakesState, writeTakesState, listTakes,
+      loadProject, sceneIds, lineIds, writeTimings, sectionTakesDir, sectionKey,
+      readTakesState, writeTakesState, listTakes, listSection,
     };
   }
 
@@ -228,6 +299,11 @@ export function createApi({ registry }) {
       fps,
       scene,                       // scene id or null = full video
       sceneIds: project.scenes.map((s) => s.id),
+      /* per-scene lines (id + window) so the muxer can place each section take */
+      sceneLines: project.scenes.map((s) => ({
+        id: s.id,
+        lines: s.lines.map((ln) => ({ id: ln.id, from: ln.from, to: ln.to })),
+      })),
       width: project.width,
       height: project.height,
       outFile,
@@ -235,6 +311,7 @@ export function createApi({ registry }) {
       takesDir: ctx.TAKES_DIR,
       picks: takesState.picks,
       offsets: takesState.offsets,
+      chains: takesState.chains,
       onProgress: (p) => Object.assign(job, p),
     }).then(() => {
       job.state = 'done';
@@ -279,14 +356,15 @@ export function createApi({ registry }) {
         if (!ctx) return noProject();
         json(res, 200, ctx.listTakes());
 
-      } else if (req.method === 'POST' && /^\/api\/takes\/[\w-]+$/.test(p)) {
+      } else if (req.method === 'POST' && /^\/api\/takes\/[\w.-]+\/[\w.-]+$/.test(p)) {
         if (!ctx) return noProject();
-        const id = p.split('/')[3];
-        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const [, , , sid, lid] = p.split('/');
+        if (!ctx.sceneIds().includes(sid)) { json(res, 404, { error: 'unknown scene' }); return; }
+        if (!safeName(lid) || !ctx.lineIds(sid).includes(lid)) { json(res, 404, { error: 'unknown line' }); return; }
         const ext = (u.searchParams.get('ext') || 'webm').replace(/[^a-z0-9]/gi, '');
         const body = await readBody(req);
         if (!body.length) { json(res, 400, { error: 'empty body' }); return; }
-        const dir = ctx.sceneTakesDir(id);
+        const dir = ctx.sectionTakesDir(sid, lid);
         fs.mkdirSync(dir, { recursive: true });
         const file = 'take-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '.' + ext;
         const raw = path.join(dir, 'raw-' + file);
@@ -297,59 +375,112 @@ export function createApi({ registry }) {
           fs.renameSync(raw, path.join(dir, file)); // keep the recording even if ffmpeg fails
         }
         const state = ctx.readTakesState();
-        state.picks[id] = file; // newest take becomes the candidate
+        (state.picks[sid] ||= {})[lid] = file; // newest take becomes the candidate
         ctx.writeTakesState(state);
         json(res, 200, { ok: true, file, candidate: file });
 
-      } else if (req.method === 'POST' && /^\/api\/takes\/[\w-]+\/[\w.-]+\/pick$/.test(p)) {
+      } else if (req.method === 'POST' && /^\/api\/takes\/[\w.-]+\/[\w.-]+\/[\w.-]+\/pick$/.test(p)) {
         if (!ctx) return noProject();
-        const [, , , id, file] = p.split('/');
-        if (!safeName(file) || !fs.existsSync(path.join(ctx.sceneTakesDir(id), file))) {
+        const [, , , sid, lid, file] = p.split('/');
+        if (!safeName(file) || !fs.existsSync(path.join(ctx.sectionTakesDir(sid, lid), file))) {
           json(res, 404, { error: 'take not found' }); return;
         }
         const state = ctx.readTakesState();
-        state.picks[id] = file;
+        (state.picks[sid] ||= {})[lid] = file;
         ctx.writeTakesState(state);
         json(res, 200, { ok: true });
 
-      } else if (req.method === 'POST' && /^\/api\/takes\/[\w-]+\/[\w.-]+\/offset$/.test(p)) {
+      } else if (req.method === 'POST' && /^\/api\/takes\/[\w.-]+\/[\w.-]+\/[\w.-]+\/offset$/.test(p)) {
         if (!ctx) return noProject();
-        const [, , , id, file] = p.split('/');
-        if (!safeName(file) || !fs.existsSync(path.join(ctx.sceneTakesDir(id), file))) {
+        const [, , , sid, lid, file] = p.split('/');
+        if (!safeName(file) || !fs.existsSync(path.join(ctx.sectionTakesDir(sid, lid), file))) {
           json(res, 404, { error: 'take not found' }); return;
         }
         const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
         const offset = Math.max(-30, Math.min(30, Number(body.offset) || 0));
         const state = ctx.readTakesState();
-        if (offset === 0) delete state.offsets[id + '/' + file];
-        else state.offsets[id + '/' + file] = offset;
+        const key = ctx.sectionKey(sid, lid, file);
+        if (offset === 0) delete state.offsets[key];
+        else state.offsets[key] = offset;
         ctx.writeTakesState(state);
         json(res, 200, { ok: true, offset });
 
-      } else if (req.method === 'DELETE' && /^\/api\/takes\/[\w-]+\/[\w.-]+$/.test(p)) {
+      } else if (req.method === 'POST' && /^\/api\/takes\/[\w.-]+\/[\w.-]+\/[\w.-]+\/chain$/.test(p)) {
         if (!ctx) return noProject();
-        const [, , , id, file] = p.split('/');
-        const src = path.join(ctx.sceneTakesDir(id), file);
+        const [, , , sid, lid, file] = p.split('/');
+        if (!safeName(file) || !fs.existsSync(path.join(ctx.sectionTakesDir(sid, lid), file))) {
+          json(res, 404, { error: 'take not found' }); return;
+        }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        /* build a normalized chain, clamping each effect's fields and dropping
+           identity defaults so the stored chain stays minimal. Later tickets
+           add their own clamped fields here. */
+        const chain = {};
+        /* high-pass: { freq } with freq clamped to 20..300 Hz; absent or 0 = bypass */
+        if (body.highpass && typeof body.highpass.freq === 'number' && body.highpass.freq > 0) {
+          const freq = Math.max(20, Math.min(300, body.highpass.freq));
+          chain.highpass = { freq };
+        }
+        /* noise gate: threshold dB (-80..0); optional range dB of attenuation
+           (0..80), attack s (0..0.5), release s (0..2). Object present (with a
+           numeric threshold) = enabled; absent object = bypassed. Optional
+           fields are dropped when at their default so the stored chain stays
+           minimal. Sits after highpass and before the compressor. */
+        if (body.gate && typeof body.gate.threshold === 'number') {
+          const gate = { threshold: Math.max(-80, Math.min(0, body.gate.threshold)) };
+          if (typeof body.gate.range === 'number')   gate.range   = Math.max(0, Math.min(80,  body.gate.range));
+          if (typeof body.gate.attack === 'number')  gate.attack  = Math.max(0, Math.min(0.5, body.gate.attack));
+          if (typeof body.gate.release === 'number') gate.release = Math.max(0, Math.min(2,   body.gate.release));
+          chain.gate = gate;
+        }
+        /* compressor: threshold dB (-60..0), ratio (1..20), attack s (0..1), release s (0..2).
+           Object present = enabled. All fields required; absent object = bypassed. */
+        if (body.comp &&
+            typeof body.comp.threshold === 'number' &&
+            typeof body.comp.ratio     === 'number' &&
+            typeof body.comp.attack    === 'number' &&
+            typeof body.comp.release   === 'number') {
+          chain.comp = {
+            threshold: Math.max(-60, Math.min(0,   body.comp.threshold)),
+            ratio:     Math.max(1,   Math.min(20,  body.comp.ratio)),
+            attack:    Math.max(0,   Math.min(1,   body.comp.attack)),
+            release:   Math.max(0,   Math.min(2,   body.comp.release)),
+          };
+        }
+        const gainDb = Math.max(-24, Math.min(24, Number(body.gainDb) || 0));
+        if (gainDb !== 0) chain.gainDb = gainDb;
+        const state = ctx.readTakesState();
+        const key = ctx.sectionKey(sid, lid, file);
+        if (Object.keys(chain).length === 0) delete state.chains[key];
+        else state.chains[key] = chain;
+        ctx.writeTakesState(state);
+        json(res, 200, { ok: true, chain });
+
+      } else if (req.method === 'DELETE' && /^\/api\/takes\/[\w.-]+\/[\w.-]+\/[\w.-]+$/.test(p)) {
+        if (!ctx) return noProject();
+        const [, , , sid, lid, file] = p.split('/');
+        const src = path.join(ctx.sectionTakesDir(sid, lid), file);
         if (!safeName(file) || !fs.existsSync(src)) { json(res, 404, { error: 'take not found' }); return; }
-        const trash = path.join(ctx.sceneTakesDir(id), 'trash');
+        const trash = path.join(ctx.sectionTakesDir(sid, lid), 'trash');
         fs.mkdirSync(trash, { recursive: true });
         fs.renameSync(src, path.join(trash, Date.now() + '-' + file));
         const state = ctx.readTakesState();
-        delete state.offsets[id + '/' + file];
-        if (state.picks[id] === file) {
-          /* auto-pick the newest remaining take */
-          const left = ctx.listTakes()[id];
-          if (left && left.takes.length) state.picks[id] = left.takes[left.takes.length - 1].file;
-          else delete state.picks[id];
+        delete state.offsets[ctx.sectionKey(sid, lid, file)];
+        delete state.chains[ctx.sectionKey(sid, lid, file)];
+        if (state.picks[sid] && state.picks[sid][lid] === file) {
+          /* auto-pick the newest remaining take in this section */
+          const left = ctx.listSection(sid, lid);
+          if (left.length) state.picks[sid][lid] = left[left.length - 1].file;
+          else delete state.picks[sid][lid];
         }
         ctx.writeTakesState(state);
-        json(res, 200, { ok: true, candidate: state.picks[id] || null });
+        json(res, 200, { ok: true, candidate: (state.picks[sid] && state.picks[sid][lid]) || null });
 
-      } else if (req.method === 'GET' && /^\/takes\/[\w-]+\/[\w.-]+$/.test(p)) {
+      } else if (req.method === 'GET' && /^\/takes\/[\w.-]+\/[\w.-]+\/[\w.-]+$/.test(p)) {
         if (!ctx) return noProject();
-        const [, , id, file] = p.split('/');
-        if (!safeName(id) || !safeName(file)) { res.writeHead(404); res.end(); return; }
-        sendFile(res, path.join(ctx.TAKES_DIR, id, file), req.headers.range);
+        const [, , sid, lid, file] = p.split('/');
+        if (!safeName(sid) || !safeName(lid) || !safeName(file)) { res.writeHead(404); res.end(); return; }
+        sendFile(res, path.join(ctx.TAKES_DIR, sid, lid, file), req.headers.range);
 
       } else if (req.method === 'POST' && p === '/api/export') {
         if (!ctx) return noProject();

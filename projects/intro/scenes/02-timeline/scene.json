@@ -2,28 +2,99 @@
   "title": "PLAYBACK + TIMELINE",
   "len": 24.5,
   "schedule": [
-    { "id": "frame", "enter": 0.3 },
-    { "id": "stage", "enter": 0.6 },
-    { "id": "tl", "enter": 4.4 },
-    { "id": "cl1", "enter": 4.6 },
-    { "id": "cl2", "enter": 4.9 },
-    { "id": "cl3", "enter": 5.2 },
-    { "id": "cl4", "enter": 5.5 },
-    { "id": "cl5", "enter": 5.8 },
-    { "id": "ph", "enter": 8.6 },
-    { "id": "snap", "enter": 13.6 },
-    { "id": "undo", "enter": 18.6 }
+    {
+      "id": "frame",
+      "enter": 0.3
+    },
+    {
+      "id": "stage",
+      "enter": 0.6
+    },
+    {
+      "id": "tl",
+      "enter": 4.4
+    },
+    {
+      "id": "cl1",
+      "enter": 4.6
+    },
+    {
+      "id": "cl2",
+      "enter": 4.9
+    },
+    {
+      "id": "cl3",
+      "enter": 5.2
+    },
+    {
+      "id": "cl4",
+      "enter": 5.5
+    },
+    {
+      "id": "cl5",
+      "enter": 5.8
+    },
+    {
+      "id": "ph",
+      "enter": 8.6
+    },
+    {
+      "id": "snap",
+      "enter": 13.6
+    },
+    {
+      "id": "undo",
+      "enter": 18.6
+    }
   ],
   "captions": [
-    { "from": 8.6, "to": 13.4, "text": "drag to move, drag the edge to retime" },
-    { "from": 13.6, "to": 18.4, "text": "clips snap so the beats line up" }
+    {
+      "from": 8.6,
+      "to": 13.4,
+      "text": "drag to move, drag the edge to retime"
+    },
+    {
+      "from": 13.6,
+      "to": 18.4,
+      "text": "clips snap so the beats line up"
+    }
   ],
   "lines": [
-    { "from": 0, "to": 4.2, "text": "Hit play, and every scene runs on one global timeline." },
-    { "from": 4.4, "to": 8.4, "text": "Below the stage, each clip is something you can grab." },
-    { "from": 8.6, "to": 13.4, "text": "Drag a clip to move it, drag its edge to retime it." },
-    { "from": 13.6, "to": 18.4, "text": "Everything snaps to the playhead and its neighbours, so the beats line up." },
-    { "from": 18.6, "to": 20.2, "text": "Made a mistake? Undo." },
-    { "from": 20.4, "to": 24.0, "text": "Every edit writes straight back into the scene's JSON." }
+    {
+      "id": "02-timeline-l1",
+      "from": 0,
+      "to": 4.2,
+      "text": "Hit play, and every scene runs on one global timeline."
+    },
+    {
+      "id": "02-timeline-l2",
+      "from": 4.4,
+      "to": 8.4,
+      "text": "Below the stage, each clip is something you can grab."
+    },
+    {
+      "id": "02-timeline-l3",
+      "from": 8.6,
+      "to": 13.4,
+      "text": "Drag a clip to move it, drag its edge to retime it."
+    },
+    {
+      "id": "02-timeline-l4",
+      "from": 13.6,
+      "to": 18.4,
+      "text": "Everything snaps to the playhead and its neighbours, so the beats line up."
+    },
+    {
+      "id": "02-timeline-l5",
+      "from": 18.6,
+      "to": 20.2,
+      "text": "Made a mistake? Undo."
+    },
+    {
+      "id": "02-timeline-l6",
+      "from": 20.4,
+      "to": 24,
+      "text": "Every edit writes straight back into the scene's JSON."
+    }
   ]
 }

@@ -107,7 +107,11 @@ async function bootStudio(): Promise<void> {
       const scene = history.redo();
       if (scene) sync.changed(scene);
     } else if (e.code === 'Space') { e.preventDefault(); player.toggle(); }
-    else if (e.key === 'r' || e.key === 'R') player.restartScene();
+    else if (e.key === 'r' && !e.shiftKey) {
+      e.preventDefault();
+      if (takes.recording || takes.counting) takes.stopRecording();
+      else void takes.startRecordingWithCountIn();
+    } else if (e.key === 'R' && e.shiftKey) player.restartScene();
     else if (e.key === 'c' || e.key === 'C') { document.body.classList.toggle('clean'); rescale(); }
     else if (e.key === 'i' || e.key === 'I') {
       player.setLoop({ start: player.time, end: player.loop?.end ?? player.total });
@@ -120,7 +124,7 @@ async function bootStudio(): Promise<void> {
     else if (e.key === ']') player.seekScene(player.sceneIndex + 1);
     else if (e.key >= '1' && e.key <= '9') player.seekScene(parseInt(e.key, 10) - 1);
     else if (e.key === 'Escape') {
-      if (takes.recording) takes.stopRecording();
+      if (takes.recording || takes.counting) takes.stopRecording();
       else if (player.loop) player.setLoop(null);
     }
   });

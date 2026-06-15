@@ -1,8 +1,12 @@
 import * as api from '../api';
+import { LiveWaveform } from '../audio/live-waveform';
+import { computeNormalizeGain, measureLoudness } from '../audio/loudness';
+import { Meter } from '../audio/meter';
 import type { Takes } from '../audio/takes';
 import { fmt, type Player } from '../engine/player';
 import type { History } from '../history';
 import type { TimingSync } from '../timings';
+import type { SceneData, SectionTakes, TakeChain } from '../types';
 import { el } from './dom';
 
 /* ============================================================================
@@ -23,6 +27,21 @@ export class SidePanel {
   private readonly recBar: HTMLElement;
   private tab: Tab = 'script';
   private pollTimer: number | undefined;
+  /** debounce timers for per-section gain writes, keyed sceneId/lineId/file */
+  private readonly chainTimers = new Map<string, number>();
+
+  /* mic monitor widgets -- kept alive across tab switches during a session */
+  private monitorMeter: Meter | null = null;
+  private monitorWaveform: LiveWaveform | null = null;
+  /** container mounted in the recBar for the meter while recording */
+  private recBarMonitorEl: HTMLElement | null = null;
+
+  /* playback meter -- reads the post-processed output via the master analyser;
+     created once and kept alive for the session (not torn down on tab switch) */
+  private playbackMeter: Meter | null = null;
+
+  /** overlay element sitting over #hud showing the countdown number */
+  private countdownOverlay: HTMLElement | null = null;
 
   constructor(root: HTMLElement, player: Player, takes: Takes, sync: TimingSync, history: History) {
     this.player = player;
@@ -52,10 +71,44 @@ export class SidePanel {
     player.events.on('time', () => this.tick());
     player.events.on('timings', () => { if (this.tab === 'script') this.render(); });
     takes.events.on('change', () => { if (this.tab === 'takes') this.render(); });
+    takes.events.on('countdown', (n) => this.onCountdown(n));
+
     takes.events.on('recording', (on) => {
+      /* once recording starts, clear any remaining overlay */
+      this.removeCountdownOverlay();
       this.recBar.style.display = on ? 'flex' : 'none';
-      if (on) this.show('script');
-      else if (this.tab === 'takes') this.render();
+      if (on) {
+        /* mount the monitor meter inside the recbar so it stays visible on
+           the SCRIPT tab while narrating (mic --> meter only, no speakers) */
+        if (this.monitorMeter) {
+          this.recBarMonitorEl = el('div', { class: 'sp-recbar-monitor' });
+          this.recBarMonitorEl.appendChild(this.monitorMeter.element);
+          this.recBar.appendChild(this.recBarMonitorEl);
+        }
+        this.show('script');
+      } else {
+        /* detach the inline recbar meter (stays alive in the takes panel) */
+        if (this.recBarMonitorEl) {
+          this.recBarMonitorEl.remove();
+          this.recBarMonitorEl = null;
+        }
+        /* if not still armed, tear down monitor widgets */
+        if (!takes.monitoring) this.destroyMonitorWidgets();
+        if (this.tab === 'takes') this.render();
+      }
+    });
+
+    takes.events.on('monitor', (analyser) => {
+      if (analyser) {
+        /* build (or rebuild) the meter and waveform against the new analyser */
+        this.destroyMonitorWidgets();
+        this.monitorMeter = new Meter(analyser, { orientation: 'horizontal', width: 120, height: 14 });
+        this.monitorWaveform = new LiveWaveform(analyser, { width: 200, height: 40 });
+      } else {
+        this.destroyMonitorWidgets();
+      }
+      /* re-render the takes panel if it is currently visible */
+      if (this.tab === 'takes') this.render();
     });
 
     this.show('script');
@@ -63,9 +116,20 @@ export class SidePanel {
   }
 
   show(tab: Tab): void {
+    /* leaving the TAKES tab while the monitor is armed (but not recording):
+       stop the monitor so the OS mic indicator turns off */
+    if (this.tab === 'takes' && tab !== 'takes' && !this.takes.recording) {
+      if (this.takes.monitoring) this.takes.stopMonitor();
+    }
     this.tab = tab;
     this.tabButtons.forEach((b, t) => b.classList.toggle('active', t === tab));
     this.render();
+  }
+
+  /** Stop and discard the Meter and LiveWaveform widget instances. */
+  private destroyMonitorWidgets(): void {
+    if (this.monitorMeter) { this.monitorMeter.stop(); this.monitorMeter = null; }
+    if (this.monitorWaveform) { this.monitorWaveform.stop(); this.monitorWaveform = null; }
   }
 
   /* ------------------------------- render -------------------------------- */
@@ -87,10 +151,19 @@ export class SidePanel {
     this.lineEls = [];
     this.body.appendChild(el('div', { class: 'sp-scenetitle', text: `${si + 1} · ${scene.title}` }));
     const list = el('div', { class: 'sp-lines' });
-    scene.lines.forEach((ln) => {
+    scene.lines.forEach((ln, idx) => {
       const div = el('div', { class: 'sp-line', title: 'click = jump · double-click = edit' },
         el('span', { class: 'sp-linetime', text: `${fmt(ln.from)} – ${fmt(ln.to)}` }),
         ln.text);
+      /* merge this line up into the previous one (granularity control) */
+      if (idx > 0) {
+        const merge = el('button', {
+          class: 'sp-merge', text: '⤴ merge up',
+          title: 'merge this line into the previous one',
+        });
+        merge.onclick = (e) => { e.stopPropagation(); this.mergeUp(scene, idx); };
+        div.appendChild(merge);
+      }
       div.onclick = () => this.player.seek(this.player.offsets[si] + ln.from);
       div.ondblclick = () => {
         if (div.querySelector('textarea')) return;
@@ -122,59 +195,572 @@ export class SidePanel {
     this.body.appendChild(list);
   }
 
+  /* merge line `idx` into the previous one: text joined, span widened to cover
+     both, the merged-away line dropped, the surviving line keeps its id (and so
+     its takes). The dropped line's takes are abandoned; warn first. */
+  private mergeUp(scene: SceneData, idx: number): void {
+    const a = scene.lines[idx - 1];
+    const b = scene.lines[idx];
+    if (!a || !b) return;
+    const bHasTakes = !!(b.id && this.takes.section(scene.id, b.id)?.takes.length);
+    if (bHasTakes && !confirm(
+      'The merged-away line has recorded takes. Merging keeps the first line\'s '
+      + 'takes and drops the second line\'s takes. Continue?')) return;
+    const before = this.history.snapshot(scene);
+    a.text = (a.text + ' ' + b.text).trim();
+    a.to = b.to;
+    scene.lines.splice(idx, 1);
+    this.history.commit(scene, before);
+    this.sync.changed(scene);
+    this.render();
+  }
+
   /* TAKES ------------------------------------------------------------------ */
 
   private renderTakes(): void {
     const scene = this.player.scene;
-    const rec = el('button', {
-      class: 'sp-rec' + (this.takes.recording ? ' live' : ''),
-      text: this.takes.recording ? '■ stop recording' : '● record take (restarts scene)',
-    });
-    rec.onclick = async () => {
-      if (this.takes.recording) { this.takes.stopRecording(); return; }
-      const err = await this.takes.startRecording();
-      if (err) this.status(err);
-    };
     this.body.appendChild(el('div', { class: 'sp-scenetitle', text: `takes · ${scene.title}` }));
-    this.body.appendChild(rec);
 
-    const info = this.takes.map[scene.id];
-    const list = el('div', { class: 'sp-takes' });
-    if (!info || !info.takes.length) {
-      list.appendChild(el('div', { class: 'sp-dim', text: 'no takes yet for this scene' }));
-    } else {
-      info.takes.forEach((tk, n) => {
-        const row = el('div', { class: 'sp-take' + (tk.file === info.candidate ? ' cand' : '') });
-        const play = el('button', { text: this.takes.auditioning === tk.file ? '⏸' : '▶' });
-        play.onclick = () => this.takes.toggleAudition(scene.id, tk.file);
-        const name = el('span', {
-          class: 'sp-takename',
-          text: `take ${n + 1} · ${new Date(tk.created).toLocaleTimeString()}`,
-          title: tk.file,
-        });
-        const star = el('button', {
-          class: 'sp-star',
-          text: tk.file === info.candidate ? '★' : '☆',
-          title: 'pick as the take used in preview and export',
-        });
-        star.onclick = async () => { await api.pickTake(scene.id, tk.file); await this.takes.refresh(); };
-        const del = el('button', { text: '✕', title: 'move to trash' });
-        del.onclick = async () => {
-          if (!confirm('Move this take to trash?')) return;
-          await api.deleteTake(scene.id, tk.file);
-          await this.takes.refresh();
-        };
-        row.append(play, name, star, del);
-        list.appendChild(row);
-      });
+    /* ---- mic monitor block (input level, ticket 02) ---- */
+    this.appendMonitorBlock();
+
+    /* ---- playback meter block (post-processed output level, ticket 04) ---- */
+    this.appendPlaybackMeterBlock();
+
+    if (!scene.lines.length) {
+      this.body.appendChild(el('div', { class: 'sp-dim', text: 'no narration lines in this scene yet' }));
     }
-    this.body.appendChild(list);
+
+    /* one block per section (script line): the line, its record button, and its
+       take list with a candidate star. Recording auto-stops at the line end. */
+    scene.lines.forEach((ln) => {
+      const lineId = ln.id;
+      const sect = lineId ? this.takes.section(scene.id, lineId) : undefined;
+      const recording = this.takes.recording && this.takes.recordingLine === lineId;
+      const countingThis = this.takes.counting && this.takes.countingLine === lineId;
+      const block = el('div', { class: 'sp-section' + (sect?.takes.length ? ' has-takes' : '') });
+
+      const head = el('div', { class: 'sp-sectionhead' });
+      const dot = el('span', {
+        class: 'sp-sectiondot' + (sect?.takes.length ? ' on' : ''),
+        title: sect?.takes.length ? 'recorded' : 'no take yet',
+      });
+      const label = el('span', {
+        class: 'sp-sectiontext', title: ln.text,
+        text: `${fmt(ln.from)}–${fmt(ln.to)} · ${ln.text}`,
+      });
+      const recClass = 'sp-rec' + (recording ? ' live' : countingThis ? ' counting' : '');
+      const recText = recording ? '■ stop' : countingThis ? '… wait' : '● rec';
+      const rec = el('button', {
+        class: recClass,
+        text: recText,
+        title: 'record this line with 3-2-1 count-in (seeks to its start, stops at its end)',
+      });
+      rec.onclick = async () => {
+        if (this.takes.recording || this.takes.counting) { this.takes.stopRecording(); return; }
+        const err = await this.takes.startRecordingWithCountIn(lineId);
+        if (err) this.status(err);
+      };
+      head.append(dot, label, rec);
+      block.appendChild(head);
+
+      const list = el('div', { class: 'sp-takes' });
+      if (!sect || !sect.takes.length) {
+        list.appendChild(el('div', { class: 'sp-dim', text: 'no takes yet' }));
+      } else {
+        sect.takes.forEach((tk, n) => {
+          const row = el('div', { class: 'sp-take' + (tk.file === sect.candidate ? ' cand' : '') });
+          const play = el('button', { text: this.takes.auditioning === tk.file ? '⏸' : '▶' });
+          play.onclick = () => this.takes.toggleAudition(scene.id, lineId!, tk.file);
+          const name = el('span', {
+            class: 'sp-takename',
+            text: `take ${n + 1} · ${new Date(tk.created).toLocaleTimeString()}`,
+            title: tk.file,
+          });
+          const star = el('button', {
+            class: 'sp-star',
+            text: tk.file === sect.candidate ? '★' : '☆',
+            title: 'pick as the take used in preview and export',
+          });
+          star.onclick = async () => { await api.pickTake(scene.id, lineId!, tk.file); await this.takes.refresh(); };
+          const del = el('button', { text: '✕', title: 'move to trash' });
+          del.onclick = async () => {
+            if (!confirm('Move this take to trash?')) return;
+            await api.deleteTake(scene.id, lineId!, tk.file);
+            await this.takes.refresh();
+          };
+          row.append(play, name, star, del);
+          list.appendChild(row);
+        });
+      }
+      block.appendChild(list);
+      /* "post" controls for the candidate take (gain, high-pass), applied in
+         preview, audition and export. Only shown once a take is picked. */
+      if (sect && sect.candidate && lineId) this.appendPostControls(block, scene.id, lineId, sect);
+      this.body.appendChild(block);
+    });
 
     const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
     cb.checked = this.takes.previewEnabled;
     cb.onchange = () => this.takes.setPreviewEnabled(cb.checked);
     this.body.appendChild(el('label', { class: 'sp-checkbox' }, cb, ' play picked takes during playback'));
     this.body.appendChild(el('div', { class: 'sp-status' }));
+  }
+
+  /** Render the arm-mic toggle and, when armed, the live Meter + scrolling
+      waveform.  The widgets (Meter, LiveWaveform) are long-lived instances held
+      on `this`; we just append their DOM elements here. */
+  private appendMonitorBlock(): void {
+    const armed = this.takes.monitoring;
+    const block = el('div', { class: 'sp-monitor' + (armed ? ' armed' : '') });
+
+    const armBtn = el('button', {
+      class: 'sp-arm' + (armed ? ' live' : ''),
+      text: armed ? 'disarm mic' : 'arm mic / monitor',
+      title: armed
+        ? 'disarm the microphone (releases the device)'
+        : 'open the mic for level monitoring before recording (no speaker feedback)',
+    });
+    armBtn.onclick = async () => {
+      if (armed) {
+        this.takes.stopMonitor();
+      } else {
+        const err = await this.takes.startMonitor();
+        if (err) this.status(err);
+      }
+    };
+    block.appendChild(armBtn);
+
+    if (armed && this.monitorMeter && this.monitorWaveform) {
+      const vis = el('div', { class: 'sp-monitor-vis' });
+
+      /* scrolling waveform */
+      this.monitorWaveform.start();
+      vis.appendChild(this.monitorWaveform.canvas);
+
+      /* level meter (horizontal) */
+      this.monitorMeter.start();
+      vis.appendChild(this.monitorMeter.element);
+
+      /* clip warning -- shown via CSS when the meter's clip LED is lit */
+      const clipWarn = el('div', { class: 'sp-monitor-clip', text: 'input clipping -- lower your level' });
+
+      /* poll the clip LED state at ~8 Hz to toggle the warning */
+      const clipLed = this.monitorMeter.element.querySelector('.vs-meter-clip');
+      if (clipLed) {
+        const pollClip = (): void => {
+          const clipping = clipLed.classList.contains('clipped');
+          clipWarn.classList.toggle('visible', clipping);
+        };
+        const intervalId = window.setInterval(pollClip, 120);
+        /* clean up when the block is detached (next render tears it down) */
+        const observer = new MutationObserver(() => {
+          if (!block.isConnected) { clearInterval(intervalId); observer.disconnect(); }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+
+      block.appendChild(vis);
+      block.appendChild(clipWarn);
+    }
+
+    this.body.appendChild(block);
+  }
+
+  /** Render the playback level meter block (post-processing output, always
+      visible in the TAKES tab).  The Meter instance is long-lived -- created
+      once and started/stopped alongside the panel, never torn down while the
+      session runs.  It reads from the master analyser which is wired between the
+      chain tail and ctx.destination in Takes. */
+  private appendPlaybackMeterBlock(): void {
+    /* lazily create the Meter the first time the TAKES tab is rendered */
+    if (!this.playbackMeter) {
+      this.playbackMeter = new Meter(this.takes.playbackAnalyser, {
+        orientation: 'horizontal', width: 120, height: 14,
+      });
+    }
+    this.playbackMeter.start();
+
+    const block = el('div', { class: 'sp-playback-meter' });
+    const label = el('span', { class: 'sp-playback-label', text: 'playback' });
+
+    /* "match all takes" button -- measures every picked take across all scenes
+       and sets each gain to the shared -18 dBFS RMS target (peak-capped at -1
+       dBFS). Idempotent: measurement is always on the raw file. */
+    const matchBtn = el('button', {
+      class: 'sp-normalize-all',
+      text: 'match all takes',
+      title: 'normalize every picked take to -18 dBFS RMS (peak ceiling -1 dBFS)',
+    });
+    matchBtn.onclick = () => void this.matchAllTakes(matchBtn as HTMLButtonElement);
+
+    block.append(label, this.playbackMeter.element, matchBtn);
+    this.body.appendChild(block);
+  }
+
+  /** Measure and normalize every picked take across all scenes to TARGET_RMS_DB.
+      Progress is shown on the button text while running. Re-running is idempotent
+      because measurement is always on the raw file. */
+  private async matchAllTakes(btn: HTMLButtonElement): Promise<void> {
+    /* collect all (sceneId, lineId, file) triples that have a picked take */
+    const jobs: Array<{ sceneId: string; lineId: string; file: string }> = [];
+    for (const [sceneId, lines] of Object.entries(this.takes.map)) {
+      for (const [lineId, sect] of Object.entries(lines)) {
+        if (sect.candidate) jobs.push({ sceneId, lineId, file: sect.candidate });
+      }
+    }
+    if (!jobs.length) { this.status('no picked takes to normalize'); return; }
+
+    btn.disabled = true;
+    const origText = btn.textContent ?? 'match all takes';
+    let done = 0;
+    const total = jobs.length;
+    btn.textContent = `normalizing 0/${total}`;
+
+    let errors = 0;
+    for (const { sceneId, lineId, file } of jobs) {
+      const url = new URL(api.takeUrl(sceneId, lineId, file), location.href).href;
+      const result = await measureLoudness(url);
+      if (!result) { errors++; done++; btn.textContent = `normalizing ${done}/${total}`; continue; }
+      const gainDb = computeNormalizeGain(result);
+      /* merge gain into the existing chain; preserve all other effects */
+      const prev = this.takes.chain(sceneId, lineId) ?? {};
+      const next: TakeChain = { ...prev, gainDb };
+      if (next.gainDb === 0) delete next.gainDb;
+      /* update local map so preview/audition picks up the change immediately */
+      const target = (this.takes.map[sceneId] ||= {})[lineId] ||= { candidate: file, offset: 0, takes: [] };
+      target.chain = Object.keys(next).length ? next : undefined;
+      /* persist to disk (no debounce; these writes are intentional) */
+      await api.setTakeChain(sceneId, lineId, file, target.chain ?? {}).catch((e) => {
+        errors++;
+        console.warn('[normalize] setTakeChain failed:', e);
+      });
+      done++;
+      btn.textContent = `normalizing ${done}/${total}`;
+    }
+
+    /* re-render so the gain sliders reflect the new values */
+    this.takes.events.emit('change');
+    btn.disabled = false;
+    btn.textContent = origText;
+    if (errors) this.status(`normalized ${total - errors}/${total} takes (${errors} failed)`);
+    else this.status(`normalized ${total} takes to -18 dBFS`);
+  }
+
+  /* The candidate take's post chain: high-pass toggle + freq slider, then gate
+     toggle + controls, then compressor toggle + controls, then gain slider. The
+     sections appear in the canonical chain order (highpass -> gate -> compressor
+     -> gain), matching buildChain and the ffmpeg filter. The write is debounced like
+     timing edits; the local map is updated immediately so preview/audition pick
+     the new chain up on the next sync without waiting for the round-trip. */
+  private appendPostControls(block: HTMLElement, sceneId: string, lineId: string, sect: SectionTakes): void {
+    const file = sect.candidate!;
+    const post = el('div', { class: 'sp-post' });
+
+    /* shared write helper -- reads current local chain state, merges a partial
+       update, persists it locally and debounces the API call */
+    const writeChain = (patch: Partial<TakeChain>): void => {
+      const target = (this.takes.map[sceneId] ||= {})[lineId] ||= { ...sect };
+      const prev = target.chain ?? {};
+      const next = { ...prev, ...patch };
+      /* drop fields that are at their identity value so the chain stays minimal */
+      if ((next.gainDb ?? 0) === 0) delete next.gainDb;
+      if (!next.highpass) delete next.highpass;
+      if (!next.gate) delete next.gate;
+      if (!next.comp) delete next.comp;
+      target.chain = Object.keys(next).length ? next : undefined;
+      const key = `${sceneId}/${lineId}/${file}`;
+      clearTimeout(this.chainTimers.get(key));
+      this.chainTimers.set(key, window.setTimeout(() => {
+        void api.setTakeChain(sceneId, lineId, file, target.chain ?? {}).catch((e) => this.status(String(e)));
+      }, 400));
+    };
+
+    /* shared labelled-slider row builder, used by the gate and compressor
+       sections. The readout reflects the live slider value; callers wire the
+       oninput that also persists the change. */
+    const mkPostSlider = (label: string, min: number, max: number, step: number, unit: string, titleStr: string): {
+      row: HTMLElement; slider: HTMLInputElement; readout: HTMLSpanElement;
+    } => {
+      const row = el('div', { class: 'sp-post-row sp-post-comprow' });
+      const lbl = el('span', { class: 'sp-postlabel sp-postlabel-sm', text: label });
+      const slider = el('input', {
+        type: 'range',
+        min: String(min), max: String(max), step: String(step),
+        class: 'sp-comp-slider',
+        title: titleStr,
+      }) as HTMLInputElement;
+      const readout = el('span', { class: 'sp-postval' }) as HTMLSpanElement;
+      const fmtVal = (v: number): string => v.toFixed(step < 1 ? (step < 0.01 ? 3 : 2) : 0) + ' ' + unit;
+      slider.oninput = (): void => { readout.textContent = fmtVal(Number(slider.value)); };
+      readout.textContent = fmtVal(min);
+      row.append(lbl, slider, readout);
+      return { row, slider, readout };
+    };
+
+    /* --- high-pass row --- */
+    const hpRow = el('div', { class: 'sp-post-row' });
+    const hpLabel = el('span', { class: 'sp-postlabel', text: 'high-pass' });
+    const hpToggle = el('input', {
+      type: 'checkbox',
+      class: 'sp-hp-toggle',
+      title: 'roll off low-frequency rumble and plosives (applies in preview, audition and export)',
+    }) as HTMLInputElement;
+    const hpFreqSlider = el('input', {
+      type: 'range', min: '20', max: '300', step: '5', class: 'sp-hpfreq',
+      title: 'high-pass cutoff frequency in Hz (20..300)',
+    }) as HTMLInputElement;
+    const hpReadout = el('span', { class: 'sp-postval' });
+
+    const DEFAULT_HP_FREQ = 80;
+
+    const currentHp = (): { freq: number } | undefined => this.takes.chain(sceneId, lineId)?.highpass;
+    const paintHp = (hp: { freq: number } | undefined): void => {
+      hpToggle.checked = !!hp;
+      hpFreqSlider.value = String(hp?.freq ?? DEFAULT_HP_FREQ);
+      hpFreqSlider.disabled = !hp;
+      hpReadout.textContent = hp ? hp.freq + ' Hz' : 'off';
+    };
+
+    hpToggle.onchange = (): void => {
+      const freq = Math.max(20, Math.min(300, Number(hpFreqSlider.value) || DEFAULT_HP_FREQ));
+      const hp = hpToggle.checked ? { freq } : undefined;
+      paintHp(hp);
+      writeChain({ highpass: hp });
+    };
+    hpFreqSlider.oninput = (): void => {
+      const freq = Math.max(20, Math.min(300, Number(hpFreqSlider.value)));
+      const hp = { freq };
+      paintHp(hp);
+      writeChain({ highpass: hp });
+    };
+
+    paintHp(currentHp());
+    hpRow.append(hpLabel, hpToggle, hpFreqSlider, hpReadout);
+
+    /* --- noise gate section --- */
+    /* conservative voice preset used when the user enables the gate: a low
+       threshold and partial attenuation (range) so it shuts room tone in the
+       gaps without clipping word onsets or chattering. Sits after highpass and
+       before the compressor (same position as the ffmpeg agate). */
+    const GATE_VOICE: NonNullable<TakeChain['gate']> = { threshold: -45, range: 40, attack: 0.005, release: 0.18 };
+
+    const gateSection = el('div', { class: 'sp-post-gate' });
+
+    const gateToggleRow = el('div', { class: 'sp-post-row' });
+    const gateLabel = el('span', { class: 'sp-postlabel', text: 'gate' });
+    const gateToggle = el('input', {
+      type: 'checkbox',
+      class: 'sp-gate-toggle',
+      title: 'mute room tone and hiss between phrases (applies in preview, audition and export)',
+    }) as HTMLInputElement;
+    gateToggleRow.append(gateLabel, gateToggle);
+    gateSection.appendChild(gateToggleRow);
+
+    const gateControls = el('div', { class: 'sp-post-gate-controls' });
+
+    const gateThr = mkPostSlider('threshold', -80, 0, 1, 'dB',
+      'gate threshold in dB (-80..0); the signal is attenuated while it sits below this');
+    const gateRange = mkPostSlider('range', 0, 80, 1, 'dB',
+      'attenuation applied when the gate is closed, in dB (0..80); lower = gentler');
+
+    gateControls.append(gateThr.row, gateRange.row);
+    gateSection.appendChild(gateControls);
+
+    const currentGate = (): NonNullable<TakeChain['gate']> | undefined => this.takes.chain(sceneId, lineId)?.gate;
+
+    const paintGate = (gate: NonNullable<TakeChain['gate']> | undefined): void => {
+      const on = !!gate;
+      gateToggle.checked = on;
+      gateControls.style.display = on ? '' : 'none';
+      if (gate) {
+        gateThr.slider.value = String(gate.threshold);
+        gateThr.readout.textContent = gate.threshold.toFixed(0) + ' dB';
+        gateRange.slider.value = String(gate.range ?? GATE_VOICE.range);
+        gateRange.readout.textContent = (gate.range ?? GATE_VOICE.range!).toFixed(0) + ' dB';
+      }
+    };
+
+    const readGateFromSliders = (): NonNullable<TakeChain['gate']> => ({
+      threshold: Math.max(-80, Math.min(0,  Number(gateThr.slider.value))),
+      range:     Math.max(0,   Math.min(80, Number(gateRange.slider.value))),
+      attack:    GATE_VOICE.attack,
+      release:   GATE_VOICE.release,
+    });
+
+    gateToggle.onchange = (): void => {
+      const gate = gateToggle.checked ? { ...GATE_VOICE } : undefined;
+      paintGate(gate);
+      writeChain({ gate });
+    };
+    const applyGateSliders = (): void => { writeChain({ gate: readGateFromSliders() }); };
+    gateThr.slider.oninput = (): void => { gateThr.readout.textContent = Number(gateThr.slider.value).toFixed(0) + ' dB'; applyGateSliders(); };
+    gateRange.slider.oninput = (): void => { gateRange.readout.textContent = Number(gateRange.slider.value).toFixed(0) + ' dB'; applyGateSliders(); };
+
+    paintGate(currentGate());
+
+    /* --- compressor section --- */
+    /* sensible voice preset used when the user enables the compressor */
+    const COMP_VOICE: NonNullable<TakeChain['comp']> = { threshold: -24, ratio: 3, attack: 0.01, release: 0.15 };
+    /* additional presets: [label, values] */
+    const COMP_PRESETS: Array<[string, NonNullable<TakeChain['comp']>]> = [
+      ['voice',   { threshold: -24, ratio: 3,  attack: 0.01, release: 0.15 }],
+      ['podcast', { threshold: -18, ratio: 4,  attack: 0.005, release: 0.10 }],
+      ['gentle',  { threshold: -30, ratio: 2,  attack: 0.02, release: 0.25 }],
+      ['hard',    { threshold: -12, ratio: 8,  attack: 0.003, release: 0.08 }],
+    ];
+
+    const compSection = el('div', { class: 'sp-post-comp' });
+
+    /* toggle row */
+    const compToggleRow = el('div', { class: 'sp-post-row' });
+    const compLabel = el('span', { class: 'sp-postlabel', text: 'compressor' });
+    const compToggle = el('input', {
+      type: 'checkbox',
+      class: 'sp-comp-toggle',
+      title: 'enable dynamic range compressor (evens out voice dynamics; applies in preview, audition and export)',
+    }) as HTMLInputElement;
+
+    /* preset selector */
+    const compPresetSel = el('select', { class: 'sp-comp-preset', title: 'load a compressor preset' }) as HTMLSelectElement;
+    const blankOpt = el('option', { value: '', text: 'preset' }) as HTMLOptionElement;
+    compPresetSel.appendChild(blankOpt);
+    COMP_PRESETS.forEach(([name]) => {
+      compPresetSel.appendChild(el('option', { value: name, text: name }));
+    });
+
+    compToggleRow.append(compLabel, compToggle, compPresetSel);
+    compSection.appendChild(compToggleRow);
+
+    /* detail rows (threshold, ratio, attack, release) */
+    const compControls = el('div', { class: 'sp-post-comp-controls' });
+
+    const thrCtrl = mkPostSlider('threshold', -60, 0, 1, 'dB',
+      'compressor threshold in dB (-60..0); levels above this are compressed');
+    const ratCtrl = mkPostSlider('ratio', 1, 20, 0.5, ':1',
+      'compression ratio (1..20); higher = more aggressive');
+    const atkCtrl = mkPostSlider('attack', 0, 1, 0.005, 's',
+      'compressor attack time in seconds (0..1)');
+    const relCtrl = mkPostSlider('release', 0, 2, 0.01, 's',
+      'compressor release time in seconds (0..2)');
+
+    compControls.append(thrCtrl.row, ratCtrl.row, atkCtrl.row, relCtrl.row);
+    compSection.appendChild(compControls);
+
+    /* helpers to read the current compressor from local state and sync the UI */
+    const currentComp = (): NonNullable<TakeChain['comp']> | undefined => this.takes.chain(sceneId, lineId)?.comp;
+
+    const paintComp = (comp: NonNullable<TakeChain['comp']> | undefined): void => {
+      const on = !!comp;
+      compToggle.checked = on;
+      compControls.style.display = on ? '' : 'none';
+      compPresetSel.disabled = !on;
+      if (comp) {
+        thrCtrl.slider.value = String(comp.threshold);
+        thrCtrl.readout.textContent = comp.threshold.toFixed(0) + ' dB';
+        ratCtrl.slider.value = String(comp.ratio);
+        ratCtrl.readout.textContent = comp.ratio.toFixed(1) + ' :1';
+        atkCtrl.slider.value = String(comp.attack);
+        atkCtrl.readout.textContent = comp.attack.toFixed(3) + ' s';
+        relCtrl.slider.value = String(comp.release);
+        relCtrl.readout.textContent = comp.release.toFixed(2) + ' s';
+      }
+      blankOpt.selected = true;
+    };
+
+    const readCompFromSliders = (): NonNullable<TakeChain['comp']> => ({
+      threshold: Math.max(-60, Math.min(0,  Number(thrCtrl.slider.value))),
+      ratio:     Math.max(1,   Math.min(20, Number(ratCtrl.slider.value))),
+      attack:    Math.max(0,   Math.min(1,  Number(atkCtrl.slider.value))),
+      release:   Math.max(0,   Math.min(2,  Number(relCtrl.slider.value))),
+    });
+
+    compToggle.onchange = (): void => {
+      const comp = compToggle.checked ? COMP_VOICE : undefined;
+      paintComp(comp);
+      writeChain({ comp });
+    };
+
+    const applyCompSliders = (): void => {
+      const comp = readCompFromSliders();
+      writeChain({ comp });
+    };
+
+    thrCtrl.slider.oninput = (): void => { thrCtrl.readout.textContent = Number(thrCtrl.slider.value).toFixed(0) + ' dB'; applyCompSliders(); };
+    ratCtrl.slider.oninput = (): void => { ratCtrl.readout.textContent = Number(ratCtrl.slider.value).toFixed(1) + ' :1'; applyCompSliders(); };
+    atkCtrl.slider.oninput = (): void => { atkCtrl.readout.textContent = Number(atkCtrl.slider.value).toFixed(3) + ' s'; applyCompSliders(); };
+    relCtrl.slider.oninput = (): void => { relCtrl.readout.textContent = Number(relCtrl.slider.value).toFixed(2) + ' s'; applyCompSliders(); };
+
+    compPresetSel.onchange = (): void => {
+      const preset = COMP_PRESETS.find(([name]) => name === compPresetSel.value);
+      if (!preset) return;
+      const comp = { ...preset[1] };
+      paintComp(comp);
+      writeChain({ comp });
+    };
+
+    paintComp(currentComp());
+    /* --- gain row --- */
+    const gainRow = el('div', { class: 'sp-post-row' });
+    const gainLabel = el('span', { class: 'sp-postlabel', text: 'gain' });
+    const gainSlider = el('input', {
+      type: 'range', min: '-24', max: '24', step: '0.5', class: 'sp-gain',
+      title: 'make the picked take louder or quieter (applies in preview, audition and export); also serves as make-up gain after the compressor',
+    }) as HTMLInputElement;
+    const gainReadout = el('span', { class: 'sp-postval' });
+    const gainReset = el('button', { class: 'sp-postreset', text: '⟲', title: 'reset gain to 0 dB' });
+
+    const currentGain = (): number => this.takes.chain(sceneId, lineId)?.gainDb ?? 0;
+    const fmtDb = (db: number): string => (db > 0 ? '+' : '') + db.toFixed(1) + ' dB';
+    const paintGain = (db: number): void => {
+      gainSlider.value = String(db);
+      gainReadout.textContent = fmtDb(db);
+      gainReset.disabled = db === 0;
+    };
+
+    const applyGain = (db: number): void => {
+      const clamped = Math.max(-24, Math.min(24, db));
+      paintGain(clamped);
+      writeChain({ gainDb: clamped === 0 ? 0 : clamped });
+    };
+
+    gainSlider.oninput = () => applyGain(Number(gainSlider.value));
+    gainReset.onclick = () => applyGain(0);
+
+    paintGain(currentGain());
+    gainRow.append(gainLabel, gainSlider, gainReadout, gainReset);
+
+    /* --- normalize button (sets gain to reach -18 dBFS RMS, peak-capped at -1
+         dBFS). Measures the raw file, so re-running is idempotent. --- */
+    const normRow = el('div', { class: 'sp-post-row' });
+    const normBtn = el('button', {
+      class: 'sp-normalize',
+      text: 'normalize',
+      title: 'set gain to reach -18 dBFS RMS (peak ceiling -1 dBFS); re-running gives the same result',
+    });
+    const normStatus = el('span', { class: 'sp-postval' });
+
+    normBtn.onclick = async () => {
+      normBtn.disabled = true;
+      normStatus.textContent = 'measuring...';
+      const url = new URL(api.takeUrl(sceneId, lineId, file), location.href).href;
+      const result = await measureLoudness(url);
+      if (!result) {
+        normStatus.textContent = 'decode failed';
+        normBtn.disabled = false;
+        return;
+      }
+      const gainDb = computeNormalizeGain(result);
+      /* apply via the shared helper so the existing chain is merged (not clobbered) */
+      applyGain(gainDb);
+      normStatus.textContent = `RMS ${result.rmsDb.toFixed(1)} dB -> ${gainDb > 0 ? '+' : ''}${gainDb.toFixed(1)} dB`;
+      normBtn.disabled = false;
+    };
+
+    normRow.append(normBtn, normStatus);
+
+    post.append(hpRow, gateSection, compSection, gainRow, normRow);
+    block.appendChild(post);
   }
 
   /* EXPORT ----------------------------------------------------------------- */
@@ -237,6 +823,46 @@ export class SidePanel {
         this.status('✗ export error: ' + (s.message || '').split('\n')[0]);
       }
     }, 700);
+  }
+
+  /* ------------------------------- countdown overlay --------------------- */
+
+  /** Handle a countdown event from Takes.  n = 3/2/1 during count-in, 0 when
+      recording starts (overlay removed by the recording handler), null when
+      cancelled. */
+  private onCountdown(n: number | null): void {
+    if (n === null || n === 0) {
+      this.removeCountdownOverlay();
+      if (this.tab === 'takes') this.render(); // reset rec button appearance
+      return;
+    }
+    /* create the overlay on first beat */
+    if (!this.countdownOverlay) {
+      this.countdownOverlay = this.createCountdownOverlay();
+    }
+    this.countdownOverlay.textContent = String(n);
+    this.countdownOverlay.classList.remove('cd-pop');
+    /* force a reflow so re-adding the class re-triggers the animation */
+    void this.countdownOverlay.offsetWidth;
+    this.countdownOverlay.classList.add('cd-pop');
+    /* also re-render the TAKES panel in real time so the button label updates */
+    if (this.tab === 'takes') this.render();
+  }
+
+  private createCountdownOverlay(): HTMLElement {
+    const el2 = document.createElement('div');
+    el2.className = 'sp-countdown';
+    /* mount over #hud (inside #stagearea) so it is always visible */
+    const stagearea = document.getElementById('stagearea') ?? document.body;
+    stagearea.appendChild(el2);
+    return el2;
+  }
+
+  private removeCountdownOverlay(): void {
+    if (this.countdownOverlay) {
+      this.countdownOverlay.remove();
+      this.countdownOverlay = null;
+    }
   }
 
   private status(html: string): void {

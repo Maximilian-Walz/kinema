@@ -38,6 +38,64 @@ function runFfmpeg(args) {
   });
 }
 
+/* ----------------------- audio chain -> filter ------------------------- */
+/* Turn a take's audio chain into ffmpeg filter tokens, mirroring buildChain in
+   the Web Audio renderer (src/audio/takes.ts) so preview, audition and export
+   sound identical. Returns a list of filter strings (one per active effect, in
+   apply order) to splice between asetpts and adelay: effects act on the content,
+   delay/trim place it. An identity chain returns []. Grow it one entry per later
+   effect (highpass, gate, comp); do not add parallel wiring. */
+export function chainFilters(chain) {
+  const out = [];
+  /* high-pass is the chain head -- emitted first to match Web Audio graph order */
+  if (chain && chain.highpass && typeof chain.highpass.freq === 'number' && chain.highpass.freq > 0) {
+    out.push('highpass=f=' + chain.highpass.freq);
+  }
+  /* noise gate sits after highpass and before the compressor (same order as
+     buildChain). Unit conversions vs. the model (dB/seconds):
+       threshold: dB -> linear amplitude 10^(dB/20), clamped to agate's range
+       range:     dB of attenuation -> linear floor gain 10^(-rangeDb/20),
+                  clamped 0..1 (default 0.06, about -24 dB; the model default of
+                  60 dB attenuation maps to 0.001)
+       attack/release: seconds -> milliseconds (multiply by 1000) */
+  if (chain && chain.gate && typeof chain.gate.threshold === 'number') {
+    const g = chain.gate;
+    const threshLin = Math.max(0, Math.min(1, Math.pow(10, g.threshold / 20)));
+    const rangeDb   = typeof g.range === 'number' ? g.range : 60;
+    const rangeLin  = Math.max(0, Math.min(1, Math.pow(10, -rangeDb / 20)));
+    const attackMs  = Math.max(0.01, Math.min(9000, (typeof g.attack  === 'number' ? g.attack  : 0.005) * 1000));
+    const releaseMs = Math.max(0.01, Math.min(9000, (typeof g.release === 'number' ? g.release : 0.15)  * 1000));
+    out.push(
+      'agate=threshold=' + threshLin.toFixed(6) +
+      ':range='   + rangeLin.toFixed(6) +
+      ':attack='  + attackMs.toFixed(3) +
+      ':release=' + releaseMs.toFixed(3)
+    );
+  }
+  /* compressor sits after the gate and before volume (same order as buildChain).
+     Unit conversions vs. Web Audio:
+       threshold: Web Audio dB -> ffmpeg linear amplitude: 10^(dB/20), clamped to 0.00097563..1
+       attack/release: Web Audio seconds -> ffmpeg milliseconds: multiply by 1000
+         (attack clamped 0.01..2000 ms, release clamped 0.01..9000 ms)
+       ratio: same scale in both (1..20) */
+  if (chain && chain.comp) {
+    const c = chain.comp;
+    const threshLin = Math.max(0.00097563, Math.min(1, Math.pow(10, c.threshold / 20)));
+    const attackMs  = Math.max(0.01, Math.min(2000, c.attack  * 1000));
+    const releaseMs = Math.max(0.01, Math.min(9000, c.release * 1000));
+    const ratio     = Math.max(1, Math.min(20, c.ratio));
+    out.push(
+      'acompressor=threshold=' + threshLin.toFixed(6) +
+      ':ratio='   + ratio +
+      ':attack='  + attackMs.toFixed(3) +
+      ':release=' + releaseMs.toFixed(3)
+    );
+  }
+  const gainDb = chain && typeof chain.gainDb === 'number' ? chain.gainDb : 0;
+  if (gainDb !== 0) out.push('volume=' + gainDb + 'dB');
+  return out;
+}
+
 /* --------------------------- find chrome ------------------------------- */
 export function findChrome(explicit) {
   const env = process.env;
@@ -75,8 +133,11 @@ function advanceVirtualTime(client, ms) {
 
 /* ------------------------------ export --------------------------------- */
 /**
- * opts: { url, fps, scene (sceneId|null), sceneIds, width, height, outFile,
- *         chromePath, takesDir, picks, offsets ({"sceneId/file": s}),
+ * opts: { url, fps, scene (sceneId|null), sceneIds, sceneLines, width, height,
+ *         outFile, chromePath, takesDir,
+ *         picks ({ sceneId: { lineId: file } }),
+ *         offsets ({ "sceneId/lineId/file": s }),
+ *         chains ({ "sceneId/lineId/file": TakeChain }),
  *         onProgress(partialJobFields) }
  */
 export async function exportVideo(opts) {
@@ -156,26 +217,42 @@ export async function exportVideo(opts) {
     await browser.close();
 
     /* ------------------------- mux voice takes ------------------------- */
-    /* a take's user-set offset shifts its audio against the scene:
-       positive -> plays later (delay), negative -> head is trimmed off */
+    /* one input per picked section take, placed at its line's in-scene offset.
+       A take's user-set offset shifts its audio against the line:
+       positive -> plays later (delay), negative -> head is trimmed off.
+       The audible window runs to the next line's start so a take recorded
+       slightly past its `to` does not bleed into the following section. */
     const offsets = opts.offsets || {};
-    const addTake = (takes, id, sceneOffset, len) => {
-      const file = opts.picks[id];
-      if (!file || !fs.existsSync(path.join(opts.takesDir, id, file))) return;
-      const off = offsets[id + '/' + file] || 0;
-      takes.push({
-        path: path.join(opts.takesDir, id, file),
-        delay: sceneOffset + Math.max(0, off),
-        trimStart: Math.max(0, -off),
-        audible: Math.max(0.05, len - Math.max(0, off)),
+    const picks = opts.picks || {};
+    const chains = opts.chains || {};
+    const sceneLines = opts.sceneLines || [];
+    const linesOf = (id) => (sceneLines.find((s) => s.id === id)?.lines) || [];
+    const addScene = (takes, sceneId, sceneOffset) => {
+      const picked = picks[sceneId];
+      if (!picked) return;
+      const lines = linesOf(sceneId);
+      lines.forEach((ln, i) => {
+        const file = picked[ln.id];
+        if (!file || !fs.existsSync(path.join(opts.takesDir, sceneId, ln.id, file))) return;
+        const key = sceneId + '/' + ln.id + '/' + file;
+        const off = offsets[key] || 0;
+        const next = lines[i + 1];
+        const span = Math.max(0.05, (next ? next.from : ln.to) - ln.from);
+        takes.push({
+          path: path.join(opts.takesDir, sceneId, ln.id, file),
+          delay: sceneOffset + ln.from + Math.max(0, off),
+          trimStart: Math.max(0, -off),
+          audible: Math.max(0.05, span - Math.max(0, off)),
+          filters: chainFilters(chains[key]),
+        });
       });
     };
     const takes = [];
     if (sceneIndex == null) {
       let offset = 0;
-      sceneIds.forEach((id, i) => { addTake(takes, id, offset, lens[i]); offset += lens[i]; });
+      sceneIds.forEach((id, i) => { addScene(takes, id, offset); offset += lens[i]; });
     } else {
-      addTake(takes, scene, 0, lens[sceneIndex]);
+      addScene(takes, scene, 0);
     }
 
     if (!takes.length) {
@@ -185,9 +262,12 @@ export async function exportVideo(opts) {
                  frame: totalFrames, totalFrames });
       const args = ['-y', '-i', tmpVideo];
       takes.forEach((tk) => args.push('-i', tk.path));
-      const parts = takes.map((tk, i) =>
-        `[${i + 1}:a]atrim=${tk.trimStart}:${tk.trimStart + tk.audible},` +
-        `asetpts=PTS-STARTPTS,adelay=${Math.round(tk.delay * 1000)}:all=1[a${i}]`);
+      const parts = takes.map((tk, i) => {
+        /* atrim,asetpts -> chain effects (act on content) -> adelay (places it) */
+        const chain = tk.filters.length ? tk.filters.join(',') + ',' : '';
+        return `[${i + 1}:a]atrim=${tk.trimStart}:${tk.trimStart + tk.audible},` +
+          `asetpts=PTS-STARTPTS,${chain}adelay=${Math.round(tk.delay * 1000)}:all=1[a${i}]`;
+      });
       const mixIn = takes.map((_, i) => `[a${i}]`).join('');
       const filter = parts.join(';') + ';' + mixIn +
         `amix=inputs=${takes.length}:duration=longest:dropout_transition=0:normalize=0[aout]`;
