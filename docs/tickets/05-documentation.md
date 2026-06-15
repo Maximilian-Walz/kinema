@@ -1,6 +1,6 @@
 # 05 - Documentation
 
-Status: todo
+Status: done
 Depends on: 04 (quickstart opens the intro project; project-format doc describes the
 format the intro demonstrates)
 Plan item: 3
