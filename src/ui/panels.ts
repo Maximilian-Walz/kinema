@@ -555,6 +555,41 @@ export class SidePanel {
     const file = sect.candidate!;
     const post = el("div", { class: "sp-post" });
 
+    /* Collapsible card builder. Each effect lives in a <details> element so
+       we get open/close for free; the <summary> shows the effect name, a
+       small live summary string ("off", "+2.0 dB", "voice · -24 dB · 3:1"),
+       and a chevron. The summary updater is returned so the per-effect paint
+       functions can refresh it whenever the chain changes. Default open state
+       is set per call -- we open only effects that are currently enabled. */
+    const mkCard = (
+      name: string,
+      defaultOpen: boolean,
+    ): {
+      card: HTMLDetailsElement;
+      body: HTMLElement;
+      setSummary: (text: string, on: boolean) => void;
+    } => {
+      const card = el("details", { class: "sp-post-card" }) as HTMLDetailsElement;
+      if (defaultOpen) card.open = true;
+      const summary = document.createElement("summary");
+      summary.className = "sp-post-summary";
+      const nameEl = el("span", { class: "sp-post-name", text: name });
+      const valEl = el("span", { class: "sp-post-vsum", text: "off" });
+      const chev = el("span", { class: "sp-post-chev", text: "▾" });
+      summary.append(nameEl, valEl, chev);
+      card.appendChild(summary);
+      const body = el("div", { class: "sp-post-body" });
+      card.appendChild(body);
+      return {
+        card,
+        body,
+        setSummary: (text: string, on: boolean) => {
+          valEl.textContent = text;
+          card.classList.toggle("on", on);
+        },
+      };
+    };
+
     /* shared write helper -- reads current local chain state, merges a partial
        update, persists it locally and debounces the API call */
     const writeChain = (patch: Partial<TakeChain>): void => {
@@ -617,9 +652,10 @@ export class SidePanel {
       return { row, slider, readout };
     };
 
-    /* --- high-pass row --- */
+    /* --- high-pass section --- */
+    const hpCard = mkCard("high-pass", !!this.takes.chain(sceneId, lineId)?.highpass);
     const hpRow = el("div", { class: "sp-post-row" });
-    const hpLabel = el("span", { class: "sp-postlabel", text: "high-pass" });
+    const hpLabel = el("span", { class: "sp-postlabel", text: "cutoff" });
     const hpToggle = el("input", {
       type: "checkbox",
       class: "sp-hp-toggle",
@@ -645,6 +681,7 @@ export class SidePanel {
       hpFreqSlider.value = String(hp?.freq ?? DEFAULT_HP_FREQ);
       hpFreqSlider.disabled = !hp;
       hpReadout.textContent = hp ? hp.freq + " Hz" : "off";
+      hpCard.setSummary(hp ? hp.freq + " Hz" : "off", !!hp);
     };
 
     hpToggle.onchange = (): void => {
@@ -665,6 +702,7 @@ export class SidePanel {
 
     paintHp(currentHp());
     hpRow.append(hpLabel, hpToggle, hpFreqSlider, hpReadout);
+    hpCard.body.appendChild(hpRow);
 
     /* --- noise gate section --- */
     /* conservative voice preset used when the user enables the gate: a low
@@ -678,10 +716,11 @@ export class SidePanel {
       release: 0.18,
     };
 
+    const gateCard = mkCard("gate", !!this.takes.chain(sceneId, lineId)?.gate);
     const gateSection = el("div", { class: "sp-post-gate" });
 
     const gateToggleRow = el("div", { class: "sp-post-row" });
-    const gateLabel = el("span", { class: "sp-postlabel", text: "gate" });
+    const gateLabel = el("span", { class: "sp-postlabel", text: "enabled" });
     const gateToggle = el("input", {
       type: "checkbox",
       class: "sp-gate-toggle",
@@ -729,6 +768,10 @@ export class SidePanel {
         gateRange.readout.textContent =
           (gate.range ?? GATE_VOICE.range!).toFixed(0) + " dB";
       }
+      gateCard.setSummary(
+        gate ? `${gate.threshold.toFixed(0)} dB / -${(gate.range ?? GATE_VOICE.range!).toFixed(0)} dB` : "off",
+        on,
+      );
     };
 
     const readGateFromSliders = (): NonNullable<TakeChain["gate"]> => ({
@@ -758,6 +801,7 @@ export class SidePanel {
     };
 
     paintGate(currentGate());
+    gateCard.body.appendChild(gateSection);
 
     /* --- compressor section --- */
     /* sensible voice preset used when the user enables the compressor */
@@ -775,11 +819,12 @@ export class SidePanel {
       ["hard", { threshold: -12, ratio: 8, attack: 0.003, release: 0.08 }],
     ];
 
+    const compCard = mkCard("compressor", !!this.takes.chain(sceneId, lineId)?.comp);
     const compSection = el("div", { class: "sp-post-comp" });
 
     /* toggle row */
     const compToggleRow = el("div", { class: "sp-post-row" });
-    const compLabel = el("span", { class: "sp-postlabel", text: "compressor" });
+    const compLabel = el("span", { class: "sp-postlabel", text: "enabled" });
     const compToggle = el("input", {
       type: "checkbox",
       class: "sp-comp-toggle",
@@ -865,6 +910,10 @@ export class SidePanel {
         relCtrl.readout.textContent = comp.release.toFixed(2) + " s";
       }
       blankOpt.selected = true;
+      compCard.setSummary(
+        comp ? `${comp.threshold.toFixed(0)} dB · ${comp.ratio.toFixed(1)}:1` : "off",
+        on,
+      );
     };
 
     const readCompFromSliders = (): NonNullable<TakeChain["comp"]> => ({
@@ -917,9 +966,14 @@ export class SidePanel {
     };
 
     paintComp(currentComp());
-    /* --- gain row --- */
+    compCard.body.appendChild(compSection);
+    /* --- gain section --- */
+    const gainCard = mkCard(
+      "gain",
+      (this.takes.chain(sceneId, lineId)?.gainDb ?? 0) !== 0,
+    );
     const gainRow = el("div", { class: "sp-post-row" });
-    const gainLabel = el("span", { class: "sp-postlabel", text: "gain" });
+    const gainLabel = el("span", { class: "sp-postlabel", text: "level" });
     const gainSlider = el("input", {
       type: "range",
       min: "-24",
@@ -944,6 +998,7 @@ export class SidePanel {
       gainSlider.value = String(db);
       gainReadout.textContent = fmtDb(db);
       gainReset.disabled = db === 0;
+      gainCard.setSummary(db === 0 ? "0 dB" : fmtDb(db), db !== 0);
     };
 
     const applyGain = (db: number): void => {
@@ -991,7 +1046,9 @@ export class SidePanel {
 
     normRow.append(normBtn, normStatus);
 
-    post.append(hpRow, gateSection, compSection, gainRow, normRow);
+    gainCard.body.append(gainRow, normRow);
+
+    post.append(hpCard.card, gateCard.card, compCard.card, gainCard.card);
     block.appendChild(post);
   }
 

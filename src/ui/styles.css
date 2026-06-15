@@ -389,3 +389,34 @@ body.mode-record .sp-tabs{display:none}
   white-space:nowrap;font-family:inherit}
 .sp-rec-section-count{flex:none;padding:1px 7px;border-radius:99px;
   background:var(--st-panel2);font-size:10.5px;color:var(--st-dim)}
+
+/* ========================== post-chain cards ============================ */
+/* Collapsible <details> wrapper for one post effect. Header shows name +
+   live summary (e.g. "80 Hz", "+2.0 dB", "-24 dB \u00b7 3.0:1") and a chevron.
+   Defaults open if the effect is enabled; closed otherwise. */
+.sp-post{display:flex;flex-direction:column;align-items:stretch;gap:6px;
+  font-family:var(--st-mono);font-size:12px;color:var(--st-dim)}
+.sp-post-card{border:1px solid var(--st-line);border-radius:8px;
+  background:var(--st-panel2);overflow:hidden}
+.sp-post-card.on{border-color:rgba(163,113,247,.45)}
+.sp-post-summary{display:flex;align-items:center;gap:10px;
+  padding:6px 10px;cursor:pointer;list-style:none;user-select:none}
+.sp-post-summary::-webkit-details-marker{display:none}
+.sp-post-summary:hover{background:rgba(255,255,255,.025)}
+.sp-post-name{flex:none;color:var(--st-text);font-size:12px;
+  letter-spacing:.04em}
+.sp-post-card.on .sp-post-name{color:#d2a8ff}
+.sp-post-vsum{flex:1;text-align:right;color:var(--st-faint);font-size:11px}
+.sp-post-card.on .sp-post-vsum{color:var(--st-text)}
+.sp-post-chev{flex:none;color:var(--st-faint);font-size:10px;
+  transition:transform .15s}
+.sp-post-card[open] .sp-post-chev{transform:rotate(180deg)}
+.sp-post-body{padding:8px 10px 10px;border-top:1px solid var(--st-line);
+  display:flex;flex-direction:column;gap:6px}
+.sp-post-row{display:flex;align-items:center;gap:8px}
+.sp-post-comprow .sp-postlabel-sm{flex:none;width:60px;font-size:11px;
+  color:var(--st-dim)}
+.sp-comp-slider{flex:1;min-width:0;accent-color:var(--st-accent)}
+.sp-hpfreq{flex:1;min-width:0;accent-color:var(--st-accent)}
+.sp-post-gate-controls,.sp-post-comp-controls{display:flex;flex-direction:column;
+  gap:5px;padding:6px 0 0;border-top:1px dashed rgba(48,54,61,.6)}
