@@ -211,8 +211,8 @@ body.clean #frame{outline:none}
 
 /* =============================== picker ================================= */
 .t-project{max-width:180px}
-.picker{height:100vh;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:6px}
+.picker{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:6px;background:var(--st-bg)}
 .picker h1{margin:0;font-size:30px;font-weight:600;letter-spacing:-.01em}
 .pick-sub{margin:0 0 18px;font-family:var(--st-mono);font-size:12.5px;
   color:var(--st-dim);letter-spacing:.14em;text-transform:uppercase}
