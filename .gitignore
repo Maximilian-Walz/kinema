@@ -2,3 +2,5 @@ node_modules/
 dist/
 # content projects are documents, not part of the tool — each gets its own repo
 /projects/
+# machine-local list of out-of-tree projects (see server/plugin.mjs)
+/studio.config.json
