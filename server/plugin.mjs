@@ -122,7 +122,14 @@ export function studioPlugin() {
 
       server.httpServer?.once('listening', () => {
         const addr = server.httpServer.address();
-        if (addr && typeof addr === 'object') api.setOrigin(`http://127.0.0.1:${addr.port}`);
+        // Print the URL we actually bound to. strictPort is false, so when 4321
+        // is busy Vite picks another port; show the real one, not a hardcoded 4321.
+        if (addr && typeof addr === 'object') {
+          const host = server.config.server.host === true ? '127.0.0.1' : (server.config.server.host || '127.0.0.1');
+          const url = `http://${host}:${addr.port}/`;
+          api.setOrigin(`http://127.0.0.1:${addr.port}`);
+          console.log('  studio: ' + url);
+        }
         const list = registry.all();
         const def = list.find((e) => e.default);
         console.log('  studio projects: ' + list.map((e) => e.id + (e.default ? '*' : '')).join(', '));

@@ -51,12 +51,15 @@ export function findChrome(explicit) {
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     // macOS
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
     // Linux
     '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
     '/usr/bin/chromium', '/usr/bin/chromium-browser',
   ].filter(Boolean);
   for (const c of candidates) if (fs.existsSync(c)) return c;
-  throw new Error('Chrome not found. Set CHROME_PATH to your chrome.exe (Edge works too).');
+  throw new Error('Chrome not found. Set CHROME_PATH to a Chrome or Edge executable '
+    + '(e.g. chrome.exe on Windows, "Google Chrome" on macOS).');
 }
 
 /* ----------------------- virtual time stepping ------------------------- */

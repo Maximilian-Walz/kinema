@@ -21,7 +21,7 @@ em-dashes.
 | 04 | [Example "intro" project](04-intro-project.md) | 01, 02, 03 | 2 |
 | 05 | [Documentation](05-documentation.md) | 04 | 3 |
 | 06 | [video-project skill](06-skill.md) | 03, 04, 05 | 4 |
-| 07 | [Polish for other machines](07-polish.md) | 01 | 5 |
+| 07 | [Polish for other machines](07-polish.md) `done` | 01 | 5 |
 
 03 is independent of the picker and can be done in any early session. 04 onward
 assume the picker exists so the intro project is selectable.

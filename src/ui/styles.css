@@ -229,3 +229,7 @@ body.clean #frame{outline:none}
   padding:2px 8px;text-transform:uppercase}
 .pick-empty{font-family:var(--st-mono);font-size:12.5px;color:var(--st-dim);
   text-align:center}
+.boot-error{margin:4px 0 14px;max-width:min(560px,84vw);max-height:40vh;overflow:auto;
+  padding:12px 14px;background:var(--st-panel);border:1px solid var(--st-line);
+  border-radius:8px;font-family:var(--st-mono);font-size:12px;line-height:1.5;
+  color:var(--st-text);white-space:pre-wrap;word-break:break-word}

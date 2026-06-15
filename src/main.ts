@@ -17,7 +17,22 @@ if (new URLSearchParams(location.search).has('render')) {
   /* no ?project= -> let the user pick one before booting the studio */
   void showPicker();
 } else {
-  void bootStudio();
+  bootStudio().catch(showBootError);
+}
+
+/* boot failed (project.json invalid, a scene.json missing, unknown ?project=,
+   server down): show a readable screen instead of a blank stage. */
+function showBootError(err: unknown): void {
+  document.title = 'video-studio — error';
+  const app = document.getElementById('app')!;
+  app.textContent = '';
+  const id = getProject();
+  app.append(el('div', { class: 'picker' },
+    el('h1', { text: 'could not load project' }),
+    el('p', { class: 'pick-sub', text: id ? `project: ${id}` : 'default project' }),
+    el('pre', { class: 'boot-error', text: String((err as Error)?.message || err) }),
+    el('p', { class: 'pick-empty', text: 'check project.json and that every scene has a scene.json, then reload.' }),
+  ));
 }
 
 async function bootStudio(): Promise<void> {

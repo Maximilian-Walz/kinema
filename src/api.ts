@@ -20,7 +20,13 @@ function withProject(url: string): string {
 }
 
 async function check(r: Response): Promise<Response> {
-  if (!r.ok) throw new Error(`${r.status} ${await r.text().catch(() => '')}`);
+  if (!r.ok) {
+    /* the API replies { error } as JSON; surface that text, not just a code */
+    const text = await r.text().catch(() => '');
+    let msg = text;
+    try { const j = JSON.parse(text); if (j && j.error) msg = j.error; } catch { /* not json */ }
+    throw new Error(msg ? `${r.status}: ${msg}` : `HTTP ${r.status}`);
+  }
   return r;
 }
 

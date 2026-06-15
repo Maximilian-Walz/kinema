@@ -1,6 +1,6 @@
 # 07 - Polish for other machines
 
-Status: todo
+Status: done
 Depends on: 01 (server changes touch the same files)
 Plan item: 5 (small, do last)
 
@@ -41,3 +41,7 @@ screens, cross-platform Chrome detection.
 
 ## Notes
 - Keep it small. This is the last ticket; do not gold-plate.
+- Chrome detection confirmed on Windows (resolves to Edge when Chrome is absent).
+  macOS not verified: no Mac available. Added macOS Edge/Chromium paths alongside
+  the existing Google Chrome path; failure message names CHROME_PATH and is now
+  OS-neutral wording.
