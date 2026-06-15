@@ -16,7 +16,7 @@ import type { Mode, WorkspaceMode } from "./workspace-mode";
    speaking; a red bar with the stop button stays visible.
 ============================================================================ */
 
-type Tab = "script" | "takes" | "export";
+type Tab = "script" | "takes";
 
 /* Default tab per workspace mode. T3/T4/T5 will replace each side-panel
    render with a mode-specific view; until then the mode just steers which of
@@ -39,7 +39,6 @@ export class SidePanel {
   private readonly tabButtons = new Map<Tab, HTMLButtonElement>();
   private readonly recBar: HTMLElement;
   private tab: Tab = "script";
-  private pollTimer: number | undefined;
   /** debounce timers for per-section gain writes, keyed sceneId/lineId/file */
   private readonly chainTimers = new Map<string, number>();
 
@@ -72,7 +71,7 @@ export class SidePanel {
     this.playbackMeter = playbackMeter;
 
     const nav = el("div", { class: "sp-tabs" });
-    (["script", "takes", "export"] as Tab[]).forEach((t) => {
+    (["script", "takes"] as Tab[]).forEach((t) => {
       const b = el("button", { text: t.toUpperCase() });
       b.onclick = () => this.show(t);
       this.tabButtons.set(t, b);
@@ -135,7 +134,6 @@ export class SidePanel {
     });
 
     this.show(MODE_DEFAULT_TAB[this.mode.mode]);
-    this.resumeExportPollIfRunning();
   }
 
   /** Called by main.ts after a mode switch. Picks the mode's default tab and
@@ -170,16 +168,15 @@ export class SidePanel {
       this.renderTuneSide();
       return;
     }
-    /* TIME mode: side panel is the teleprompter (with export reachable from
-       the transport bar in T8). Only allow the tab switcher to override the
-       view when the user explicitly opened the EXPORT tab. */
-    if (this.mode.mode === "time" && this.tab !== "export") {
+    /* TIME mode: side panel is the teleprompter. EXPORT now lives as a
+       transport button (T8), so the tab routing only ever picks SCRIPT or
+       TAKES from here. */
+    if (this.mode.mode === "time") {
       this.renderScript();
       return;
     }
     if (this.tab === "script") this.renderScript();
-    else if (this.tab === "takes") this.renderTakes();
-    else this.renderExport();
+    else this.renderTakes();
   }
 
   /* SCRIPT ----------------------------------------------------------------- */
@@ -1067,92 +1064,6 @@ export class SidePanel {
 
     post.append(hpCard.card, gateCard.card, compCard.card, gainCard.card);
     block.appendChild(post);
-  }
-
-  /* EXPORT ----------------------------------------------------------------- */
-
-  private renderExport(): void {
-    this.body.appendChild(
-      el("div", { class: "sp-scenetitle", text: "export MP4" }),
-    );
-
-    const fps = el(
-      "select",
-      {},
-      el("option", { value: "15", text: "15 fps draft" }),
-      el("option", { value: "30", text: "30 fps", selected: "" }),
-      el("option", { value: "60", text: "60 fps" }),
-    ) as HTMLSelectElement;
-
-    const sceneBtn = el("button", { text: "this scene" });
-    const fullBtn = el("button", { text: "full video" });
-    sceneBtn.onclick = () =>
-      this.export(parseInt(fps.value, 10), this.player.scene.id);
-    fullBtn.onclick = () => this.export(parseInt(fps.value, 10), null);
-
-    this.body.appendChild(
-      el("div", { class: "sp-row" }, fps, sceneBtn, fullBtn),
-    );
-    const bar = el("div", { class: "sp-bar" }, el("i"));
-    this.body.appendChild(bar);
-    this.body.appendChild(
-      el(
-        "div",
-        { class: "sp-status" },
-        "frame-exact render via headless Chrome; picked takes are muxed in. " +
-          'Iterate with "this scene" at 15 fps.',
-      ),
-    );
-  }
-
-  private async export(fps: number, scene: string | null): Promise<void> {
-    try {
-      await api.startExport(fps, scene);
-    } catch (e) {
-      this.status("export failed to start: " + String(e));
-      return;
-    }
-    this.status("export starting…");
-    this.pollExport();
-  }
-
-  private resumeExportPollIfRunning(): void {
-    void api.exportStatus().then((s) => {
-      if (s.state === "rendering" || s.state === "starting") this.pollExport();
-    }).catch(() => {});
-  }
-
-  private pollExport(): void {
-    clearInterval(this.pollTimer);
-    this.pollTimer = window.setInterval(async () => {
-      let s;
-      try {
-        s = await api.exportStatus();
-      } catch {
-        return;
-      }
-      const bar = this.body.querySelector<HTMLElement>(".sp-bar i");
-      if (s.state === "rendering" || s.state === "starting") {
-        const pct = s.totalFrames
-          ? Math.round(100 * (s.frame || 0) / s.totalFrames)
-          : 0;
-        if (bar) bar.style.width = pct + "%";
-        this.status(
-          `${
-            s.phase || "rendering"
-          } · frame ${s.frame}/${s.totalFrames} (${pct}%)`,
-        );
-      } else if (s.state === "done") {
-        clearInterval(this.pollTimer);
-        if (bar) bar.style.width = "100%";
-        this.status(
-          `✓ done — <a href="${s.output}" target="_blank">open MP4</a>`,
-        );
-      } else if (s.state === "error") {
-        clearInterval(this.pollTimer);
-        this.status("✗ export error: " + (s.message || "").split("\n")[0]);
-      }
-    }, 700);
   }
 
   /* ------------------------------- countdown overlay --------------------- */

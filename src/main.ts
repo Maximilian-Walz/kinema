@@ -10,6 +10,7 @@ import { SidePanel } from "./ui/panels";
 import { showPicker } from "./ui/picker";
 import "./ui/styles.css";
 import { DockResize } from "./ui/dock-resize";
+import { ExportDialog } from "./ui/export-dialog";
 import { Timeline } from "./ui/timeline";
 import { Transport } from "./ui/transport";
 import { WorkspaceMode } from "./ui/workspace-mode";
@@ -90,8 +91,9 @@ async function bootStudio(): Promise<void> {
   mode.installHotkeys();
   const micMonitor = new MicMonitor(takes);
   const playbackMeter = new PlaybackMeter(takes);
+  const exportDialog = new ExportDialog(player);
 
-  new Transport(transport, player, takes, sync, mode);
+  new Transport(transport, player, takes, sync, mode, exportDialog);
   const sidePanel = new SidePanel(
     side,
     player,

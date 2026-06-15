@@ -3,6 +3,7 @@ import type { Takes } from "../audio/takes";
 import { fmt, fmtMs, type Player } from "../engine/player";
 import type { TimingSync } from "../timings";
 import { el } from "./dom";
+import type { ExportDialog } from "./export-dialog";
 import { openProject } from "./picker";
 import type { WorkspaceMode } from "./workspace-mode";
 
@@ -21,6 +22,7 @@ export class Transport {
     takes: Takes,
     sync: TimingSync,
     mode: WorkspaceMode,
+    exportDialog: ExportDialog,
   ) {
     this.player = player;
 
@@ -56,6 +58,14 @@ export class Transport {
     });
     clean.onclick = () => document.body.classList.toggle("clean");
 
+    const exportBtn = el("button", {
+      class: "t-export",
+      text: "⤓ export",
+      title: "render the project to MP4",
+    });
+    exportBtn.onclick = () => exportDialog.open();
+    const exportBadge = exportDialog.attachTransportBadge();
+
     const picker = el("select", {
       class: "t-project",
       title: "switch project",
@@ -76,6 +86,8 @@ export class Transport {
       modeSwitch,
       picker,
       this.recBtn,
+      exportBtn,
+      exportBadge,
       clean,
       el("span", {
         class: "t-keys",

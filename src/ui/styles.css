@@ -491,3 +491,37 @@ body.mode-time .sp-tabs{display:none}
   .tv-take{grid-template-columns:34px 100px 90px auto 28px 1fr}
   .tv-strip{grid-column:6 / 7}
 }
+
+/* ============================== export dialog ============================ */
+.t-export{padding:6px 12px}
+.t-export:hover{border-color:var(--st-accent);color:var(--st-text)}
+.t-export-badge{display:none;font-family:var(--st-mono);font-size:11.5px;
+  color:#d2a8ff;border:1px solid var(--st-accent);border-radius:99px;
+  padding:2px 9px;background:rgba(163,113,247,.08)}
+
+.export-overlay{position:fixed;inset:0;background:rgba(5,7,10,.7);
+  display:flex;align-items:center;justify-content:center;z-index:200;
+  backdrop-filter:blur(2px)}
+.export-panel{width:min(520px,92vw);background:var(--st-panel);
+  border:1px solid var(--st-line);border-radius:14px;padding:20px 22px;
+  display:flex;flex-direction:column;gap:14px;
+  box-shadow:0 12px 40px rgba(0,0,0,.55)}
+.export-head{display:flex;align-items:center;justify-content:space-between}
+.export-head h2{margin:0;font-size:18px;font-weight:600;letter-spacing:-.01em}
+.export-close{padding:3px 9px;font-size:13px}
+.export-form{display:flex;flex-direction:column;gap:10px;
+  font-family:var(--st-mono);font-size:12.5px;color:var(--st-dim)}
+.export-row{display:flex;align-items:center;gap:10px}
+.export-label{flex:none;width:90px;color:var(--st-dim)}
+.export-start{padding:6px 14px}
+.export-start:hover{border-color:var(--st-accent);color:var(--st-text)}
+.export-hint{font-size:11.5px;color:var(--st-faint);line-height:1.5;
+  padding-top:6px;border-top:1px dashed rgba(48,54,61,.6)}
+.export-progress{display:flex;flex-direction:column;gap:6px}
+.export-bar{height:8px;background:var(--st-panel2);border-radius:99px;overflow:hidden}
+.export-bar i{display:block;height:100%;width:0;background:var(--st-accent);
+  transition:width .4s}
+.export-status{font-family:var(--st-mono);font-size:12px;color:var(--st-dim);
+  line-height:1.6;min-height:1.6em}
+.export-status a{color:#d2a8ff}
+.export-cancel{align-self:flex-end;padding:5px 12px;font-size:11.5px}
