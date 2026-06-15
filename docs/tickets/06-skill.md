@@ -1,6 +1,6 @@
 # 06 - video-project skill
 
-Status: todo
+Status: done
 Depends on: 03 (validate.mjs), 04 (intro project as reference), 05 (project-format doc
 the skill consumes)
 Plan item: 4
