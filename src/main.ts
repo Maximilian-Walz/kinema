@@ -1,4 +1,5 @@
 import { fetchProject, getProject } from "./api";
+import { MicMonitor, PlaybackMeter } from "./audio/monitor";
 import { Takes } from "./audio/takes";
 import { Player } from "./engine/player";
 import { History } from "./history";
@@ -82,9 +83,20 @@ async function bootStudio(): Promise<void> {
   const history = new History();
   const mode = new WorkspaceMode();
   mode.installHotkeys();
+  const micMonitor = new MicMonitor(takes);
+  const playbackMeter = new PlaybackMeter(takes);
 
   new Transport(transport, player, takes, sync, mode);
-  const sidePanel = new SidePanel(side, player, takes, sync, history, mode);
+  const sidePanel = new SidePanel(
+    side,
+    player,
+    takes,
+    sync,
+    history,
+    mode,
+    micMonitor,
+    playbackMeter,
+  );
   const tl = new Timeline(timeline, player, takes, sync, history);
   /* mode switches re-flow the grid; trigger a rescale so the stage fits */
   mode.events.on("change", () => {

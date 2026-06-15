@@ -1,7 +1,6 @@
 import * as api from "../api";
-import { LiveWaveform } from "../audio/live-waveform";
 import { computeNormalizeGain, measureLoudness } from "../audio/loudness";
-import { Meter } from "../audio/meter";
+import type { MicMonitor, PlaybackMeter } from "../audio/monitor";
 import type { Takes } from "../audio/takes";
 import { fmt, type Player } from "../engine/player";
 import type { History } from "../history";
@@ -33,6 +32,8 @@ export class SidePanel {
   private readonly sync: TimingSync;
   private readonly history: History;
   private readonly mode: WorkspaceMode;
+  private readonly micMonitor: MicMonitor;
+  private readonly playbackMeter: PlaybackMeter;
   private readonly body: HTMLElement;
   private readonly tabButtons = new Map<Tab, HTMLButtonElement>();
   private readonly recBar: HTMLElement;
@@ -41,15 +42,8 @@ export class SidePanel {
   /** debounce timers for per-section gain writes, keyed sceneId/lineId/file */
   private readonly chainTimers = new Map<string, number>();
 
-  /* mic monitor widgets -- kept alive across tab switches during a session */
-  private monitorMeter: Meter | null = null;
-  private monitorWaveform: LiveWaveform | null = null;
-  /** container mounted in the recBar for the meter while recording */
+  /** container inside the recBar that hosts the mic meter while recording */
   private recBarMonitorEl: HTMLElement | null = null;
-
-  /* playback meter -- reads the post-processed output via the master analyser;
-     created once and kept alive for the session (not torn down on tab switch) */
-  private playbackMeter: Meter | null = null;
 
   /** overlay element sitting over #hud showing the countdown number */
   private countdownOverlay: HTMLElement | null = null;
@@ -61,12 +55,16 @@ export class SidePanel {
     sync: TimingSync,
     history: History,
     mode: WorkspaceMode,
+    micMonitor: MicMonitor,
+    playbackMeter: PlaybackMeter,
   ) {
     this.player = player;
     this.takes = takes;
     this.sync = sync;
     this.history = history;
     this.mode = mode;
+    this.micMonitor = micMonitor;
+    this.playbackMeter = playbackMeter;
 
     const nav = el("div", { class: "sp-tabs" });
     (["script", "takes", "export"] as Tab[]).forEach((t) => {
@@ -105,43 +103,29 @@ export class SidePanel {
       this.removeCountdownOverlay();
       this.recBar.style.display = on ? "flex" : "none";
       if (on) {
-        /* mount the monitor meter inside the recbar so it stays visible on
-           the SCRIPT tab while narrating (mic --> meter only, no speakers) */
-        if (this.monitorMeter) {
+        /* mount the shared meter element inside the recbar so it stays
+           visible on the SCRIPT tab while narrating */
+        const meterEl = this.micMonitor.meterEl;
+        if (meterEl) {
           this.recBarMonitorEl = el("div", { class: "sp-recbar-monitor" });
-          this.recBarMonitorEl.appendChild(this.monitorMeter.element);
+          this.recBarMonitorEl.appendChild(meterEl);
+          this.micMonitor.start();
           this.recBar.appendChild(this.recBarMonitorEl);
         }
         this.show("script");
       } else {
-        /* detach the inline recbar meter (stays alive in the takes panel) */
+        /* detach the inline recbar meter (the singleton stays alive) */
         if (this.recBarMonitorEl) {
           this.recBarMonitorEl.remove();
           this.recBarMonitorEl = null;
         }
-        /* if not still armed, tear down monitor widgets */
-        if (!takes.monitoring) this.destroyMonitorWidgets();
         if (this.tab === "takes") this.render();
       }
     });
 
-    takes.events.on("monitor", (analyser) => {
-      if (analyser) {
-        /* build (or rebuild) the meter and waveform against the new analyser */
-        this.destroyMonitorWidgets();
-        this.monitorMeter = new Meter(analyser, {
-          orientation: "horizontal",
-          width: 120,
-          height: 14,
-        });
-        this.monitorWaveform = new LiveWaveform(analyser, {
-          width: 200,
-          height: 40,
-        });
-      } else {
-        this.destroyMonitorWidgets();
-      }
-      /* re-render the takes panel if it is currently visible */
+    takes.events.on("monitor", () => {
+      /* MicMonitor singleton has already (re)bound the widgets; just re-render
+         the takes panel so the monitor block picks up the new state */
       if (this.tab === "takes") this.render();
     });
 
@@ -166,18 +150,6 @@ export class SidePanel {
     this.tab = tab;
     this.tabButtons.forEach((b, t) => b.classList.toggle("active", t === tab));
     this.render();
-  }
-
-  /** Stop and discard the Meter and LiveWaveform widget instances. */
-  private destroyMonitorWidgets(): void {
-    if (this.monitorMeter) {
-      this.monitorMeter.stop();
-      this.monitorMeter = null;
-    }
-    if (this.monitorWaveform) {
-      this.monitorWaveform.stop();
-      this.monitorWaveform = null;
-    }
   }
 
   /* ------------------------------- render -------------------------------- */
@@ -410,8 +382,9 @@ export class SidePanel {
   }
 
   /** Render the arm-mic toggle and, when armed, the live Meter + scrolling
-      waveform.  The widgets (Meter, LiveWaveform) are long-lived instances held
-      on `this`; we just append their DOM elements here. */
+  /** Render the arm-mic toggle and, when armed, mount the shared live
+      waveform + level meter from MicMonitor. The singleton owns lifecycle;
+      this view just supplies a host element. */
   private appendMonitorBlock(): void {
     const armed = this.takes.monitoring;
     const block = el("div", { class: "sp-monitor" + (armed ? " armed" : "") });
@@ -433,16 +406,10 @@ export class SidePanel {
     };
     block.appendChild(armBtn);
 
-    if (armed && this.monitorMeter && this.monitorWaveform) {
+    if (armed && this.micMonitor.active) {
       const vis = el("div", { class: "sp-monitor-vis" });
-
-      /* scrolling waveform */
-      this.monitorWaveform.start();
-      vis.appendChild(this.monitorWaveform.canvas);
-
-      /* level meter (horizontal) */
-      this.monitorMeter.start();
-      vis.appendChild(this.monitorMeter.element);
+      /* shared singleton: replaces children of `vis` with waveform + meter */
+      this.micMonitor.attach(vis);
 
       /* clip warning -- shown via CSS when the meter's clip LED is lit */
       const clipWarn = el("div", {
@@ -451,7 +418,7 @@ export class SidePanel {
       });
 
       /* poll the clip LED state at ~8 Hz to toggle the warning */
-      const clipLed = this.monitorMeter.element.querySelector(".vs-meter-clip");
+      const clipLed = this.micMonitor.meterClipEl;
       if (clipLed) {
         const pollClip = (): void => {
           const clipping = clipLed.classList.contains("clipped");
@@ -475,22 +442,9 @@ export class SidePanel {
     this.body.appendChild(block);
   }
 
-  /** Render the playback level meter block (post-processing output, always
-      visible in the TAKES tab).  The Meter instance is long-lived -- created
-      once and started/stopped alongside the panel, never torn down while the
-      session runs.  It reads from the master analyser which is wired between the
-      chain tail and ctx.destination in Takes. */
+  /** Render the playback level meter block (post-processing output). The
+      PlaybackMeter singleton owns the Meter; this view supplies the host. */
   private appendPlaybackMeterBlock(): void {
-    /* lazily create the Meter the first time the TAKES tab is rendered */
-    if (!this.playbackMeter) {
-      this.playbackMeter = new Meter(this.takes.playbackAnalyser, {
-        orientation: "horizontal",
-        width: 120,
-        height: 14,
-      });
-    }
-    this.playbackMeter.start();
-
     const block = el("div", { class: "sp-playback-meter" });
     const label = el("span", { class: "sp-playback-label", text: "playback" });
 
@@ -506,7 +460,10 @@ export class SidePanel {
     matchBtn.onclick = () =>
       void this.matchAllTakes(matchBtn as HTMLButtonElement);
 
-    block.append(label, this.playbackMeter.element, matchBtn);
+    const meterHost = el("div", { class: "sp-playback-meter-host" });
+    this.playbackMeter.attach(meterHost);
+
+    block.append(label, meterHost, matchBtn);
     this.body.appendChild(block);
   }
 
