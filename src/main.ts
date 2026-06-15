@@ -12,6 +12,7 @@ import "./ui/styles.css";
 import { Timeline } from "./ui/timeline";
 import { Transport } from "./ui/transport";
 import { WorkspaceMode } from "./ui/workspace-mode";
+import { RecordView } from "./ui/record-view";
 
 if (new URLSearchParams(location.search).has("render")) {
   bootRender();
@@ -72,9 +73,10 @@ async function bootStudio(): Promise<void> {
   const side = el("aside", { id: "side" });
   const transport = el("div", { id: "transport" });
   const timeline = el("div", { id: "timeline" });
+  const recordview = el("div", { id: "recordview" });
 
   const app = document.getElementById("app")!;
-  app.append(stagearea, side, transport, timeline);
+  app.append(stagearea, side, transport, timeline, recordview);
 
   /* ------------------------------- wiring ------------------------------- */
   const player = new Player(project, content, sceneStyle);
@@ -98,6 +100,7 @@ async function bootStudio(): Promise<void> {
     playbackMeter,
   );
   const tl = new Timeline(timeline, player, takes, sync, history);
+  new RecordView(recordview, player, takes, micMonitor);
   /* mode switches re-flow the grid; trigger a rescale so the stage fits */
   mode.events.on("change", () => {
     sidePanel.onModeChange();

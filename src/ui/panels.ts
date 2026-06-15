@@ -156,6 +156,10 @@ export class SidePanel {
 
   private render(): void {
     this.body.innerHTML = "";
+    if (this.mode.mode === "record") {
+      this.renderRecordSide();
+      return;
+    }
     if (this.tab === "script") this.renderScript();
     else if (this.tab === "takes") this.renderTakes();
     else this.renderExport();
@@ -1125,6 +1129,15 @@ export class SidePanel {
   /* highlight + autoscroll the current script line ------------------------ */
 
   private tick(): void {
+    if (this.mode.mode === "record") {
+      /* RECORD side panel re-renders when the cursor crosses a line boundary */
+      const id = this.activeLineId();
+      if (id !== this.lastRecordLineId) {
+        this.lastRecordLineId = id;
+        this.render();
+      }
+      return;
+    }
     if (this.tab !== "script" || !this.lineEls.length) return;
     const local = this.player.localTime;
     for (const le of this.lineEls) {
@@ -1135,5 +1148,128 @@ export class SidePanel {
         le.div.scrollIntoView({ block: "center", behavior: "smooth" });
       }
     }
+  }
+
+  /* RECORD side: compact takes for the line under the cursor ------------- */
+
+  private lastRecordLineId: string | null = null;
+
+  /** id of the script line under the cursor, or null if the cursor sits in
+      a gap (no line covers `local`). */
+  private activeLineId(): string | null {
+    const local = this.player.localTime;
+    for (const ln of this.player.scene.lines) {
+      if (local >= ln.from && local < ln.to) return ln.id ?? null;
+    }
+    return null;
+  }
+
+  private renderRecordSide(): void {
+    const scene = this.player.scene;
+    const activeId = this.activeLineId();
+    this.lastRecordLineId = activeId;
+
+    this.body.appendChild(
+      el("div", { class: "sp-scenetitle", text: `takes \u00b7 ${scene.title}` }),
+    );
+
+    /* current line card: last 2 takes with audition/star/delete */
+    const activeLine = scene.lines.find((ln) => ln.id === activeId) ?? null;
+    const activeSect = activeLine?.id ? this.takes.section(scene.id, activeLine.id) : undefined;
+    const card = el("div", { class: "sp-rec-card" });
+    if (activeLine) {
+      card.appendChild(
+        el("div", {
+          class: "sp-rec-card-line",
+          text: activeLine.text || "(empty line)",
+          title: `${fmt(activeLine.from)}\u2013${fmt(activeLine.to)}`,
+        }),
+      );
+      const recent = (activeSect?.takes ?? []).slice(-2).reverse();
+      if (recent.length === 0) {
+        card.appendChild(el("div", { class: "sp-dim", text: "no takes yet for this line" }));
+      } else {
+        const takesEl = el("div", { class: "sp-takes" });
+        recent.forEach((tk, i) => {
+          const total = activeSect!.takes.length;
+          const ord = total - i; // most-recent first
+          takesEl.appendChild(this.takeRow(scene.id, activeLine.id!, activeSect!, tk, ord));
+        });
+        card.appendChild(takesEl);
+      }
+    } else {
+      card.appendChild(
+        el("div", { class: "sp-dim", text: "play or seek to a script line to record" }),
+      );
+    }
+    this.body.appendChild(card);
+
+    /* section dots: one compact row per line, clickable to jump the cursor */
+    const dots = el("div", { class: "sp-rec-sections" });
+    scene.lines.forEach((ln) => {
+      const sect = ln.id ? this.takes.section(scene.id, ln.id) : undefined;
+      const has = !!sect?.takes.length;
+      const isActive = ln.id === activeId;
+      const row = el("button", {
+        class: "sp-rec-section" + (isActive ? " active" : "") + (has ? " has-takes" : ""),
+        title: ln.text,
+      });
+      row.appendChild(el("span", { class: "sp-sectiondot" + (has ? " on" : "") }));
+      row.appendChild(
+        el("span", { class: "sp-rec-section-time", text: fmt(ln.from) }),
+      );
+      row.appendChild(
+        el("span", { class: "sp-rec-section-text", text: ln.text || "(empty)" }),
+      );
+      if (sect?.takes.length) {
+        row.appendChild(
+          el("span", { class: "sp-rec-section-count", text: `${sect.takes.length}` }),
+        );
+      }
+      row.onclick = () => {
+        this.player.seek(this.player.offsets[this.player.sceneIndex] + ln.from + 0.001);
+      };
+      dots.appendChild(row);
+    });
+    this.body.appendChild(dots);
+  }
+
+  /** A compact take row: play, name, star, delete. Used by renderRecordSide
+      and (in T4) the TUNE comparator. */
+  private takeRow(
+    sceneId: string,
+    lineId: string,
+    sect: SectionTakes,
+    tk: SectionTakes["takes"][number],
+    ord: number,
+  ): HTMLElement {
+    const row = el("div", { class: "sp-take" + (tk.file === sect.candidate ? " cand" : "") });
+    const play = el("button", {
+      text: this.takes.auditioning === tk.file ? "\u23f8" : "\u25b6",
+      title: "audition this take",
+    });
+    play.onclick = () => this.takes.toggleAudition(sceneId, lineId, tk.file);
+    const name = el("span", {
+      class: "sp-takename",
+      text: `take ${ord} \u00b7 ${new Date(tk.created).toLocaleTimeString()}`,
+      title: tk.file,
+    });
+    const star = el("button", {
+      class: "sp-star",
+      text: tk.file === sect.candidate ? "\u2605" : "\u2606",
+      title: "pick as the take used in preview and export",
+    });
+    star.onclick = async () => {
+      await api.pickTake(sceneId, lineId, tk.file);
+      await this.takes.refresh();
+    };
+    const del = el("button", { text: "\u2715", title: "move to trash" });
+    del.onclick = async () => {
+      if (!confirm("Move this take to trash?")) return;
+      await api.deleteTake(sceneId, lineId, tk.file);
+      await this.takes.refresh();
+    };
+    row.append(play, name, star, del);
+    return row;
   }
 }
