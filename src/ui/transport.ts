@@ -1,9 +1,10 @@
-import { fetchProjects, getProject } from '../api';
-import type { Takes } from '../audio/takes';
-import { fmt, fmtMs, type Player } from '../engine/player';
-import type { TimingSync } from '../timings';
-import { el } from './dom';
-import { openProject } from './picker';
+import { fetchProjects, getProject } from "../api";
+import type { Takes } from "../audio/takes";
+import { fmt, fmtMs, type Player } from "../engine/player";
+import type { TimingSync } from "../timings";
+import { el } from "./dom";
+import { openProject } from "./picker";
+import type { WorkspaceMode } from "./workspace-mode";
 
 /* play/pause, scene navigation, timecode, record shortcut, clean mode */
 export class Transport {
@@ -14,66 +15,99 @@ export class Transport {
   private sceneEl!: HTMLElement;
   private savedEl!: HTMLElement;
 
-  constructor(root: HTMLElement, player: Player, takes: Takes, sync: TimingSync) {
+  constructor(
+    root: HTMLElement,
+    player: Player,
+    takes: Takes,
+    sync: TimingSync,
+    mode: WorkspaceMode,
+  ) {
     this.player = player;
 
-    this.playBtn = el('button', { class: 't-play', text: '▶ play' });
+    this.playBtn = el("button", { class: "t-play", text: "▶ play" });
     this.playBtn.onclick = () => player.toggle();
-    const restart = el('button', { text: '⟲ scene', title: 'restart scene (Shift+R)' });
+    const restart = el("button", {
+      text: "⟲ scene",
+      title: "restart scene (Shift+R)",
+    });
     restart.onclick = () => player.restartScene();
-    const prev = el('button', { text: '⟨', title: 'previous scene ([)' });
+    const prev = el("button", { text: "⟨", title: "previous scene ([)" });
     prev.onclick = () => player.seekScene(player.sceneIndex - 1);
-    const next = el('button', { text: '⟩', title: 'next scene (])' });
+    const next = el("button", { text: "⟩", title: "next scene (])" });
     next.onclick = () => player.seekScene(player.sceneIndex + 1);
 
-    this.sceneEl = el('span', { class: 't-scene' });
-    this.timeEl = el('span', { class: 't-time' });
-    this.savedEl = el('span', { class: 't-saved' });
+    this.sceneEl = el("span", { class: "t-scene" });
+    this.timeEl = el("span", { class: "t-time" });
+    this.savedEl = el("span", { class: "t-saved" });
 
-    this.recBtn = el('button', { class: 't-rec', text: '● rec', title: 'record with 3-2-1 count-in (r)' });
+    this.recBtn = el("button", {
+      class: "t-rec",
+      text: "● rec",
+      title: "record with 3-2-1 count-in (r)",
+    });
     this.recBtn.onclick = async () => {
       if (takes.recording || takes.counting) takes.stopRecording();
       else await takes.startRecordingWithCountIn();
     };
 
-    const clean = el('button', { text: '◻ clean (C)', title: 'stage only — for screen capture' });
-    clean.onclick = () => document.body.classList.toggle('clean');
+    const clean = el("button", {
+      text: "◻ clean (C)",
+      title: "stage only — for screen capture",
+    });
+    clean.onclick = () => document.body.classList.toggle("clean");
 
-    const picker = el('select', { class: 't-project', title: 'switch project' }) as HTMLSelectElement;
+    const picker = el("select", {
+      class: "t-project",
+      title: "switch project",
+    }) as HTMLSelectElement;
     this.fillPicker(picker);
 
+    const modeSwitch = mode.buildSwitcher();
+
     root.append(
-      this.playBtn, restart, prev, next,
-      this.sceneEl, this.timeEl, this.savedEl,
-      el('span', { class: 't-spacer' }),
-      picker, this.recBtn, clean,
-      el('span', { class: 't-keys', text: 'SPACE play · r rec · Shift+R restart · ←/→ ±5s (shift ±1s) · [ ] scene · 1-9 jump · C clean' }),
+      this.playBtn,
+      restart,
+      prev,
+      next,
+      this.sceneEl,
+      this.timeEl,
+      this.savedEl,
+      el("span", { class: "t-spacer" }),
+      modeSwitch,
+      picker,
+      this.recBtn,
+      clean,
+      el("span", {
+        class: "t-keys",
+        text:
+          "SPACE play · r rec · Shift+R restart · ←/→ ±5s (shift ±1s) · [ ] scene · 1-9 jump · F1-F3 mode · C clean",
+      }),
     );
 
-    player.events.on('time', () => this.tick());
-    player.events.on('play', (p) => {
-      this.playBtn.textContent = p ? '❚❚ pause' : '▶ play';
+    player.events.on("time", () => this.tick());
+    player.events.on("play", (p) => {
+      this.playBtn.textContent = p ? "❚❚ pause" : "▶ play";
     });
-    takes.events.on('recording', (on) => {
-      this.recBtn.classList.toggle('live', on);
-      this.recBtn.classList.remove('counting');
-      this.recBtn.textContent = on ? '■ stop' : '● rec';
+    takes.events.on("recording", (on) => {
+      this.recBtn.classList.toggle("live", on);
+      this.recBtn.classList.remove("counting");
+      this.recBtn.textContent = on ? "■ stop" : "● rec";
     });
-    takes.events.on('countdown', (n) => {
+    takes.events.on("countdown", (n) => {
       if (n === null) {
         /* cancelled */
-        this.recBtn.classList.remove('counting');
-        this.recBtn.textContent = '● rec';
+        this.recBtn.classList.remove("counting");
+        this.recBtn.textContent = "● rec";
       } else if (n === 0) {
         /* handed off to recording -- recording event will fire shortly */
-        this.recBtn.classList.remove('counting');
+        this.recBtn.classList.remove("counting");
       } else {
-        this.recBtn.classList.add('counting');
+        this.recBtn.classList.add("counting");
         this.recBtn.textContent = `${n}…`;
       }
     });
-    sync.events.on('saved', () => this.flashSaved('✓ saved'));
-    sync.events.on('error', () => this.flashSaved('✗ save failed', true));
+    sync.events.on("saved", () => this.flashSaved("✓ saved"));
+    sync.events.on("error", () => this.flashSaved("✗ save failed", true));
     this.tick();
   }
 
@@ -82,8 +116,13 @@ export class Transport {
     const projects = await fetchProjects().catch(() => []);
     const current = getProject();
     for (const proj of projects) {
-      const opt = el('option', { value: proj.id, text: proj.name }) as HTMLOptionElement;
-      if (proj.id === current || (!current && proj.default)) opt.selected = true;
+      const opt = el("option", {
+        value: proj.id,
+        text: proj.name,
+      }) as HTMLOptionElement;
+      if (proj.id === current || (!current && proj.default)) {
+        opt.selected = true;
+      }
       sel.append(opt);
     }
     sel.onchange = () => openProject(sel.value);
@@ -92,17 +131,22 @@ export class Transport {
   private savedTimer: number | undefined;
   private flashSaved(text: string, error = false): void {
     this.savedEl.textContent = text;
-    this.savedEl.classList.toggle('error', error);
+    this.savedEl.classList.toggle("error", error);
     clearTimeout(this.savedTimer);
-    this.savedTimer = window.setTimeout(() => { this.savedEl.textContent = ''; }, 1500);
+    this.savedTimer = window.setTimeout(() => {
+      this.savedEl.textContent = "";
+    }, 1500);
   }
 
   private tick(): void {
     const P = this.player;
     const { index, local } = P.cursor();
     const scene = P.project.scenes[index];
-    this.sceneEl.textContent = `${index + 1}/${P.project.scenes.length} ${scene.title}`;
-    this.timeEl.textContent =
-      `${fmtMs(local)} / ${fmt(scene.len)}  ·  video ${fmt(P.time)} / ${fmt(P.total)}`;
+    this.sceneEl.textContent = `${
+      index + 1
+    }/${P.project.scenes.length} ${scene.title}`;
+    this.timeEl.textContent = `${fmtMs(local)} / ${fmt(scene.len)}  ·  video ${
+      fmt(P.time)
+    } / ${fmt(P.total)}`;
   }
 }

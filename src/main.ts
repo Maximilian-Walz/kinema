@@ -1,17 +1,18 @@
-import './ui/styles.css';
-import { fetchProject, getProject } from './api';
-import { Takes } from './audio/takes';
-import { Player } from './engine/player';
-import { History } from './history';
-import { bootRender } from './render-mode';
-import { TimingSync } from './timings';
-import { el } from './ui/dom';
-import { SidePanel } from './ui/panels';
-import { showPicker } from './ui/picker';
-import { Timeline } from './ui/timeline';
-import { Transport } from './ui/transport';
+import { fetchProject, getProject } from "./api";
+import { Takes } from "./audio/takes";
+import { Player } from "./engine/player";
+import { History } from "./history";
+import { bootRender } from "./render-mode";
+import { TimingSync } from "./timings";
+import { el } from "./ui/dom";
+import { SidePanel } from "./ui/panels";
+import { showPicker } from "./ui/picker";
+import "./ui/styles.css";
+import { Timeline } from "./ui/timeline";
+import { Transport } from "./ui/transport";
+import { WorkspaceMode } from "./ui/workspace-mode";
 
-if (new URLSearchParams(location.search).has('render')) {
+if (new URLSearchParams(location.search).has("render")) {
   bootRender();
 } else if (!getProject()) {
   /* no ?project= -> let the user pick one before booting the studio */
@@ -23,16 +24,30 @@ if (new URLSearchParams(location.search).has('render')) {
 /* boot failed (project.json invalid, a scene.json missing, unknown ?project=,
    server down): show a readable screen instead of a blank stage. */
 function showBootError(err: unknown): void {
-  document.title = 'video-studio — error';
-  const app = document.getElementById('app')!;
-  app.textContent = '';
+  document.title = "video-studio — error";
+  const app = document.getElementById("app")!;
+  app.textContent = "";
   const id = getProject();
-  app.append(el('div', { class: 'picker' },
-    el('h1', { text: 'could not load project' }),
-    el('p', { class: 'pick-sub', text: id ? `project: ${id}` : 'default project' }),
-    el('pre', { class: 'boot-error', text: String((err as Error)?.message || err) }),
-    el('p', { class: 'pick-empty', text: 'check project.json and that every scene has a scene.json, then reload.' }),
-  ));
+  app.append(
+    el(
+      "div",
+      { class: "picker" },
+      el("h1", { text: "could not load project" }),
+      el("p", {
+        class: "pick-sub",
+        text: id ? `project: ${id}` : "default project",
+      }),
+      el("pre", {
+        class: "boot-error",
+        text: String((err as Error)?.message || err),
+      }),
+      el("p", {
+        class: "pick-empty",
+        text:
+          "check project.json and that every scene has a scene.json, then reload.",
+      }),
+    ),
+  );
 }
 
 async function bootStudio(): Promise<void> {
@@ -40,24 +55,24 @@ async function bootStudio(): Promise<void> {
   document.title = `${project.name} — video-studio`;
 
   /* content styles: theme once, scene css swapped by the engine */
-  const themeStyle = document.createElement('style');
+  const themeStyle = document.createElement("style");
   themeStyle.textContent = project.theme;
-  const sceneStyle = document.createElement('style');
+  const sceneStyle = document.createElement("style");
   document.head.append(themeStyle, sceneStyle);
 
   /* ------------------------------ layout ------------------------------- */
-  const content = el('div', { id: 'scenecontent' });
-  const stage = el('div', { id: 'stage' }, content);
-  stage.style.width = project.width + 'px';
-  stage.style.height = project.height + 'px';
-  const frame = el('div', { id: 'frame' }, stage);
-  const hud = el('div', { id: 'hud' });
-  const stagearea = el('div', { id: 'stagearea' }, frame, hud);
-  const side = el('aside', { id: 'side' });
-  const transport = el('div', { id: 'transport' });
-  const timeline = el('div', { id: 'timeline' });
+  const content = el("div", { id: "scenecontent" });
+  const stage = el("div", { id: "stage" }, content);
+  stage.style.width = project.width + "px";
+  stage.style.height = project.height + "px";
+  const frame = el("div", { id: "frame" }, stage);
+  const hud = el("div", { id: "hud" });
+  const stagearea = el("div", { id: "stagearea" }, frame, hud);
+  const side = el("aside", { id: "side" });
+  const transport = el("div", { id: "transport" });
+  const timeline = el("div", { id: "timeline" });
 
-  const app = document.getElementById('app')!;
+  const app = document.getElementById("app")!;
   app.append(stagearea, side, transport, timeline);
 
   /* ------------------------------- wiring ------------------------------- */
@@ -65,65 +80,94 @@ async function bootStudio(): Promise<void> {
   const takes = new Takes(player);
   const sync = new TimingSync(player);
   const history = new History();
+  const mode = new WorkspaceMode();
+  mode.installHotkeys();
 
-  new Transport(transport, player, takes, sync);
-  new SidePanel(side, player, takes, sync, history);
+  new Transport(transport, player, takes, sync, mode);
+  const sidePanel = new SidePanel(side, player, takes, sync, history, mode);
   const tl = new Timeline(timeline, player, takes, sync, history);
+  /* mode switches re-flow the grid; trigger a rescale so the stage fits */
+  mode.events.on("change", () => {
+    sidePanel.onModeChange();
+    rescale();
+  });
 
-  player.events.on('time', () => {
+  player.events.on("time", () => {
     const { index, local } = player.cursor();
-    hud.textContent = `scene ${index + 1} · ${local.toFixed(1).padStart(4, '0')}s`;
+    hud.textContent = `scene ${index + 1} · ${
+      local.toFixed(1).padStart(4, "0")
+    }s`;
   });
 
   /* --------------------------- stage scaling ---------------------------- */
   function rescale(): void {
-    const pad = document.body.classList.contains('clean') ? 0 : 18;
+    const pad = document.body.classList.contains("clean") ? 0 : 18;
     const r = stagearea.getBoundingClientRect();
-    const w = Math.max(100, Math.min(r.width - pad * 2, (r.height - pad * 2) * (project.width / project.height)));
+    const w = Math.max(
+      100,
+      Math.min(
+        r.width - pad * 2,
+        (r.height - pad * 2) * (project.width / project.height),
+      ),
+    );
     const h = w * (project.height / project.width);
-    frame.style.width = w + 'px';
-    frame.style.height = h + 'px';
+    frame.style.width = w + "px";
+    frame.style.height = h + "px";
     stage.style.transform = `scale(${w / project.width})`;
   }
-  addEventListener('resize', rescale);
+  addEventListener("resize", rescale);
   new ResizeObserver(rescale).observe(stagearea);
   rescale();
 
   /* ----------------------------- keyboard ------------------------------- */
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener("keydown", (e) => {
     const t = e.target as HTMLElement;
     /* let inline editors type in peace */
     const tag = t.tagName;
-    if (tag === 'TEXTAREA' || (tag === 'INPUT' && (t as HTMLInputElement).type === 'text')) return;
-    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'BUTTON') t.blur();
+    if (
+      tag === "TEXTAREA" ||
+      (tag === "INPUT" && (t as HTMLInputElement).type === "text")
+    ) return;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") t.blur();
 
     const ctrl = e.ctrlKey || e.metaKey;
-    if (ctrl && (e.key === 'z' || e.key === 'Z')) {
+    if (ctrl && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
       const scene = e.shiftKey ? history.redo() : history.undo();
       if (scene) sync.changed(scene);
-    } else if (ctrl && (e.key === 'y' || e.key === 'Y')) {
+    } else if (ctrl && (e.key === "y" || e.key === "Y")) {
       e.preventDefault();
       const scene = history.redo();
       if (scene) sync.changed(scene);
-    } else if (e.code === 'Space') { e.preventDefault(); player.toggle(); }
-    else if (e.key === 'r' && !e.shiftKey) {
+    } else if (e.code === "Space") {
+      e.preventDefault();
+      player.toggle();
+    } else if (e.key === "r" && !e.shiftKey) {
       e.preventDefault();
       if (takes.recording || takes.counting) takes.stopRecording();
       else void takes.startRecordingWithCountIn();
-    } else if (e.key === 'R' && e.shiftKey) player.restartScene();
-    else if (e.key === 'c' || e.key === 'C') { document.body.classList.toggle('clean'); rescale(); }
-    else if (e.key === 'i' || e.key === 'I') {
-      player.setLoop({ start: player.time, end: player.loop?.end ?? player.total });
-    } else if (e.key === 'o' || e.key === 'O') {
+    } else if (e.key === "R" && e.shiftKey) player.restartScene();
+    else if (e.key === "c" || e.key === "C") {
+      document.body.classList.toggle("clean");
+      rescale();
+    } else if (e.key === "i" || e.key === "I") {
+      player.setLoop({
+        start: player.time,
+        end: player.loop?.end ?? player.total,
+      });
+    } else if (e.key === "o" || e.key === "O") {
       player.setLoop({ start: player.loop?.start ?? 0, end: player.time });
-    } else if (e.key === 'Delete' || e.key === 'Backspace') tl.deleteSelection();
-    else if (e.key === 'ArrowRight') player.seek(player.time + (e.shiftKey ? 1 : 5));
-    else if (e.key === 'ArrowLeft') player.seek(player.time - (e.shiftKey ? 1 : 5));
-    else if (e.key === '[') player.seekScene(player.sceneIndex - 1);
-    else if (e.key === ']') player.seekScene(player.sceneIndex + 1);
-    else if (e.key >= '1' && e.key <= '9') player.seekScene(parseInt(e.key, 10) - 1);
-    else if (e.key === 'Escape') {
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      tl.deleteSelection();
+    } else if (e.key === "ArrowRight") {
+      player.seek(player.time + (e.shiftKey ? 1 : 5));
+    } else if (e.key === "ArrowLeft") {
+      player.seek(player.time - (e.shiftKey ? 1 : 5));
+    } else if (e.key === "[") player.seekScene(player.sceneIndex - 1);
+    else if (e.key === "]") player.seekScene(player.sceneIndex + 1);
+    else if (e.key >= "1" && e.key <= "9") {
+      player.seekScene(parseInt(e.key, 10) - 1);
+    } else if (e.key === "Escape") {
       if (takes.recording || takes.counting) takes.stopRecording();
       else if (player.loop) player.setLoop(null);
     }
@@ -133,5 +177,7 @@ async function bootStudio(): Promise<void> {
   player.update(0);
 
   /* for the smoke tests and console debugging */
-  Object.assign(window as object, { __studio: { player, takes, sync, history, timeline: tl } });
+  Object.assign(window as object, {
+    __studio: { player, takes, sync, history, timeline: tl },
+  });
 }
