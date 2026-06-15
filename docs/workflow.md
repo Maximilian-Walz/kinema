@@ -37,12 +37,20 @@ you need for the job are on screen:
   elements / voice), side panel is just the script teleprompter. Drag the
   divider at the top of the dock to resize it.
 - **STAGE** (`F4`) — choreograph one scene. The live preview stays up top; the
-  bottom dock is a scene-local element timeline plus an inspector. Click
-  **✛ pick element** then click any element on the stage to schedule it (no
-  typing ids), select a clip to retime it (drag, or type exact enter/exit),
-  give it an entrance **animation** preset, and edit its on-screen **text** —
-  which is patched straight into `scene.html`. Elements are auto-named from
-  their text/`data-label` with a tag chip, so you read "WHAT IT IS", not `title`.
+  bottom dock is a scene-local element timeline plus an inspector. **Click any
+  element in the preview to select it** (the clip below and the inspector light
+  up; click a clip to highlight the element — selection is bidirectional). With
+  an element selected you can, without opening files:
+  - edit its on-screen **text**, including text nested inside animated divs —
+    each text run is its own field, patched into `scene.html`;
+  - tweak **font size and colour**, and **drag it on the stage to reposition**
+    it — these are stored as a generated `#id{}` rule in `scene.css`;
+  - retime it (drag the clip, or type exact enter/exit), give it an entrance
+    **animation** preset, and add/remove an exit.
+
+  Unscheduled elements get a "+ add to schedule" button; `+ by id` schedules
+  elements you can't easily click. Elements are auto-named from their
+  text/`data-label` with a tag chip, so you read "WHAT IT IS", not `title`.
 
 The line under the playhead is the implicit selection across all three modes,
 so clicking a section in the TUNE navigator or a line in the RECORD prompter

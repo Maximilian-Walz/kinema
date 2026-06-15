@@ -106,6 +106,71 @@ try {
     });
   });
 
+  /* --- T19: click an element in the preview selects it + outlines it --- */
+  await page.click("#title");
+  await new Promise((r) => setTimeout(r, 200));
+  const selected = await page.evaluate(() => {
+    const hot = document.querySelector("#scenecontent .sv-el-selected");
+    return { id: hot?.id, name: document.querySelector(".sv-insp-name")?.textContent };
+  });
+  ok(selected.id === "title", `clicking #title in the preview selects + outlines it (got #${selected.id})`);
+
+  /* bidirectional: selecting a clip highlights its element in the preview */
+  await page.click(".sv-lanes .tl-element");
+  await new Promise((r) => setTimeout(r, 150));
+  const biSync = await page.evaluate(() => !!document.querySelector("#scenecontent .sv-el-selected"));
+  ok(biSync, "selecting a clip highlights its element in the preview");
+
+  /* --- T20: nested text patch keeps siblings + structure --- */
+  const nested = await page.evaluate(async () => {
+    const r = await fetch("/api/scenes/01-what/element-html?project=intro", {
+      method: "PUT",
+      body: JSON.stringify({
+        id: "fHtml",
+        html: '<div class="ext">scene.html</div><div class="d">CHANGED</div>',
+      }),
+    });
+    const j = await r.json();
+    return {
+      ok: r.ok,
+      changed: j.html?.includes(">CHANGED<"),
+      siblingKept: j.html?.includes(">scene.html<"),
+      structureKept: j.html?.includes('id="fHtml"') && j.html?.includes('class="d"'),
+    };
+  });
+  ok(nested.ok && nested.changed && nested.siblingKept && nested.structureKept,
+    `element-html patches nested child text, keeps siblings (${JSON.stringify(nested)})`);
+
+  /* inspector lists one text field per text run under a nested element */
+  await page.evaluate(() => window.__studio.player.seek(13.5)); // fHtml visible
+  await new Promise((r) => setTimeout(r, 150));
+  await page.click("#fHtml");
+  await new Promise((r) => setTimeout(r, 150));
+  const spanFields = await page.evaluate(() =>
+    document.querySelectorAll(".sv-insp-sec .sv-field .sv-input[type=text]").length);
+  ok(spanFields >= 2, `inspector lists each nested text run as a field (${spanFields})`);
+
+  /* --- T21/T22: style + position overrides land in scene.css --- */
+  const style = await page.evaluate(async () => {
+    const put = (style) => fetch("/api/scenes/01-what/element-style?project=intro", {
+      method: "PUT", body: JSON.stringify({ id: "title", style }),
+    }).then((r) => r.json());
+    let j = await put({ "font-size": "70px" });
+    const hasFs = j.css.includes("studio:overrides") && /#title\{[^}]*font-size:70px/.test(j.css);
+    j = await put({ color: "#ffffff" });
+    const merged = /#title\{[^}]*font-size:70px/.test(j.css) && /#title\{[^}]*color:#ffffff/.test(j.css);
+    j = await put({ translate: "10px 20px" });
+    const hasTranslate = /#title\{[^}]*translate:10px 20px/.test(j.css);
+    /* cleanup: drop every override prop -> region removed */
+    j = await put({ "font-size": null, color: null, translate: null });
+    const cleaned = !j.css.includes("studio:overrides");
+    return { hasFs, merged, hasTranslate, cleaned };
+  });
+  ok(style.hasFs, "element-style writes a #id{} font-size override into scene.css");
+  ok(style.merged, "element-style merges a second property into the same rule");
+  ok(style.hasTranslate, "element-style stores a translate (drag-to-reposition) override");
+  ok(style.cleaned, "clearing all props removes the overrides region");
+
   ok(errors.length === 0, "no page errors" + (errors.length ? ": " + errors[0] : ""));
 } finally {
   await browser.close();

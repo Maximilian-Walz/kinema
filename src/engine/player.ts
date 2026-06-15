@@ -233,6 +233,16 @@ export class Player {
     }
   }
 
+  /** Replace one scene's CSS in memory and apply it live if it is the current
+      scene (just swap the scene <style>; no remount needed). Used after the
+      studio writes a visual override into scene.css. */
+  replaceSceneCss(scene: SceneData, css: string): void {
+    scene.css = css;
+    if (this.project.scenes.indexOf(scene) === this.mounted) {
+      this.sceneStyle.textContent = css;
+    }
+  }
+
   /* ------------------------------- rAF loop ------------------------------ */
 
   private frame = (now: number): void => {

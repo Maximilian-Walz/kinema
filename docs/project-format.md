@@ -115,9 +115,15 @@ first line's id (and its takes) and drops the second.
 - Include `<div id="caption"></div>` if the scene uses captions.
 - `scene.html` / `scene.css` / `project.json` changes on disk auto-reload the
   app. `scene.json` timing edits flow the other way (UI to disk, debounced ~0.5s).
-- STAGE mode can edit a leaf element's on-screen text; that one change is patched
-  into `scene.html` (the rest of the file is left byte-for-byte intact, so your
-  formatting survives). Elements with child markup are still edited by hand.
+- STAGE mode can edit on-screen text — a leaf element's own text is patched into
+  `scene.html` byte-faithfully; text nested inside an animated div is edited per
+  text run (the element's inner HTML is rewritten, the rest of the file intact).
+- STAGE mode also writes per-element **visual overrides** (font size, colour,
+  position) into a generated region of `scene.css`, delimited by
+  `/* studio:overrides … */ … /* studio:overrides:end */`, one `#id{}` rule each.
+  Edit elsewhere in `scene.css` freely; the studio only rewrites that region.
+  Position uses the `translate` property so it composes with the entrance
+  animation's `transform` instead of fighting it.
 
 ## theme.css helpers
 

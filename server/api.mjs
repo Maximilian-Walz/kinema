@@ -267,6 +267,121 @@ export function createApi({ registry }) {
       return next;
     }
 
+    /* Locate #elId's inner-content range in an html string, matching the close
+       tag with depth counting so nested same-tag elements are handled. Returns
+       { innerStart, innerEnd, tag }; throws for missing / void / self-closing. */
+    function locateElementInner(html, elId) {
+      const idRe = /\sid\s*=\s*("([^"]*)"|'([^']*)')/g;
+      let m, hit = null;
+      while ((m = idRe.exec(html))) {
+        const val = m[2] !== undefined ? m[2] : m[3];
+        if (val === elId) { hit = m; break; }
+      }
+      if (!hit) throw new Error('no #' + elId + ' in scene.html');
+      const open = html.lastIndexOf('<', hit.index);
+      const openEnd = html.indexOf('>', hit.index);
+      if (open < 0 || openEnd < 0) throw new Error('malformed markup near #' + elId);
+      const openTag = html.slice(open, openEnd + 1);
+      const tm = /^<\s*([a-zA-Z][\w-]*)/.exec(openTag);
+      if (!tm) throw new Error('malformed tag near #' + elId);
+      const tag = tm[1].toLowerCase();
+      if (VOID_TAGS.has(tag) || /\/\s*>$/.test(openTag)) {
+        throw new Error('#' + elId + ' is a void/self-closing element');
+      }
+      const tagRe = new RegExp('<\\s*(/?)\\s*' + tag + '\\b[^>]*>', 'gi');
+      tagRe.lastIndex = openEnd + 1;
+      let depth = 1, mm;
+      while ((mm = tagRe.exec(html))) {
+        if (mm[1] === '/') {
+          if (--depth === 0) return { innerStart: openEnd + 1, innerEnd: mm.index, tag };
+        } else if (!/\/\s*>$/.test(mm[0])) {
+          depth++;
+        }
+      }
+      throw new Error('no matching </' + tag + '> for #' + elId);
+    }
+
+    /* Replace the entire inner HTML of #elId, preserving the rest of scene.html
+       byte-for-byte. Used for nested edits where the client serialised the
+       element's new inner markup (e.g. changed the text inside one child). */
+    function setElementHtml(sid, elId, html) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      if (!safeName(elId)) throw new Error('bad element id');
+      const file = path.join(projectDir, 'scenes', sid, 'scene.html');
+      let src;
+      try { src = fs.readFileSync(file, 'utf8'); } catch { throw new Error('scene.html not found'); }
+      const { innerStart, innerEnd } = locateElementInner(src, elId);
+      const next = src.slice(0, innerStart) + String(html) + src.slice(innerEnd);
+      writeFileTracked(file, next);
+      return next;
+    }
+
+    /* Per-element visual overrides live in a generated region of scene.css, one
+       `#id{...}` rule each, so the studio can tweak size/colour/position without
+       touching hand-authored CSS. We parse the region, upsert this id's
+       declarations (merge; a null/empty value drops a property; an empty rule is
+       removed), and rewrite only the region — the rest of scene.css is intact. */
+    const OV_START = '/* studio:overrides — generated; edit via the STAGE inspector */';
+    const OV_END = '/* studio:overrides:end */';
+    const STYLE_PROPS = new Set([
+      'font-size', 'color', 'background', 'background-color', 'translate',
+      'text-align', 'letter-spacing', 'line-height', 'opacity', 'font-weight',
+    ]);
+    function parseDeclString(s) {
+      const out = {};
+      for (const part of (s || '').split(';')) {
+        const i = part.indexOf(':');
+        if (i < 0) continue;
+        const k = part.slice(0, i).trim();
+        const v = part.slice(i + 1).trim();
+        if (k && v) out[k] = v;
+      }
+      return out;
+    }
+    function setElementStyle(sid, elId, decls) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      if (!safeName(elId)) throw new Error('bad element id');
+      const file = path.join(projectDir, 'scenes', sid, 'scene.css');
+      let css = '';
+      try { css = fs.readFileSync(file, 'utf8'); } catch { css = ''; }
+
+      let head = css, region = '', tail = '';
+      const s = css.indexOf(OV_START);
+      if (s >= 0) {
+        const e = css.indexOf(OV_END, s);
+        head = css.slice(0, s).replace(/\s*$/, '');
+        region = css.slice(s + OV_START.length, e >= 0 ? e : css.length);
+        tail = e >= 0 ? css.slice(e + OV_END.length) : '';
+      }
+      const rules = new Map();
+      const ruleRe = /#([\w.-]+)\s*\{([^}]*)\}/g;
+      let rm;
+      while ((rm = ruleRe.exec(region))) rules.set(rm[1], parseDeclString(rm[2]));
+
+      const cur = rules.get(elId) || {};
+      for (const [k, v] of Object.entries(decls || {})) {
+        const prop = String(k).toLowerCase();
+        if (!STYLE_PROPS.has(prop)) continue;
+        const val = v == null ? '' : String(v).trim();
+        if (!val) delete cur[prop];
+        else if (/^[^{}<>;]+$/.test(val)) cur[prop] = val; // reject CSS-breaking chars
+      }
+      if (Object.keys(cur).length) rules.set(elId, cur);
+      else rules.delete(elId);
+
+      let out = head.replace(/\s*$/, '');
+      if (rules.size) {
+        out += '\n\n' + OV_START + '\n';
+        for (const [id, d] of rules) {
+          out += `#${id}{${Object.entries(d).map(([k, v]) => `${k}:${v}`).join(';')}}\n`;
+        }
+        out += OV_END + '\n';
+      }
+      out += tail;
+      writeFileTracked(file, out);
+      return out;
+    }
+
     /* recordings live one folder deeper than before: per section, not per scene */
     const sectionTakesDir = (sid, lid) => path.join(TAKES_DIR, sid, lid);
     const sectionKey = (sid, lid, file) => sid + '/' + lid + '/' + file;
@@ -334,7 +449,7 @@ export function createApi({ registry }) {
     return {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
       loadProject, sceneIds, lineIds, writeTimings, setElementText,
-      sectionTakesDir, sectionKey,
+      setElementHtml, setElementStyle, sectionTakesDir, sectionKey,
       readTakesState, writeTakesState, listTakes, listSection,
     };
   }
@@ -424,6 +539,36 @@ export function createApi({ registry }) {
         try {
           const html = ctx.setElementText(id, body.id, body.text);
           json(res, 200, { ok: true, html });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/element-html$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.id !== 'string' || typeof body.html !== 'string') {
+          json(res, 400, { error: 'id and html are required' }); return;
+        }
+        try {
+          const html = ctx.setElementHtml(id, body.id, body.html);
+          json(res, 200, { ok: true, html });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/element-style$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.id !== 'string' || typeof body.style !== 'object' || !body.style) {
+          json(res, 400, { error: 'id and style object are required' }); return;
+        }
+        try {
+          const css = ctx.setElementStyle(id, body.id, body.style);
+          json(res, 200, { ok: true, css });
         } catch (err) {
           json(res, 400, { error: String(err.message || err) });
         }

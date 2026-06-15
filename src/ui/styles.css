@@ -364,8 +364,6 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
   border-bottom:1px solid var(--st-line)}
 .sv-title{font-family:var(--st-mono);font-size:12px;color:var(--st-text);
   letter-spacing:.04em}
-.sv-pick.active{border-color:var(--st-mode);color:var(--st-mode);
-  box-shadow:0 0 0 1px var(--st-mode)}
 .sv-hint{margin-left:auto;font-family:var(--st-mono);font-size:10.5px;
   color:var(--st-faint)}
 .sv-main{flex:1;display:flex;min-height:0}
@@ -406,6 +404,10 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
   margin-top:-7px}
 .sv-insp-warn{color:#ffb4a8;font-size:11px;line-height:1.4}
 .sv-insp-note{color:var(--st-faint);font-size:11px;line-height:1.4}
+.sv-insp-sec{display:flex;flex-direction:column;gap:8px;padding-top:8px;
+  border-top:1px solid var(--st-line)}
+.sv-sec-title{font-family:var(--st-mono);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--st-dim)}
 .sv-field{display:flex;flex-direction:column;gap:3px}
 .sv-field-label{font-family:var(--st-mono);font-size:9.5px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--st-faint)}
@@ -415,18 +417,22 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
   font-family:var(--st-mono);font-size:12px}
 .sv-input{flex:1;min-width:0}
 .sv-num{max-width:96px}
+.sv-color{width:38px;height:28px;flex:none;padding:0;border:1px solid var(--st-line);
+  border-radius:6px;background:var(--st-panel2);cursor:pointer}
 .sv-mini{padding:4px 9px;font-size:11px}
+.sv-add{align-self:flex-start;border-color:var(--st-mode);color:var(--st-mode)}
+.sv-reset{flex:none;padding:4px 8px;font-size:12px;color:var(--st-dim)}
+.sv-reset:disabled{opacity:.4;cursor:default}
 .sv-insp-status{font-family:var(--st-mono);font-size:12px;color:var(--st-dim);
   width:14px;text-align:center;flex:none}
 .sv-del{margin-top:6px;color:#ffb4a8;border-color:rgba(248,81,73,.4)}
 .sv-del:hover{border-color:#f85149;background:rgba(248,81,73,.12)}
 
-/* pick-from-stage: force the scene's elements interactive (scene CSS may set
-   pointer-events:none on overlays) and highlight whatever the cursor is over */
-body.sv-picking #scenecontent,body.sv-picking #scenecontent *{pointer-events:auto!important}
-body.sv-picking #scenecontent{cursor:crosshair}
-body.sv-picking #scenecontent [id]:hover{outline:2px solid var(--st-mode);
-  outline-offset:1px;cursor:pointer}
+/* STAGE makes the preview an interactive canvas: force elements clickable past
+   any scene-set pointer-events:none, hint on hover, and outline the selection */
+body.mode-stage #scenecontent,body.mode-stage #scenecontent *{pointer-events:auto!important}
+body.mode-stage #scenecontent [id]{cursor:pointer}
+#scenecontent .sv-el-selected{outline:2px solid var(--st-mode)!important;outline-offset:2px}
 
 /* =============================== picker ================================= */
 .t-project{max-width:180px}

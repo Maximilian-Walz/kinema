@@ -63,6 +63,32 @@ export async function setElementText(sceneId: string, elId: string, text: string
   return j.html as string;
 }
 
+/** Replace the entire inner HTML of #elId in a scene's scene.html (nesting-aware
+    on the server). Used for nested text edits where the client serialised the
+    element's new inner markup. Returns the updated HTML. */
+export async function setElementHtml(sceneId: string, elId: string, html: string): Promise<string> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/element-html`), {
+    method: 'PUT',
+    body: JSON.stringify({ id: elId, html }),
+  }));
+  return (await r.json()).html as string;
+}
+
+/** Upsert visual override declarations for #elId into the generated overrides
+    region of scene.css (size/colour/position). A null/empty value drops that
+    property. Returns the updated CSS. */
+export async function setElementStyle(
+  sceneId: string,
+  elId: string,
+  style: Record<string, string | null>,
+): Promise<string> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/element-style`), {
+    method: 'PUT',
+    body: JSON.stringify({ id: elId, style }),
+  }));
+  return (await r.json()).css as string;
+}
+
 export async function fetchTakes(): Promise<TakesMap> {
   return (await check(await fetch(withProject('/api/takes')))).json();
 }

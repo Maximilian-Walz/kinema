@@ -8,37 +8,37 @@ import { el } from "./dom";
 /* ============================================================================
    STAGE mode bottom workspace — choreograph ONE scene.
 
-   Unlike TIME (a global timeline across every scene), STAGE is scene-scoped:
-   the live preview above stays on the current scene and this dock edits that
-   scene's element schedule directly, so the less the user touches raw files the
-   better. Layout:
+   Scene-scoped, unlike TIME's global timeline: the live preview above stays on
+   the current scene and this dock edits that scene directly, so the user touches
+   raw files as little as possible. Layout:
 
      +--------------------------------------------------+------------------+
-     |  toolbar: scene title · + pick element · hint    |                  |
+     |  toolbar: scene title · + by id · hint           |                  |
      +--------------------------------------------------+   INSPECTOR      |
      |  ruler (scene-local 0..len, click = seek)        |  selected element|
-     |  ------------------------------------------------ |  - name + text   |
-     |  [ title ][ sub ]   [ card======]   | <- lanes   |  - enter / exit  |
-     |              [ note ]                |  playhead  |  - animation     |
-     +--------------------------------------------------+------------------+
+     |  ------------------------------------------------ |  - text spans    |
+     |  [ title ][ sub ]   [ card======]   | <- lanes   |  - size / colour |
+     |              [ note ]                |  playhead  |  - position      |
+     +--------------------------------------------------+  - enter/exit/fx |
+                                                          +------------------+
 
-   Features:
-   - pick an element straight off the live stage to schedule it (T16)
-   - readable auto-labels from each element's text/data-label + a tag chip (T15)
-   - drag to move / resize, or type exact enter/exit in the inspector (T14)
-   - choose an entrance animation preset (writes ScheduleEntry.fx) (T17)
-   - edit the element's on-screen text, patched straight into scene.html (T18)
+   Selection is bidirectional: click an element in the live preview to select it
+   (and the inspector + its schedule clip light up), or click a clip below. The
+   inspector then edits, all without opening files:
+   - the element's on-screen text, including text nested inside animated divs
+     (each text run is its own field; patched into scene.html)              (T20)
+   - type scale and colour, stored as a generated #id{} rule in scene.css    (T21)
+   - position — drag the element in the preview; a `translate` override that
+     composes with the entrance animation's transform                       (T22)
+   - schedule timing (enter/exit), entrance animation preset, toggle class
 
-   Schedule edits are undoable (history) and saved back to scene.json via sync,
-   exactly like the TIME timeline. Text edits go to scene.html and are not part
-   of the undo stack.
+   Schedule edits (timing/fx/cls/add/remove) are undoable via history + saved to
+   scene.json. Text edits write scene.html; style/position edits write scene.css.
 ============================================================================ */
 
 const FINE = 0.01;
 const round = (v: number, step = FINE): number => Math.round(v / step) * step;
 
-/* entrance-animation presets; the value is the `fx` suffix, paired with the
-   `.fx-<value>` / `.fx-<value>.on` rules in the project theme.css */
 const FX_PRESETS: Array<[string, string]> = [
   ["", "none (just toggle)"],
   ["fade", "fade in"],
@@ -57,6 +57,13 @@ interface Clip {
   edges: () => number[];
 }
 
+/** what the inspector is editing: an element id, plus the specific schedule
+    entry if one was selected (an id can be unscheduled, or have many entries) */
+interface Selection {
+  id: string;
+  entry: ScheduleEntry | null;
+}
+
 export class StageView {
   private readonly player: Player;
   private readonly sync: TimingSync;
@@ -73,9 +80,9 @@ export class StageView {
 
   private pps = 40;
   private clips: Clip[] = [];
-  private selected: ScheduleEntry | null = null;
+  private sel: Selection | null = null;
   private dragging = false;
-  private picking = false;
+  private active = false;
 
   constructor(
     root: HTMLElement,
@@ -97,19 +104,26 @@ export class StageView {
     });
     player.events.on("time", () => this.onTime());
 
-    /* refit once the dock actually has a width (it is display:none until the
-       user first switches to STAGE, so the initial measure is zero) */
     const ro = new ResizeObserver(() => {
       if (this.scroll.clientWidth > 0 && !this.dragging) this.rebuild();
     });
     ro.observe(this.scroll);
   }
 
-  /** Called by main.ts on every mode switch. Entering STAGE refits the lanes to
-      the now-visible dock width; leaving it cancels any in-progress stage pick. */
+  /** Called by main.ts on every mode switch. Entering STAGE wires up live-preview
+      selection + refits the lanes; leaving it tears the listeners down and clears
+      the preview highlight. */
   onModeChange(active: boolean): void {
-    if (active) this.rebuild();
-    else this.stopPicking();
+    this.active = active;
+    const content = document.getElementById("scenecontent");
+    if (active) {
+      content?.addEventListener("pointerdown", this.onPreviewPointerDown, true);
+      this.rebuild();
+      this.applyHighlight();
+    } else {
+      content?.removeEventListener("pointerdown", this.onPreviewPointerDown, true);
+      this.highlight(null);
+    }
   }
 
   /* ------------------------------- shell -------------------------------- */
@@ -118,16 +132,10 @@ export class StageView {
     this.root.classList.add("sv");
 
     this.titleEl = el("span", { class: "sv-title" });
-    const pick = el("button", {
-      class: "sv-pick",
-      text: "✛ pick element",
-      title: "click an element on the stage above to schedule it",
-    });
-    pick.onclick = () => this.togglePicking();
     const byId = el("button", {
       class: "sv-byid",
       text: "+ by id",
-      title: "schedule an element by typing its id",
+      title: "schedule an element by typing its id (for elements you can't click)",
     });
     byId.onclick = () => this.addById();
 
@@ -136,12 +144,11 @@ export class StageView {
       { class: "sv-toolbar" },
       this.titleEl,
       el("span", { class: "tl-sep" }),
-      pick,
       byId,
       el("span", {
         class: "sv-hint",
         text:
-          "pick or click an element to edit it · drag = move · drag edges = retime · del = remove",
+          "click an element in the preview to select · drag it to move · edit text/size/colour in the inspector · del = remove from schedule",
       }),
     );
 
@@ -159,11 +166,9 @@ export class StageView {
     );
 
     this.inspector = el("div", { class: "sv-inspector" });
-
     const main = el("div", { class: "sv-main" }, this.scroll, this.inspector);
     this.root.append(toolbar, main);
 
-    /* click empty space on the ruler/lanes = seek (scene-local) + deselect */
     const seekFromEvent = (e: PointerEvent): void => {
       const rect = this.scroll.getBoundingClientRect();
       const local = Math.max(
@@ -194,15 +199,12 @@ export class StageView {
     this.lanes.innerHTML = "";
     this.buildRuler(scene);
 
-    /* lane packing: greedily place each entry on the first lane whose last clip
-       has ended (markers get a label-width box) */
     const laneEnds: number[] = [];
-    for (const entry of scene.schedule) {
-      this.addClip(scene, entry, laneEnds);
-    }
+    for (const entry of scene.schedule) this.addClip(scene, entry, laneEnds);
     this.lanes.style.height = Math.max(1, laneEnds.length) * 24 + 8 + "px";
 
     this.onTime();
+    this.applyHighlight();
     this.renderInspector();
   }
 
@@ -217,11 +219,7 @@ export class StageView {
     }
   }
 
-  private addClip(
-    scene: SceneData,
-    entry: ScheduleEntry,
-    laneEnds: number[],
-  ): void {
+  private addClip(scene: SceneData, entry: ScheduleEntry, laneEnds: number[]): void {
     const isSpan = entry.exit !== undefined;
     const info = this.player.elementInfo(entry.id);
     const startPx = entry.enter * this.pps;
@@ -241,12 +239,10 @@ export class StageView {
         (info.exists ? "" : " sv-missing"),
       title: `#${entry.id}` + (info.exists ? "" : " — no element in scene.html"),
     });
-    const tag = el("span", {
-      class: "sv-tag",
-      text: info.exists ? (info.tag || "?") : "missing",
-    });
-    const label = el("span", { class: "tl-cliptext", text: info.label });
-    clip.append(tag, label);
+    clip.append(
+      el("span", { class: "sv-tag", text: info.exists ? (info.tag || "?") : "missing" }),
+      el("span", { class: "tl-cliptext", text: info.label }),
+    );
 
     const hl = isSpan ? el("div", { class: "tl-handle tl-handle-l" }) : null;
     const hr = el("div", { class: "tl-handle tl-handle-r" });
@@ -257,12 +253,9 @@ export class StageView {
     const place = (): void => {
       clip.style.left = entry.enter * this.pps + "px";
       clip.style.top = laneTop + "px";
-      if (entry.exit !== undefined) {
-        clip.style.width = Math.max(12, (entry.exit - entry.enter) * this.pps) +
-          "px";
-      } else {
-        clip.style.width = widthPx + "px";
-      }
+      clip.style.width = entry.exit !== undefined
+        ? Math.max(12, (entry.exit - entry.enter) * this.pps) + "px"
+        : widthPx + "px";
     };
 
     const clipRec: Clip = {
@@ -272,15 +265,13 @@ export class StageView {
       isCurrent: (local) =>
         local >= entry.enter && (entry.exit === undefined || local < entry.exit),
       edges: () =>
-        entry.exit === undefined
-          ? [entry.enter]
-          : [entry.enter, entry.exit],
+        entry.exit === undefined ? [entry.enter] : [entry.enter, entry.exit],
     };
     this.clips.push(clipRec);
 
     clip.onpointerdown = (e) => {
       e.stopPropagation();
-      this.select(entry);
+      this.selectEntry(entry);
       const target = e.target as HTMLElement;
       if (target === hl) {
         const orig = entry.enter;
@@ -291,7 +282,6 @@ export class StageView {
           );
         });
       } else if (target === hr) {
-        /* dragging a marker's right edge gives it an exit (turns it into a span) */
         const orig = entry.exit ?? entry.enter;
         this.beginDrag(e, entry, [orig], (delta) => {
           entry.exit = Math.max(
@@ -304,9 +294,7 @@ export class StageView {
         this.beginDrag(e, entry, clipRec.edges(), (delta) => {
           const d = Math.max(-oEnter, delta);
           entry.enter = round(oEnter + d);
-          if (oExit !== undefined) {
-            entry.exit = Math.min(scene.len, round(oExit + d));
-          }
+          if (oExit !== undefined) entry.exit = Math.min(scene.len, round(oExit + d));
         });
       }
     };
@@ -315,9 +303,8 @@ export class StageView {
     place();
   }
 
-  /* ------------------------------- drag --------------------------------- */
+  /* ------------------------------- drag (clips) ------------------------- */
 
-  /** one editing drag = one undoable transaction, snapped while it runs */
   private beginDrag(
     e: PointerEvent,
     entry: ScheduleEntry,
@@ -329,12 +316,10 @@ export class StageView {
     const startX = e.clientX;
     const before = this.history.snapshot(scene);
     const targets = this.snapTargets(entry);
-
     const target = e.target as HTMLElement;
     target.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent): void => {
-      const raw = (ev.clientX - startX) / this.pps;
-      apply(this.snapDelta(raw, edges, targets, ev.shiftKey));
+      apply(this.snapDelta((ev.clientX - startX) / this.pps, edges, targets, ev.shiftKey));
       this.sync.changed(scene);
       for (const c of this.clips) c.place();
     };
@@ -352,7 +337,6 @@ export class StageView {
     target.addEventListener("pointercancel", up);
   }
 
-  /** snap candidates: scene bounds, playhead, every other entry's edges */
   private snapTargets(exclude: ScheduleEntry): number[] {
     const scene = this.player.scene;
     const targets = [0, scene.len, this.player.localTime];
@@ -364,12 +348,7 @@ export class StageView {
     return targets;
   }
 
-  private snapDelta(
-    raw: number,
-    edges: number[],
-    targets: number[],
-    free: boolean,
-  ): number {
+  private snapDelta(raw: number, edges: number[], targets: number[], free: boolean): number {
     if (free) {
       this.snapGuide.style.display = "none";
       return round(raw);
@@ -380,9 +359,7 @@ export class StageView {
       for (const t of targets) {
         const delta = t - edge;
         const dist = Math.abs(raw - delta);
-        if (dist < thresh && (!best || dist < best.dist)) {
-          best = { delta, target: t, dist };
-        }
+        if (dist < thresh && (!best || dist < best.dist)) best = { delta, target: t, dist };
       }
     }
     if (best) {
@@ -396,23 +373,48 @@ export class StageView {
 
   /* ----------------------------- selection ------------------------------ */
 
-  private select(entry: ScheduleEntry | null): void {
-    this.selected = entry;
+  private selectEntry(entry: ScheduleEntry): void {
+    this.select({ id: entry.id, entry });
+  }
+
+  private selectElement(id: string): void {
+    const entry = this.player.scene.schedule.find((s) => s.id === id) ?? null;
+    this.select({ id, entry });
+  }
+
+  private select(sel: Selection | null): void {
+    this.sel = sel;
     for (const c of this.clips) {
-      c.div.classList.toggle("selected", c.entry === entry);
+      c.div.classList.toggle("selected", !!sel && c.entry === sel.entry);
     }
+    this.highlight(sel?.id ?? null);
     this.renderInspector();
+  }
+
+  /** outline the selected element in the live preview (devtools-style) */
+  private highlight(id: string | null): void {
+    const content = document.getElementById("scenecontent");
+    content?.querySelectorAll(".sv-el-selected").forEach((e) =>
+      e.classList.remove("sv-el-selected")
+    );
+    if (id) this.sceneEl(id)?.classList.add("sv-el-selected");
+  }
+
+  /** re-apply the outline after a rebuild/remount (the class is on live DOM) */
+  private applyHighlight(): void {
+    if (this.active && this.sel) this.highlight(this.sel.id);
   }
 
   deleteSelection(): void {
     const scene = this.player.scene;
-    const at = this.selected ? scene.schedule.indexOf(this.selected) : -1;
+    const entry = this.sel?.entry;
+    const at = entry ? scene.schedule.indexOf(entry) : -1;
     if (at < 0) return;
     const before = this.history.snapshot(scene);
     scene.schedule.splice(at, 1);
     this.history.commit(scene, before);
     this.sync.changed(scene);
-    this.selected = null;
+    this.sel = this.sel ? { id: this.sel.id, entry: null } : null;
     this.rebuild();
   }
 
@@ -429,7 +431,7 @@ export class StageView {
     scene.schedule.push(entry);
     this.history.commit(scene, before);
     this.sync.changed(scene);
-    this.selected = entry;
+    this.sel = { id, entry };
     this.rebuild();
   }
 
@@ -443,245 +445,430 @@ export class StageView {
     this.addEntry(m[1], m[2]);
   }
 
-  /* ------------------------- pick-from-stage (T16) ---------------------- */
+  /* ------------------- live-preview select + drag (T19/T22) ------------- */
 
-  private togglePicking(): void {
-    this.picking ? this.stopPicking() : this.startPicking();
-  }
-
-  private startPicking(): void {
+  private onPreviewPointerDown = (e: PointerEvent): void => {
     const content = document.getElementById("scenecontent");
     if (!content) return;
-    this.picking = true;
-    document.body.classList.add("sv-picking");
-    this.root.querySelector(".sv-pick")?.classList.add("active");
-    content.addEventListener("click", this.onPickClick, true);
-    document.addEventListener("keydown", this.onPickKey, true);
-  }
-
-  private stopPicking(): void {
-    this.picking = false;
-    document.body.classList.remove("sv-picking");
-    this.root.querySelector(".sv-pick")?.classList.remove("active");
-    const content = document.getElementById("scenecontent");
-    content?.removeEventListener("click", this.onPickClick, true);
-    document.removeEventListener("keydown", this.onPickKey, true);
-  }
-
-  private onPickKey = (e: KeyboardEvent): void => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      this.stopPicking();
+    /* Native hit-testing returns the topmost element, but a transparent
+       full-stage overlay (opacity:0, e.g. an inactive .ovl) sits on top and
+       would swallow the click. Walk the hit stack and take the first VISIBLE
+       id-bearing element instead; fall back to the first id-element if none of
+       them are visible (e.g. clicking before anything has entered). */
+    const stack = document.elementsFromPoint(e.clientX, e.clientY);
+    let chosen: HTMLElement | null = null;
+    let fallback: HTMLElement | null = null;
+    for (const n of stack) {
+      if (!(n instanceof HTMLElement) || !content.contains(n)) continue;
+      const idEl = n.closest<HTMLElement>("[id]");
+      if (!idEl || idEl.id === "scenecontent" || idEl.id === "caption") continue;
+      if (!/^[\w.-]+$/.test(idEl.id)) continue;
+      if (!fallback) fallback = idEl;
+      if (this.isVisible(idEl)) { chosen = idEl; break; }
     }
-  };
-
-  private onPickClick = (e: MouseEvent): void => {
-    e.preventDefault();
-    e.stopPropagation();
-    const node = (e.target as HTMLElement)?.closest<HTMLElement>("[id]");
-    this.stopPicking();
+    const node = chosen ?? fallback;
     if (!node) return;
-    const id = node.id;
-    if (!/^[\w.-]+$/.test(id)) {
-      window.alert(`"${id}" is not a usable id (needs to match [\\w.-]+).`);
-      return;
-    }
-    this.addEntry(id);
+    e.stopPropagation();
+    if (!this.sel || this.sel.id !== node.id) this.selectElement(node.id);
+    this.beginElementDrag(e, node, node.id);
   };
 
-  /* ---------------------------- inspector (T14) ------------------------- */
+  private isVisible(el: HTMLElement): boolean {
+    const s = getComputedStyle(el);
+    return s.visibility !== "hidden" && s.display !== "none" &&
+      parseFloat(s.opacity || "1") > 0.05;
+  }
+
+  /** drag an element in the preview to reposition it. The offset is written as a
+      `translate` override (which composes with the entrance animation's
+      transform, so it doesn't fight the fx/.el motion). A pointerdown that
+      doesn't move past the threshold is just a select. */
+  private beginElementDrag(e: PointerEvent, node: HTMLElement, id: string): void {
+    const scene = this.player.scene;
+    const startX = e.clientX, startY = e.clientY;
+    const scale = this.getScale();
+    const base = this.parseTranslate(this.parseOverrides(scene.css, id).translate);
+    let moved = false;
+    let nx = base.x, ny = base.y;
+    node.setPointerCapture?.(e.pointerId);
+    const move = (ev: PointerEvent): void => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) < 4) return;
+      moved = true;
+      this.dragging = true;
+      nx = Math.round(base.x + dx / scale);
+      ny = Math.round(base.y + dy / scale);
+      node.style.translate = `${nx}px ${ny}px`;
+    };
+    const up = (): void => {
+      node.removeEventListener("pointermove", move);
+      node.removeEventListener("pointerup", up);
+      node.removeEventListener("pointercancel", up);
+      if (!moved) return;
+      this.dragging = false;
+      const val = nx === 0 && ny === 0 ? null : `${nx}px ${ny}px`;
+      api.setElementStyle(scene.id, id, { translate: val })
+        .then((css) => {
+          this.player.replaceSceneCss(scene, css);
+          node.style.translate = ""; // hand off to the CSS override
+          this.renderInspector();
+        })
+        .catch((err) => console.warn("[stage] reposition failed:", err));
+    };
+    node.addEventListener("pointermove", move);
+    node.addEventListener("pointerup", up);
+    node.addEventListener("pointercancel", up);
+  }
+
+  /* ---------------------------- inspector ------------------------------- */
 
   private renderInspector(): void {
     this.inspector.innerHTML = "";
     const scene = this.player.scene;
-    const entry = this.selected;
+    const sel = this.sel;
 
-    if (!entry || scene.schedule.indexOf(entry) < 0) {
-      this.inspector.appendChild(
-        el("div", {
-          class: "sv-insp-empty",
-          text: "select an element below, or pick one off the stage",
-        }),
-      );
+    if (!sel) {
+      this.inspector.appendChild(el("div", {
+        class: "sv-insp-empty",
+        text: "click an element in the preview (or a clip below) to edit it",
+      }));
       return;
     }
 
-    const info = this.player.elementInfo(entry.id);
+    const info = this.player.elementInfo(sel.id);
+    const entry = sel.entry && scene.schedule.includes(sel.entry) ? sel.entry : null;
 
-    /* header: tag chip + readable name + raw id */
-    const head = el(
-      "div",
-      { class: "sv-insp-head" },
-      el("span", {
-        class: "sv-tag" + (info.exists ? "" : " sv-tag-missing"),
-        text: info.exists ? (info.tag || "?") : "missing",
-      }),
-      el("span", { class: "sv-insp-name", text: info.label }),
-    );
     this.inspector.append(
-      head,
-      el("div", { class: "sv-insp-id", text: "#" + entry.id }),
+      el("div", { class: "sv-insp-head" },
+        el("span", {
+          class: "sv-tag" + (info.exists ? "" : " sv-tag-missing"),
+          text: info.exists ? (info.tag || "?") : "missing",
+        }),
+        el("span", { class: "sv-insp-name", text: info.label }),
+      ),
+      el("div", { class: "sv-insp-id", text: "#" + sel.id }),
     );
 
     if (!info.exists) {
-      this.inspector.appendChild(
-        el("div", {
-          class: "sv-insp-warn",
-          text: "no element with this id in scene.html — it won't show.",
-        }),
-      );
+      this.inspector.appendChild(el("div", {
+        class: "sv-insp-warn",
+        text: "no element with this id in scene.html.",
+      }));
+      return;
     }
 
-    /* element text (leaf elements only) ---------------------------------- */
-    if (info.exists && info.leaf) {
-      this.inspector.appendChild(this.field("text", this.textRow(scene, entry)));
-    } else if (info.exists) {
-      this.inspector.appendChild(
-        el("div", {
-          class: "sv-insp-note",
-          text: "text: edit in scene.html (this element has child markup)",
-        }),
-      );
+    /* schedule membership: add if this element isn't scheduled yet */
+    if (!entry) {
+      const add = el("button", {
+        class: "sv-mini sv-add",
+        text: "+ add to schedule at playhead",
+        title: "give this element an enter time so it animates in",
+      });
+      add.onclick = () => this.addEntry(sel.id);
+      this.inspector.appendChild(add);
     }
 
-    /* enter / exit ------------------------------------------------------- */
-    const enterInput = this.numberInput(entry.enter, 0, scene.len, (v) => {
+    this.appendTextSection(scene, sel.id);
+    this.appendStyleSection(scene, sel.id);
+    if (entry) this.appendScheduleSection(scene, entry);
+  }
+
+  /* T20: one field per editable text run under the element (handles text nested
+     inside animated divs). Each run is patched precisely. */
+  private appendTextSection(scene: SceneData, id: string): void {
+    const rootEl = this.sceneEl(id);
+    if (!rootEl) return;
+    const spans = this.textSpansUnder(rootEl);
+    if (!spans.length) return;
+
+    const sec = el("div", { class: "sv-insp-sec" },
+      el("div", { class: "sv-sec-title", text: "text" }));
+    for (const span of spans) {
+      const input = el("input", {
+        type: "text",
+        class: "sv-input",
+        value: span.text,
+        title: "on-screen text — saved into scene.html",
+      }) as HTMLInputElement;
+      this.stopKeys(input);
+      const status = el("span", { class: "sv-insp-status" });
+      input.onchange = () => this.commitText(scene, id, rootEl, span, input.value, status);
+      const row = el("div", { class: "sv-insp-inline" }, input, status);
+      sec.append(
+        el("div", { class: "sv-field" },
+          spans.length > 1
+            ? el("span", { class: "sv-field-label", text: span.label })
+            : el("span", { class: "sv-field-label", text: "content" }),
+          row),
+      );
+    }
+    this.inspector.appendChild(sec);
+  }
+
+  private commitText(
+    scene: SceneData,
+    rootId: string,
+    rootEl: HTMLElement,
+    span: { node: ChildNode; path: number[]; text: string },
+    value: string,
+    status: HTMLElement,
+  ): void {
+    if (value === span.text) return;
+    status.textContent = "…";
+    const done = (html: string): void => {
+      this.player.replaceSceneHtml(scene, html);
+      status.textContent = "✓";
+      this.rebuild();
+    };
+    const fail = (err: unknown): void => { status.textContent = "✕"; console.warn(err); };
+
+    /* leaf element editing its own only text run: byte-faithful text patch */
+    if (rootEl.children.length === 0 && span.path.length <= 1) {
+      api.setElementText(scene.id, rootId, value).then(done).catch(fail);
+      return;
+    }
+    /* nested: rebuild the element's inner HTML with just this text run changed */
+    const clone = rootEl.cloneNode(true) as HTMLElement;
+    const target = this.walkPath(clone, span.path);
+    if (!target) { fail(new Error("lost the text node")); return; }
+    target.nodeValue = value;
+    api.setElementHtml(scene.id, rootId, clone.innerHTML).then(done).catch(fail);
+  }
+
+  /* T21: type scale + colour, persisted as a generated #id{} rule in scene.css */
+  private appendStyleSection(scene: SceneData, id: string): void {
+    const elNode = this.sceneEl(id);
+    if (!elNode) return;
+    const ov = this.parseOverrides(scene.css, id);
+    const computed = getComputedStyle(elNode);
+    const sec = el("div", { class: "sv-insp-sec" },
+      el("div", { class: "sv-sec-title", text: "style" }));
+
+    /* font size */
+    const fsCur = parseFloat(ov["font-size"] ?? computed.fontSize) || 0;
+    const fsInput = el("input", {
+      type: "number", class: "sv-input sv-num", min: "4", max: "400", step: "1",
+      value: String(Math.round(fsCur)),
+      title: "font size in px",
+    }) as HTMLInputElement;
+    this.stopKeys(fsInput);
+    fsInput.onchange = () => {
+      const v = Math.round(Number(fsInput.value));
+      this.commitStyle(scene, id, { "font-size": v > 0 ? v + "px" : null });
+    };
+    const fsReset = this.resetBtn(() => this.commitStyle(scene, id, { "font-size": null }), !ov["font-size"]);
+    sec.appendChild(this.field("font size (px)", el("div", { class: "sv-insp-inline" }, fsInput, fsReset)));
+
+    /* text colour */
+    sec.appendChild(this.colorField(scene, id, "color", "text colour", ov, computed.color));
+    /* background colour */
+    sec.appendChild(this.colorField(scene, id, "background-color", "background", ov, computed.backgroundColor));
+
+    /* position (translate) */
+    const t = this.parseTranslate(ov.translate);
+    const xIn = this.posInput(t.x, (v) => this.writeTranslate(scene, id, v, this.parseTranslate(this.parseOverrides(scene.css, id).translate).y));
+    const yIn = this.posInput(t.y, (v) => this.writeTranslate(scene, id, this.parseTranslate(this.parseOverrides(scene.css, id).translate).x, v));
+    const posReset = this.resetBtn(() => this.commitStyle(scene, id, { translate: null }), !ov.translate);
+    sec.appendChild(this.field("position x / y (drag on stage)",
+      el("div", { class: "sv-insp-inline" }, xIn, yIn, posReset)));
+
+    this.inspector.appendChild(sec);
+  }
+
+  private colorField(
+    scene: SceneData, id: string, prop: string, label: string,
+    ov: Record<string, string>, computed: string,
+  ): HTMLElement {
+    const cur = ov[prop];
+    const input = el("input", {
+      type: "color", class: "sv-color",
+      value: this.toHex(cur || computed),
+    }) as HTMLInputElement;
+    input.onchange = () => this.commitStyle(scene, id, { [prop]: input.value });
+    const reset = this.resetBtn(() => this.commitStyle(scene, id, { [prop]: null }), !cur);
+    return this.field(label, el("div", { class: "sv-insp-inline" }, input, reset));
+  }
+
+  private posInput(value: number, onCommit: (v: number) => void): HTMLInputElement {
+    const input = el("input", {
+      type: "number", class: "sv-input sv-num", step: "1", value: String(value),
+    }) as HTMLInputElement;
+    this.stopKeys(input);
+    input.onchange = () => onCommit(Math.round(Number(input.value)) || 0);
+    return input;
+  }
+
+  private writeTranslate(scene: SceneData, id: string, x: number, y: number): void {
+    this.commitStyle(scene, id, { translate: x === 0 && y === 0 ? null : `${x}px ${y}px` });
+  }
+
+  private commitStyle(scene: SceneData, id: string, decls: Record<string, string | null>): void {
+    api.setElementStyle(scene.id, id, decls)
+      .then((css) => {
+        this.player.replaceSceneCss(scene, css);
+        this.renderInspector();
+      })
+      .catch((err) => console.warn("[stage] style write failed:", err));
+  }
+
+  /* schedule timing + animation (undoable, scene.json) */
+  private appendScheduleSection(scene: SceneData, entry: ScheduleEntry): void {
+    const sec = el("div", { class: "sv-insp-sec" },
+      el("div", { class: "sv-sec-title", text: "schedule" }));
+
+    const enterInput = this.numberInput(entry.enter, (v) => {
       this.commit(scene, () => {
-        entry.enter = Math.max(
-          0,
-          Math.min(entry.exit !== undefined ? entry.exit - 0.1 : scene.len, v),
-        );
+        entry.enter = Math.max(0, Math.min(entry.exit !== undefined ? entry.exit - 0.1 : scene.len, v));
       });
     });
-    this.inspector.appendChild(this.field("enter (s)", enterInput));
+    sec.appendChild(this.field("enter (s)", enterInput));
 
-    const exitRow = el("div", { class: "sv-insp-inline" });
     if (entry.exit !== undefined) {
-      const exitInput = this.numberInput(entry.exit, 0, scene.len, (v) => {
+      const exitInput = this.numberInput(entry.exit, (v) => {
         this.commit(scene, () => {
           entry.exit = Math.max(entry.enter + 0.1, Math.min(scene.len, v));
         });
       });
-      const rm = el("button", {
-        class: "sv-mini",
-        text: "remove",
-        title: "remove the exit — the element stays on once it enters",
-      });
+      const rm = el("button", { class: "sv-mini", text: "remove", title: "remove the exit (element stays on)" });
       rm.onclick = () => this.commit(scene, () => delete entry.exit);
-      exitRow.append(exitInput, rm);
-      this.inspector.appendChild(this.field("exit (s)", exitRow));
+      sec.appendChild(this.field("exit (s)", el("div", { class: "sv-insp-inline" }, exitInput, rm)));
     } else {
-      const add = el("button", {
-        class: "sv-mini",
-        text: "+ add exit",
-        title: "give the element an exit time (a window instead of staying on)",
-      });
-      add.onclick = () =>
-        this.commit(scene, () => {
-          entry.exit = round(Math.min(scene.len, entry.enter + 2));
-        });
-      this.inspector.appendChild(this.field("exit", add));
+      const add = el("button", { class: "sv-mini", text: "+ add exit", title: "give the element an exit time" });
+      add.onclick = () => this.commit(scene, () => { entry.exit = round(Math.min(scene.len, entry.enter + 2)); });
+      sec.appendChild(this.field("exit", add));
     }
 
-    /* animation preset (T17) -------------------------------------------- */
     const fxSel = el("select", { class: "sv-select" }) as HTMLSelectElement;
     for (const [val, label] of FX_PRESETS) {
       const opt = el("option", { value: val, text: label }) as HTMLOptionElement;
       if ((entry.fx ?? "") === val) opt.selected = true;
       fxSel.appendChild(opt);
     }
-    fxSel.onchange = () =>
-      this.commit(scene, () => {
-        if (fxSel.value) entry.fx = fxSel.value;
-        else delete entry.fx;
-      });
+    fxSel.onchange = () => this.commit(scene, () => {
+      if (fxSel.value) entry.fx = fxSel.value;
+      else delete entry.fx;
+    });
     this.stopKeys(fxSel);
-    this.inspector.appendChild(this.field("animation", fxSel));
+    sec.appendChild(this.field("animation", fxSel));
 
-    /* toggle class (advanced) ------------------------------------------- */
     const clsInput = el("input", {
-      type: "text",
-      class: "sv-input",
-      value: entry.cls ?? "on",
-      title:
-        "CSS class the engine toggles on this element (default 'on'). Animation presets pair with 'on'.",
+      type: "text", class: "sv-input", value: entry.cls ?? "on",
+      title: "CSS class the engine toggles (default 'on'); animation presets pair with 'on'.",
     }) as HTMLInputElement;
-    const commitCls = (): void =>
-      this.commit(scene, () => {
-        const v = clsInput.value.trim();
-        if (v && v !== "on") entry.cls = v;
-        else delete entry.cls;
-      });
-    clsInput.onchange = commitCls;
+    clsInput.onchange = () => this.commit(scene, () => {
+      const v = clsInput.value.trim();
+      if (v && v !== "on") entry.cls = v;
+      else delete entry.cls;
+    });
     this.stopKeys(clsInput);
-    this.inspector.appendChild(this.field("toggle class", clsInput));
+    sec.appendChild(this.field("toggle class", clsInput));
 
-    /* delete ------------------------------------------------------------- */
     const del = el("button", {
-      class: "sv-del",
-      text: "✕ remove from schedule",
+      class: "sv-del", text: "✕ remove from schedule",
       title: "remove this element from the scene's schedule (del)",
     });
     del.onclick = () => this.deleteSelection();
-    this.inspector.appendChild(del);
-  }
+    sec.appendChild(del);
 
-  /** the editable text row for a leaf element; writes scene.html on commit */
-  private textRow(scene: SceneData, entry: ScheduleEntry): HTMLElement {
-    const wrap = el("div", { class: "sv-insp-inline" });
-    const input = el("input", {
-      type: "text",
-      class: "sv-input",
-      value: this.player.elementText(entry.id),
-      title: "the element's on-screen text — saved into scene.html",
-    }) as HTMLInputElement;
-    const status = el("span", { class: "sv-insp-status" });
-    this.stopKeys(input);
-    const commitText = (): void => {
-      const text = input.value;
-      if (text === this.player.elementText(entry.id)) return;
-      status.textContent = "saving…";
-      api.setElementText(scene.id, entry.id, text)
-        .then((html) => {
-          this.player.replaceSceneHtml(scene, html);
-          status.textContent = "✓";
-          this.rebuild();
-        })
-        .catch((err) => {
-          status.textContent = "✕";
-          input.title = String(err);
-        });
-    };
-    input.onchange = commitText;
-    wrap.append(input, status);
-    return wrap;
+    this.inspector.appendChild(sec);
   }
 
   /* ------------------------------ helpers ------------------------------- */
 
-  private field(label: string, control: HTMLElement): HTMLElement {
-    return el(
-      "label",
-      { class: "sv-field" },
-      el("span", { class: "sv-field-label", text: label }),
-      control,
-    );
+  /** every text run under `root`, with its child-index path (so we can re-find
+      it in a clone) and a short label from its nearest element ancestor */
+  private textSpansUnder(
+    root: HTMLElement,
+  ): Array<{ node: ChildNode; path: number[]; text: string; label: string }> {
+    const out: Array<{ node: ChildNode; path: number[]; text: string; label: string }> = [];
+    const walk = (node: ChildNode, path: number[]): void => {
+      const kids = node.childNodes;
+      for (let i = 0; i < kids.length; i++) {
+        const child = kids[i];
+        if (child.nodeType === Node.TEXT_NODE) {
+          const text = (child.nodeValue ?? "").trim();
+          if (text) {
+            const pe = child.parentElement;
+            const label = pe && pe !== root
+              ? "." + (pe.className.split(/\s+/)[0] || pe.tagName.toLowerCase())
+              : "content";
+            out.push({ node: child, path: [...path, i], text, label });
+          }
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          walk(child, [...path, i]);
+        }
+      }
+    };
+    walk(root, []);
+    return out;
   }
 
-  private numberInput(
-    value: number,
-    min: number,
-    max: number,
-    onCommit: (v: number) => void,
-  ): HTMLInputElement {
+  private walkPath(root: HTMLElement, path: number[]): ChildNode | null {
+    let node: ChildNode = root;
+    for (const i of path) {
+      if (!node.childNodes[i]) return null;
+      node = node.childNodes[i];
+    }
+    return node;
+  }
+
+  private parseOverrides(css: string, id: string): Record<string, string> {
+    const s = css.indexOf("studio:overrides");
+    if (s < 0) return {};
+    const end = css.indexOf("studio:overrides:end", s);
+    const region = css.slice(s, end < 0 ? css.length : end);
+    const re = new RegExp("#" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\{([^}]*)\\}");
+    const m = re.exec(region);
+    if (!m) return {};
+    const out: Record<string, string> = {};
+    for (const part of m[1].split(";")) {
+      const i = part.indexOf(":");
+      if (i < 0) continue;
+      out[part.slice(0, i).trim()] = part.slice(i + 1).trim();
+    }
+    return out;
+  }
+
+  private parseTranslate(v: string | undefined): { x: number; y: number } {
+    if (!v) return { x: 0, y: 0 };
+    const parts = v.trim().split(/\s+/).map((p) => parseFloat(p) || 0);
+    return { x: parts[0] ?? 0, y: parts[1] ?? 0 };
+  }
+
+  private toHex(color: string): string {
+    if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+    const m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(color);
+    if (!m) return "#000000";
+    const h = (n: string) => Math.max(0, Math.min(255, parseInt(n, 10))).toString(16).padStart(2, "0");
+    return "#" + h(m[1]) + h(m[2]) + h(m[3]);
+  }
+
+  private getScale(): number {
+    const st = document.getElementById("stage");
+    if (!st) return 1;
+    return st.getBoundingClientRect().width / this.player.project.width || 1;
+  }
+
+  private sceneEl(id: string): HTMLElement | null {
+    const content = document.getElementById("scenecontent");
+    return content?.querySelector<HTMLElement>("#" + CSS.escape(id)) ?? null;
+  }
+
+  private field(label: string, control: HTMLElement): HTMLElement {
+    return el("label", { class: "sv-field" },
+      el("span", { class: "sv-field-label", text: label }), control);
+  }
+
+  private resetBtn(onClick: () => void, disabled: boolean): HTMLButtonElement {
+    const b = el("button", { class: "sv-reset", text: "⟲", title: "reset to the scene default" }) as HTMLButtonElement;
+    b.disabled = disabled;
+    b.onclick = onClick;
+    return b;
+  }
+
+  private numberInput(value: number, onCommit: (v: number) => void): HTMLInputElement {
     const input = el("input", {
-      type: "number",
-      class: "sv-input sv-num",
-      step: "0.1",
-      min: String(min),
-      max: String(max),
-      value: value.toFixed(2),
+      type: "number", class: "sv-input sv-num", step: "0.1", value: value.toFixed(2),
     }) as HTMLInputElement;
     input.onchange = () => {
       const v = Number(input.value);
@@ -691,8 +878,6 @@ export class StageView {
     return input;
   }
 
-  /** keep the inspector's inputs from triggering the app's global hotkeys
-      (space = play, del = delete clip, etc.) while the user types */
   private stopKeys(input: HTMLElement): void {
     input.addEventListener("keydown", (e) => e.stopPropagation());
   }
@@ -705,13 +890,9 @@ export class StageView {
     this.rebuild();
   }
 
-  /* ------------------------------ per tick ------------------------------ */
-
   private onTime(): void {
     const local = this.player.localTime;
     this.playhead.style.left = local * this.pps + "px";
-    for (const c of this.clips) {
-      c.div.classList.toggle("current", c.isCurrent(local));
-    }
+    for (const c of this.clips) c.div.classList.toggle("current", c.isCurrent(local));
   }
 }
