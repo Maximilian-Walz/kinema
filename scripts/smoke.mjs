@@ -31,8 +31,8 @@ try {
   await page.waitForSelector('#scenecontent', { timeout: 10000 });
   await new Promise((r) => setTimeout(r, 800));
 
-  ok((await page.$('#s1win')) !== null, 'scene 1 mounted');
-  ok(await page.$eval('#s1win', (el) => !el.classList.contains('on')), 'schedule: s1win off at t=0');
+  ok((await page.$('#s1deck')) !== null, 'scene 1 mounted');
+  ok(await page.$eval('#s1deck', (el) => !el.classList.contains('on')), 'schedule: s1deck off at t=0');
   await page.evaluate(() => { /* seek via keyboard: 2 = scene 2 */ });
   ok((await page.$$('.tl-track')).length === 5, 'timeline: 5 tracks');
   ok((await page.$$('.tl-scene')).length === 9, 'timeline: 9 scene blocks');

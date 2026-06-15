@@ -36,6 +36,9 @@ export class Player {
      mounts, so resolving once per mount avoids a querySelector per scheduled
      element on every frame. null means "looked up, not present". */
   private elCache = new Map<string, HTMLElement | null>();
+  /* "id class" pairs the schedule currently drives on; lets update() clear a
+     class once no entry asks for it (e.g. an entry deleted from the schedule) */
+  private driven = new Set<string>();
 
   private readonly content: HTMLElement;
   private readonly sceneStyle: HTMLStyleElement;
@@ -119,13 +122,27 @@ export class Player {
 
     const scene = this.project.scenes[index];
 
-    // element states, derived purely from local t
+    // element states, derived purely from local t. Track which (id, class)
+    // pairs we drive on so we can clear any we no longer own — covers an
+    // entry whose window has passed (handled by the toggle below) and, more
+    // importantly, an entry deleted from the schedule outright: it is simply
+    // never visited here, so it drops out of `nextOn` and gets removed in the
+    // reconciliation pass instead of lingering until the next remount.
+    const nextOn = new Set<string>();
     for (const ev of scene.schedule) {
+      const cls = ev.cls || 'on';
       const el = this.resolve(ev.id);
       if (!el) continue;
       const on = local >= ev.enter && (ev.exit === undefined || local < ev.exit);
-      el.classList.toggle(ev.cls || 'on', on);
+      el.classList.toggle(cls, on);
+      if (on) nextOn.add(ev.id + '\u0000' + cls);
     }
+    for (const key of this.driven) {
+      if (nextOn.has(key)) continue;
+      const i = key.indexOf('\u0000');
+      this.resolve(key.slice(0, i))?.classList.remove(key.slice(i + 1));
+    }
+    this.driven = nextOn;
 
     // caption strip (scene-owned element, may not exist)
     const capEl = this.resolve('caption');
@@ -144,6 +161,7 @@ export class Player {
     this.sceneStyle.textContent = scene.css;
     this.content.innerHTML = scene.html;
     this.elCache.clear(); // new DOM; drop the previous scene's element lookups
+    this.driven.clear();  // fresh markup carries none of the old classes
     this.threadScroll = 0;
     this.events.emit('scene', index);
   }
