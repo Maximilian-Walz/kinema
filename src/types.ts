@@ -24,6 +24,13 @@ export interface SceneData {
   css: string;
 }
 
+export interface ProjectInfo {
+  id: string;
+  name: string;
+  path: string;
+  default: boolean;
+}
+
 export interface ProjectData {
   id: string;
   name: string;

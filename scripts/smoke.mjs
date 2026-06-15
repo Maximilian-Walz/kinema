@@ -23,7 +23,11 @@ try {
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  await page.goto(BASE + '/', { waitUntil: 'networkidle0', timeout: 30000 });
+  /* / with no ?project= now shows the picker; boot the studio on the default
+     project so the structural checks below (groupchat) line up */
+  const projects = await (await fetch(BASE + '/api/projects')).json();
+  const def = (projects.find((p) => p.default) || projects[0]).id;
+  await page.goto(BASE + '/?project=' + def, { waitUntil: 'networkidle0', timeout: 30000 });
   await page.waitForSelector('#scenecontent', { timeout: 10000 });
   await new Promise((r) => setTimeout(r, 800));
 

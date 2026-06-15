@@ -1,7 +1,9 @@
+import { fetchProjects, getProject } from '../api';
 import type { Takes } from '../audio/takes';
 import { fmt, fmtMs, type Player } from '../engine/player';
 import type { TimingSync } from '../timings';
 import { el } from './dom';
+import { openProject } from './picker';
 
 /* play/pause, scene navigation, timecode, record shortcut, clean mode */
 export class Transport {
@@ -37,11 +39,14 @@ export class Transport {
     const clean = el('button', { text: '◻ clean (C)', title: 'stage only — for screen capture' });
     clean.onclick = () => document.body.classList.toggle('clean');
 
+    const picker = el('select', { class: 't-project', title: 'switch project' }) as HTMLSelectElement;
+    this.fillPicker(picker);
+
     root.append(
       this.playBtn, restart, prev, next,
       this.sceneEl, this.timeEl, this.savedEl,
       el('span', { class: 't-spacer' }),
-      this.recBtn, clean,
+      picker, this.recBtn, clean,
       el('span', { class: 't-keys', text: 'SPACE play · ←/→ ±5s (shift ±1s) · [ ] scene · 1-9 jump · C clean' }),
     );
 
@@ -56,6 +61,18 @@ export class Transport {
     sync.events.on('saved', () => this.flashSaved('✓ saved'));
     sync.events.on('error', () => this.flashSaved('✗ save failed', true));
     this.tick();
+  }
+
+  /* populate the project switcher async; changing it reloads on that project */
+  private async fillPicker(sel: HTMLSelectElement): Promise<void> {
+    const projects = await fetchProjects().catch(() => []);
+    const current = getProject();
+    for (const proj of projects) {
+      const opt = el('option', { value: proj.id, text: proj.name }) as HTMLOptionElement;
+      if (proj.id === current || (!current && proj.default)) opt.selected = true;
+      sel.append(opt);
+    }
+    sel.onchange = () => openProject(sel.value);
   }
 
   private savedTimer: number | undefined;

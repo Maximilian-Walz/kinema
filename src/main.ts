@@ -1,5 +1,5 @@
 import './ui/styles.css';
-import { fetchProject } from './api';
+import { fetchProject, getProject } from './api';
 import { Takes } from './audio/takes';
 import { Player } from './engine/player';
 import { History } from './history';
@@ -7,11 +7,15 @@ import { bootRender } from './render-mode';
 import { TimingSync } from './timings';
 import { el } from './ui/dom';
 import { SidePanel } from './ui/panels';
+import { showPicker } from './ui/picker';
 import { Timeline } from './ui/timeline';
 import { Transport } from './ui/transport';
 
 if (new URLSearchParams(location.search).has('render')) {
   bootRender();
+} else if (!getProject()) {
+  /* no ?project= -> let the user pick one before booting the studio */
+  void showPicker();
 } else {
   void bootStudio();
 }

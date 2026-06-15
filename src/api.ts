@@ -1,4 +1,4 @@
-import type { ExportStatus, ProjectData, SceneData, TakesMap } from './types';
+import type { ExportStatus, ProjectData, ProjectInfo, SceneData, TakesMap } from './types';
 
 /* Which project this page is editing. Read once from ?project=<id> in the URL
    (render mode and a future picker both set it); empty means "the server's
@@ -22,6 +22,11 @@ function withProject(url: string): string {
 async function check(r: Response): Promise<Response> {
   if (!r.ok) throw new Error(`${r.status} ${await r.text().catch(() => '')}`);
   return r;
+}
+
+/* not project-scoped: lists every registered project for the picker */
+export async function fetchProjects(): Promise<ProjectInfo[]> {
+  return (await check(await fetch('/api/projects'))).json();
 }
 
 export async function fetchProject(): Promise<ProjectData> {
