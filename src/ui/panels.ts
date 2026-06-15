@@ -37,13 +37,9 @@ export class SidePanel {
   private readonly playbackMeter: PlaybackMeter;
   private readonly body: HTMLElement;
   private readonly tabButtons = new Map<Tab, HTMLButtonElement>();
-  private readonly recBar: HTMLElement;
   private tab: Tab = "script";
   /** debounce timers for per-section gain writes, keyed sceneId/lineId/file */
   private readonly chainTimers = new Map<string, number>();
-
-  /** container inside the recBar that hosts the mic meter while recording */
-  private recBarMonitorEl: HTMLElement | null = null;
 
   /** TakeStrip instances currently rendered (record + tune modes). Destroyed
       on every body render so their RAF loops stop. */
@@ -78,19 +74,8 @@ export class SidePanel {
       nav.appendChild(b);
     });
 
-    this.recBar = el(
-      "div",
-      { class: "sp-recbar" },
-      el("span", { class: "sp-recdot" }),
-      "recording take — ",
-    );
-    const stop = el("button", { text: "■ stop" });
-    stop.onclick = () => takes.stopRecording();
-    this.recBar.appendChild(stop);
-    this.recBar.style.display = "none";
-
     this.body = el("div", { class: "sp-body" });
-    root.append(nav, this.recBar, this.body);
+    root.append(nav, this.body);
 
     player.events.on("scene", () => this.render());
     player.events.on("time", () => this.tick());
@@ -105,26 +90,11 @@ export class SidePanel {
     takes.events.on("recording", (on) => {
       /* once recording starts, clear any remaining overlay */
       this.removeCountdownOverlay();
-      this.recBar.style.display = on ? "flex" : "none";
-      if (on) {
-        /* mount the shared meter element inside the recbar so it stays
-           visible on the SCRIPT tab while narrating */
-        const meterEl = this.micMonitor.meterEl;
-        if (meterEl) {
-          this.recBarMonitorEl = el("div", { class: "sp-recbar-monitor" });
-          this.recBarMonitorEl.appendChild(meterEl);
-          this.micMonitor.start();
-          this.recBar.appendChild(this.recBarMonitorEl);
-        }
-        this.show("script");
-      } else {
-        /* detach the inline recbar meter (the singleton stays alive) */
-        if (this.recBarMonitorEl) {
-          this.recBarMonitorEl.remove();
-          this.recBarMonitorEl = null;
-        }
-        if (this.tab === "takes") this.render();
-      }
+      /* recbar UI is owned by the top-level RecBar singleton now (T9).
+         We only steer side-panel focus: drag the panel back to SCRIPT in
+         non-RECORD modes so the operator can read the narration. */
+      if (on && this.mode.mode !== "record") this.show("script");
+      else if (!on && this.tab === "takes") this.render();
     });
 
     takes.events.on("monitor", () => {

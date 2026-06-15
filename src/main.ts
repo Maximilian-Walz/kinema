@@ -11,6 +11,7 @@ import { showPicker } from "./ui/picker";
 import "./ui/styles.css";
 import { DockResize } from "./ui/dock-resize";
 import { ExportDialog } from "./ui/export-dialog";
+import { RecBar } from "./ui/recbar";
 import { Timeline } from "./ui/timeline";
 import { Transport } from "./ui/transport";
 import { WorkspaceMode } from "./ui/workspace-mode";
@@ -108,6 +109,7 @@ async function bootStudio(): Promise<void> {
   new RecordView(recordview, player, takes, micMonitor);
   new TuneView(tuneview, player, takes);
   new DockResize();
+  new RecBar(takes, micMonitor);
   /* mode switches re-flow the grid; trigger a rescale so the stage fits */
   mode.events.on("change", () => {
     sidePanel.onModeChange();

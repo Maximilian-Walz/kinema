@@ -89,11 +89,21 @@ body.clean #frame{outline:none}
   flex-direction:column;gap:12px;min-height:0}
 .sp-scenetitle{font-family:var(--st-mono);font-size:11.5px;color:var(--st-faint);
   letter-spacing:.12em}
-.sp-recbar{display:flex;align-items:center;gap:10px;padding:9px 16px;
-  background:rgba(248,81,73,.12);border-bottom:1px solid var(--st-red);
-  font-family:var(--st-mono);font-size:12px;color:#ffa198}
-.sp-recdot{width:9px;height:9px;border-radius:50%;background:var(--st-red);
-  animation:blink 1.2s infinite}
+/* top-of-app recording banner (RecBar singleton) */
+#recbar{position:fixed;top:0;left:0;right:0;z-index:150;
+  display:flex;align-items:center;gap:10px;padding:8px 16px;
+  background:rgba(248,81,73,.18);border-bottom:1px solid var(--st-red);
+  font-family:var(--st-mono);font-size:12.5px;color:#ffd0cc;
+  backdrop-filter:blur(2px)}
+body.recording #app{padding-top:38px}
+.rb-dot{width:9px;height:9px;border-radius:50%;background:var(--st-red);
+  animation:blink 1.2s infinite;flex:none}
+.rb-label{letter-spacing:.06em}
+.rb-monitor{flex:1;min-width:0;display:flex;align-items:center;gap:10px}
+.rb-monitor .vs-meter{flex:1;flex-direction:row}
+.rb-monitor .vs-meter canvas{width:100% !important}
+.rb-stop{flex:none;border-color:#ffa198;color:#ffd0cc}
+.rb-stop:hover{background:var(--st-red);color:#0d1117}
 @keyframes blink{50%{opacity:.35}}
 
 /* script (teleprompter) */
@@ -164,9 +174,6 @@ body.clean #frame{outline:none}
 .sp-monitor-clip{display:none;font-family:var(--st-mono);font-size:11px;
   color:#f85149;padding:3px 0}
 .sp-monitor-clip.visible{display:block}
-/* recbar monitor: horizontal meter inlined next to the stop button */
-.sp-recbar-monitor{display:flex;align-items:center;margin-left:4px}
-.sp-recbar-monitor .vs-meter{flex-direction:row}
 
 /* playback output meter (post-processed level, ticket 04) */
 .sp-playback-meter{display:flex;align-items:center;gap:8px;padding:6px 10px;
