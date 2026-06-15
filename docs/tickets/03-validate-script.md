@@ -1,6 +1,6 @@
 # 03 - scripts/validate.mjs
 
-Status: todo
+Status: done
 Depends on: none (independent; do early, it helps author ticket 04)
 Plan item: 4 (validation helper, pulled out as its own ticket)
 
