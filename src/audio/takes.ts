@@ -190,6 +190,10 @@ export class Takes {
   private gateModuleState: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
   private previewNode: PreviewNode | null = null;
   private auditionNode: AudioBufferSourceNode | null = null;
+  /** ctx.currentTime when the live audition source was started */
+  private auditionStartedAt = 0;
+  /** seconds into the buffer the audition source started at (for scrubbing) */
+  private auditionStartOffset = 0;
   /** persistent master analyser: chainTail -> masterAnalyser -> destination.
       Created once with the AudioContext, never torn down; both startPreview and
       startAudition route through it so the playback meter always reads the
@@ -514,10 +518,35 @@ export class Takes {
     this.stopAudition();
     this.auditioning = file;
     this.events.emit('change');
-    void this.startAudition(new URL(api.takeUrl(sceneId, lineId, file), location.href).href, file, sceneId, lineId);
+    void this.startAudition(new URL(api.takeUrl(sceneId, lineId, file), location.href).href, file, sceneId, lineId, 0);
   }
 
-  private async startAudition(url: string, file: string, sceneId: string, lineId: string): Promise<void> {
+  /** Restart the audition for `file` from `fromSec` seconds into the buffer.
+      Used by the scrubbable take strip; clicking the waveform calls this. If a
+      different take is currently auditioning it is replaced. Re-uses the
+      decode cache so seeking is cheap. */
+  scrubAudition(sceneId: string, lineId: string, file: string, fromSec: number): void {
+    this.stopPreview();
+    this.stopAudition();
+    this.auditioning = file;
+    this.events.emit('change');
+    void this.startAudition(
+      new URL(api.takeUrl(sceneId, lineId, file), location.href).href,
+      file,
+      sceneId,
+      lineId,
+      Math.max(0, fromSec),
+    );
+  }
+
+  /** Current position within the auditioning buffer, in seconds. Returns -1
+      if no audition is playing. Cheap; safe to poll at RAF rate. */
+  auditionPosition(): number {
+    if (!this.auditionNode || !this.ctx) return -1;
+    return this.auditionStartOffset + (this.ctx.currentTime - this.auditionStartedAt);
+  }
+
+  private async startAudition(url: string, file: string, sceneId: string, lineId: string, fromSec = 0): Promise<void> {
     const ctx = this.audioCtx();
     void ctx.resume();
     const buf = await this.load(url);
@@ -537,7 +566,9 @@ export class Takes {
       this.events.emit('change');
     };
     this.auditionNode = source;
-    source.start(0);
+    this.auditionStartOffset = fromSec;
+    this.auditionStartedAt = ctx.currentTime;
+    source.start(0, fromSec);
   }
 
   private stopAudition(): void {

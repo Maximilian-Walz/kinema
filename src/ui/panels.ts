@@ -1,6 +1,7 @@
 import * as api from "../api";
 import { computeNormalizeGain, measureLoudness } from "../audio/loudness";
 import type { MicMonitor, PlaybackMeter } from "../audio/monitor";
+import { TakeStrip } from "../audio/take-strip";
 import type { Takes } from "../audio/takes";
 import { fmt, type Player } from "../engine/player";
 import type { History } from "../history";
@@ -44,6 +45,10 @@ export class SidePanel {
 
   /** container inside the recBar that hosts the mic meter while recording */
   private recBarMonitorEl: HTMLElement | null = null;
+
+  /** TakeStrip instances currently rendered (record + tune modes). Destroyed
+      on every body render so their RAF loops stop. */
+  private readonly takeStrips: TakeStrip[] = [];
 
   /** overlay element sitting over #hud showing the countdown number */
   private countdownOverlay: HTMLElement | null = null;
@@ -155,6 +160,7 @@ export class SidePanel {
   /* ------------------------------- render -------------------------------- */
 
   private render(): void {
+    this.destroyTakeStrips();
     this.body.innerHTML = "";
     if (this.mode.mode === "record") {
       this.renderRecordSide();
@@ -1250,7 +1256,7 @@ export class SidePanel {
         recent.forEach((tk, i) => {
           const total = activeSect!.takes.length;
           const ord = total - i; // most-recent first
-          takesEl.appendChild(this.takeRow(scene.id, activeLine.id!, activeSect!, tk, ord));
+          takesEl.appendChild(this.takeRow(scene.id, activeLine.id!, activeSect!, tk, ord, { withStrip: true }));
         });
         card.appendChild(takesEl);
       }
@@ -1291,15 +1297,17 @@ export class SidePanel {
     this.body.appendChild(dots);
   }
 
-  /** A compact take row: play, name, star, delete. Used by renderRecordSide
-      and (in T4) the TUNE comparator. */
+  /** A compact take row: play, name, star, delete + scrubbable waveform.
+      Used by renderRecordSide and (in T4) the TUNE comparator. */
   private takeRow(
     sceneId: string,
     lineId: string,
     sect: SectionTakes,
     tk: SectionTakes["takes"][number],
     ord: number,
+    opts: { withStrip?: boolean } = {},
   ): HTMLElement {
+    const wrap = el("div", { class: "sp-take-wrap" });
     const row = el("div", { class: "sp-take" + (tk.file === sect.candidate ? " cand" : "") });
     const play = el("button", {
       text: this.takes.auditioning === tk.file ? "\u23f8" : "\u25b6",
@@ -1327,6 +1335,19 @@ export class SidePanel {
       await this.takes.refresh();
     };
     row.append(play, name, star, del);
-    return row;
+    wrap.appendChild(row);
+    if (opts.withStrip) {
+      const strip = new TakeStrip(this.takes, sceneId, lineId, tk.file, { height: 36 });
+      wrap.appendChild(strip.element);
+      this.takeStrips.push(strip);
+    }
+    return wrap;
+  }
+
+  /** Destroy active TakeStrip instances so their RAF loops stop and the
+      decode cache references are released for the next render. */
+  private destroyTakeStrips(): void {
+    for (const s of this.takeStrips) s.destroy();
+    this.takeStrips.length = 0;
   }
 }

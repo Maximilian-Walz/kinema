@@ -129,6 +129,7 @@ body.clean #frame{outline:none}
   font-size:12px}
 .sp-take.cand{border-color:var(--st-accent);background:rgba(163,113,247,.08)}
 .sp-take button{padding:2px 8px;font-size:11.5px}
+.sp-take-wrap{display:flex;flex-direction:column;gap:4px}
 .sp-takename{flex:1;color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
 .sp-star{color:var(--st-accent)}
