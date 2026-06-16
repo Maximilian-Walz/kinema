@@ -106,19 +106,27 @@ try {
     });
   });
 
-  /* --- T19: click an element in the preview selects it + outlines it --- */
+  /* --- T19: click an element in the preview selects it + draws the box --- */
+  await page.evaluate(() => window.__studio.player.seek(2)); // #title visible
   await page.click("#title");
   await new Promise((r) => setTimeout(r, 200));
-  const selected = await page.evaluate(() => {
-    const hot = document.querySelector("#scenecontent .sv-el-selected");
-    return { id: hot?.id, name: document.querySelector(".sv-insp-name")?.textContent };
-  });
-  ok(selected.id === "title", `clicking #title in the preview selects + outlines it (got #${selected.id})`);
+  const selected = await page.evaluate(() => ({
+    id: document.querySelector(".sv-insp-id")?.textContent,
+    boxShown: (() => {
+      const b = document.querySelector(".sv-ovl-sel");
+      return !!b && getComputedStyle(b).display !== "none";
+    })(),
+  }));
+  ok(selected.id === "#title" && selected.boxShown,
+    `clicking #title selects it + draws the overlay box (id=${selected.id})`);
 
   /* bidirectional: selecting a clip highlights its element in the preview */
   await page.click(".sv-lanes .tl-element");
   await new Promise((r) => setTimeout(r, 150));
-  const biSync = await page.evaluate(() => !!document.querySelector("#scenecontent .sv-el-selected"));
+  const biSync = await page.evaluate(() => {
+    const b = document.querySelector(".sv-ovl-sel");
+    return !!b && getComputedStyle(b).display !== "none";
+  });
   ok(biSync, "selecting a clip highlights its element in the preview");
 
   /* --- T20: nested text patch keeps siblings + structure --- */
@@ -170,6 +178,77 @@ try {
   ok(style.merged, "element-style merges a second property into the same rule");
   ok(style.hasTranslate, "element-style stores a translate (drag-to-reposition) override");
   ok(style.cleaned, "clearing all props removes the overrides region");
+
+  /* --- T23: TIME elements track uses the same readable labels --- */
+  await page.keyboard.press("F3");
+  await new Promise((r) => setTimeout(r, 250));
+  const timeLabel = await page.evaluate(() =>
+    document.querySelector(".tl-elements .tl-cliptext")?.textContent);
+  ok(timeLabel != null && /video.?studio/i.test(timeLabel),
+    `TIME elements track shows element text, not the raw id (got "${timeLabel}")`);
+  await page.keyboard.press("F4");
+  await new Promise((r) => setTimeout(r, 250));
+
+  /* --- T24: dragging the STAGE ruler scrubs the playhead --- */
+  await page.evaluate(() => window.__studio.player.seek(0));
+  const ruler = await page.evaluate(() => {
+    const r = document.querySelector(".sv-ruler").getBoundingClientRect();
+    return { x: r.x, y: r.y + r.height / 2, w: r.width };
+  });
+  await page.mouse.move(ruler.x + 8, ruler.y);
+  await page.mouse.down();
+  await page.mouse.move(ruler.x + ruler.w * 0.6, ruler.y, { steps: 6 });
+  await page.mouse.up();
+  const scrubbed = await page.evaluate(() => window.__studio.player.localTime);
+  ok(scrubbed > 1, `dragging the STAGE ruler scrubs the playhead (local=${scrubbed.toFixed(2)})`);
+
+  /* --- T25: selection overlay box shows, even for a not-yet-entered element --- */
+  await page.click(".sv-lanes .tl-element"); // selects #title
+  await new Promise((r) => setTimeout(r, 150));
+  const selBox = await page.evaluate(() => {
+    const b = document.querySelector(".sv-ovl-sel");
+    return b ? { shown: getComputedStyle(b).display !== "none", w: b.getBoundingClientRect().width } : null;
+  });
+  ok(selBox && selBox.shown && selBox.w > 0, `selection overlay box is drawn (${JSON.stringify(selBox)})`);
+  await page.evaluate(() => window.__studio.player.seek(0)); // title hidden (enter 0.4)
+  await new Promise((r) => setTimeout(r, 120));
+  const hiddenSel = await page.evaluate(() => {
+    const b = document.querySelector(".sv-ovl-sel");
+    return b && getComputedStyle(b).display !== "none" && b.getBoundingClientRect().width > 0;
+  });
+  ok(hiddenSel, "selection box shows even when the element is hidden before its entrance");
+
+  /* hover box appears over the element under the cursor */
+  await page.evaluate(() => window.__studio.player.seek(6));
+  await new Promise((r) => setTimeout(r, 120));
+  const hoverShown = await page.evaluate(() => {
+    const sub = document.querySelector("#sub");
+    const r = sub.getBoundingClientRect();
+    sub.dispatchEvent(new PointerEvent("pointermove",
+      { clientX: r.x + r.width / 2, clientY: r.y + r.height / 2, bubbles: true }));
+    const b = document.querySelector(".sv-ovl-hover");
+    return b && getComputedStyle(b).display !== "none";
+  });
+  ok(hoverShown, "hovering an element in the preview draws the hover box");
+
+  /* --- T26: a selected+current clip keeps its (blue) selected ring --- */
+  await page.evaluate(() => window.__studio.player.seek(1)); // #title current (enter 0.4)
+  await page.click(".sv-lanes .tl-element");
+  await new Promise((r) => setTimeout(r, 120));
+  const ringColor = await page.evaluate(() => {
+    const c = document.querySelector(".sv-lanes .tl-element.selected.current")
+      ?? document.querySelector(".sv-lanes .tl-element.selected");
+    return c ? getComputedStyle(c).outlineColor : null;
+  });
+  ok(ringColor === "rgb(121, 192, 255)", `selected clip keeps its blue ring over current (${ringColor})`);
+
+  /* --- T27: double-click an element seeks the playhead to its entrance --- */
+  await page.evaluate(() => window.__studio.player.seek(6));
+  await new Promise((r) => setTimeout(r, 100));
+  await page.click("#sub", { clickCount: 2 }); // #sub enters at 1.5
+  await new Promise((r) => setTimeout(r, 150));
+  const dblLocal = await page.evaluate(() => window.__studio.player.localTime);
+  ok(Math.abs(dblLocal - 1.5) < 0.2, `double-click element seeks to its entrance (local=${dblLocal.toFixed(2)})`);
 
   ok(errors.length === 0, "no page errors" + (errors.length ? ": " + errors[0] : ""));
 } finally {

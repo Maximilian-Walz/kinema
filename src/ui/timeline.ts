@@ -433,7 +433,10 @@ export class Timeline {
     const lanes: number[] = [];
     const entries = scene.schedule.map((ev, idx) => {
       const isSpan = ev.exit !== undefined;
-      const name = ev.id + (ev.cls && ev.cls !== "on" ? "." + ev.cls : "");
+      /* same readable label as STAGE: the element's text/data-label, not the
+         raw id (which stays in the tooltip); keep any custom class suffix */
+      const clsSuffix = ev.cls && ev.cls !== "on" ? "." + ev.cls : "";
+      const name = this.player.elementInfo(ev.id).label + clsSuffix;
       const startPx = (P.offsets[si] + ev.enter) * this.pps;
       const widthPx = isSpan
         ? Math.max(10, (ev.exit! - ev.enter) * this.pps)
@@ -452,7 +455,7 @@ export class Timeline {
       const key = `${scene.id}|sched|${idx}`;
       const clip = el("div", {
         class: "tl-clip tl-element" + (isSpan ? "" : " tl-marker"),
-        title: name + ` · in ${ev.enter}s` +
+        title: `${name} · #${ev.id} · in ${ev.enter}s` +
           (isSpan
             ? ` · out ${ev.exit}s`
             : " (stays on — drag right edge to add an exit)"),
@@ -882,12 +885,19 @@ export class Timeline {
     if (!raw) return;
     const m = /^([\w-]+)(?:\.([\w-]+))?$/.exec(raw.trim());
     if (!m) return;
+    const id = m[1], cls = m[2];
+    const enter = round(Math.max(0, this.player.localTime), GRID);
+    /* don't stack an exact-duplicate entry; select the existing one instead */
+    const dupIdx = scene.schedule.findIndex((s) =>
+      s.id === id && s.enter === enter && s.exit === undefined &&
+      (s.cls ?? "on") === (cls ?? "on") && !s.fx);
+    if (dupIdx >= 0) {
+      this.setSelection([`${scene.id}|sched|${dupIdx}`]);
+      return;
+    }
     const before = this.history.snapshot(scene);
-    const entry: { id: string; enter: number; cls?: string } = {
-      id: m[1],
-      enter: round(Math.max(0, this.player.localTime), GRID),
-    };
-    if (m[2]) entry.cls = m[2];
+    const entry: { id: string; enter: number; cls?: string } = { id, enter };
+    if (cls) entry.cls = cls;
     scene.schedule.push(entry);
     this.history.commit(scene, before);
     this.sync.changed(scene);

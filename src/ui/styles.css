@@ -283,7 +283,11 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
 .tl-marquee{position:absolute;background:rgba(121,192,255,.1);
   border:1px solid rgba(121,192,255,.6);pointer-events:none;z-index:50}
 .tl-sep{width:1px;height:16px;background:var(--st-line);margin:0 4px}
-.tl-clip.selected{outline:1.5px solid #79c0ff;outline-offset:1px;z-index:8}
+/* selected must read even when the clip is also `.current` (playhead inside),
+   whose accent outline would otherwise win the cascade: force a bright ring and
+   add a glow so selected always dominates while current keeps its brighter fill */
+.tl-clip.selected{outline:2px solid #79c0ff!important;outline-offset:1px;z-index:9;
+  box-shadow:0 0 0 1px var(--st-bg),0 0 10px rgba(121,192,255,.55)}
 .tl-edit{position:absolute;inset:0;border:1px solid #79c0ff;border-radius:6px;
   background:#0a0d12;color:var(--st-text);font-family:var(--st-mono);
   font-size:11px;padding:2px 7px;outline:none;z-index:60}
@@ -368,7 +372,10 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
   color:var(--st-faint)}
 .sv-main{flex:1;display:flex;min-height:0}
 
-.sv-scroll{position:relative;flex:1;overflow:auto;padding:6px 12px 10px}
+/* no horizontal padding: absolutely-positioned playhead/snapguide and the
+   in-flow ruler/lanes then share one left origin, so the playhead lines up with
+   the clips. Breathing room comes from the margin instead. */
+.sv-scroll{position:relative;flex:1;overflow:auto;padding:6px 0 10px;margin:0 10px}
 .sv-ruler{position:relative;height:22px;border-bottom:1px solid var(--st-line);
   cursor:ew-resize;margin-bottom:6px}
 .sv-tick{position:absolute;top:3px;font-family:var(--st-mono);font-size:10px;
@@ -432,7 +439,12 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
    any scene-set pointer-events:none, hint on hover, and outline the selection */
 body.mode-stage #scenecontent,body.mode-stage #scenecontent *{pointer-events:auto!important}
 body.mode-stage #scenecontent [id]{cursor:pointer}
-#scenecontent .sv-el-selected{outline:2px solid var(--st-mode)!important;outline-offset:2px}
+/* highlight boxes drawn in #stagearea chrome (see StageView.positionBox) — they
+   sit over the element's rect so they show even when it's opacity:0 / clipped */
+.sv-ovl-box{position:absolute;pointer-events:none;z-index:60;border-radius:3px}
+.sv-ovl-sel{outline:2px solid var(--st-mode);
+  box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 12px rgba(57,197,207,.6)}
+.sv-ovl-hover{outline:1px dashed var(--st-mode);opacity:.75}
 
 /* =============================== picker ================================= */
 .t-project{max-width:180px}

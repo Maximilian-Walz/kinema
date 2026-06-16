@@ -84,6 +84,13 @@ export class StageView {
   private dragging = false;
   private active = false;
 
+  /* highlight overlay boxes drawn in #stagearea chrome (not on the element
+     itself, so they show even when the element is opacity:0 before its entrance
+     and aren't clipped by scene overflow). One for the selection, one for hover. */
+  private selBox: HTMLElement | null = null;
+  private hoverBox: HTMLElement | null = null;
+  private hoverEl: HTMLElement | null = null;
+
   constructor(
     root: HTMLElement,
     player: Player,
@@ -108,6 +115,10 @@ export class StageView {
       if (this.scroll.clientWidth > 0 && !this.dragging) this.rebuild();
     });
     ro.observe(this.scroll);
+
+    /* the stage rescales on window resize; reposition the highlight boxes (they
+       only auto-track during playback via onTime) */
+    window.addEventListener("resize", () => this.repositionBoxes());
   }
 
   /** Called by main.ts on every mode switch. Entering STAGE wires up live-preview
@@ -117,12 +128,21 @@ export class StageView {
     this.active = active;
     const content = document.getElementById("scenecontent");
     if (active) {
+      this.ensureOverlays();
       content?.addEventListener("pointerdown", this.onPreviewPointerDown, true);
+      content?.addEventListener("pointermove", this.onPreviewPointerMove);
+      content?.addEventListener("pointerleave", this.onPreviewPointerLeave);
+      content?.addEventListener("dblclick", this.onPreviewDblClick, true);
       this.rebuild();
       this.applyHighlight();
     } else {
       content?.removeEventListener("pointerdown", this.onPreviewPointerDown, true);
+      content?.removeEventListener("pointermove", this.onPreviewPointerMove);
+      content?.removeEventListener("pointerleave", this.onPreviewPointerLeave);
+      content?.removeEventListener("dblclick", this.onPreviewDblClick, true);
+      this.hoverEl = null;
       this.highlight(null);
+      this.positionBox(this.hoverBox, null);
     }
   }
 
@@ -169,20 +189,36 @@ export class StageView {
     const main = el("div", { class: "sv-main" }, this.scroll, this.inspector);
     this.root.append(toolbar, main);
 
-    const seekFromEvent = (e: PointerEvent): void => {
-      const rect = this.scroll.getBoundingClientRect();
-      const local = Math.max(
-        0,
-        Math.min(this.player.scene.len, (e.clientX - rect.left) / this.pps),
-      );
-      this.player.seek(this.player.offsets[this.player.sceneIndex] + local);
-    };
-    this.ruler.onpointerdown = (e) => seekFromEvent(e);
+    this.ruler.onpointerdown = (e) => this.seekDrag(e);
     this.lanes.onpointerdown = (e) => {
       if ((e.target as HTMLElement).closest(".tl-clip, .tl-handle")) return;
       this.select(null);
-      seekFromEvent(e);
+      this.seekDrag(e);
     };
+  }
+
+  /** scrub the playhead by clicking or dragging the ruler / empty lanes
+      (window-level listeners so the drag keeps tracking outside the element) */
+  private seekDrag(e: PointerEvent): void {
+    const seek = (clientX: number): void => {
+      const rect = this.scroll.getBoundingClientRect();
+      const local = Math.max(
+        0,
+        Math.min(
+          this.player.scene.len,
+          (clientX - rect.left + this.scroll.scrollLeft) / this.pps,
+        ),
+      );
+      this.player.seek(this.player.offsets[this.player.sceneIndex] + local);
+    };
+    seek(e.clientX);
+    const move = (ev: PointerEvent): void => seek(ev.clientX);
+    const up = (): void => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   /* ------------------------------ rebuild ------------------------------- */
@@ -236,7 +272,10 @@ export class StageView {
 
     const clip = el("div", {
       class: "tl-clip tl-element" + (isSpan ? "" : " tl-marker") +
-        (info.exists ? "" : " sv-missing"),
+        (info.exists ? "" : " sv-missing") +
+        /* keep the selection visible across rebuilds (a clip click ends in a
+           rebuild via beginDrag's pointerup, which recreates these divs) */
+        (this.sel && this.sel.entry === entry ? " selected" : ""),
       title: `#${entry.id}` + (info.exists ? "" : " — no element in scene.html"),
     });
     clip.append(
@@ -391,18 +430,49 @@ export class StageView {
     this.renderInspector();
   }
 
-  /** outline the selected element in the live preview (devtools-style) */
+  /** draw the selection box over the element with this id (null = hide it) */
   private highlight(id: string | null): void {
-    const content = document.getElementById("scenecontent");
-    content?.querySelectorAll(".sv-el-selected").forEach((e) =>
-      e.classList.remove("sv-el-selected")
-    );
-    if (id) this.sceneEl(id)?.classList.add("sv-el-selected");
+    this.ensureOverlays();
+    this.positionBox(this.selBox, id ? this.sceneEl(id) : null);
   }
 
-  /** re-apply the outline after a rebuild/remount (the class is on live DOM) */
   private applyHighlight(): void {
-    if (this.active && this.sel) this.highlight(this.sel.id);
+    if (this.active) this.highlight(this.sel?.id ?? null);
+  }
+
+  private ensureOverlays(): void {
+    if (this.selBox) return;
+    const sa = document.getElementById("stagearea");
+    if (!sa) return;
+    this.selBox = el("div", { class: "sv-ovl-box sv-ovl-sel" });
+    this.hoverBox = el("div", { class: "sv-ovl-box sv-ovl-hover" });
+    sa.append(this.selBox, this.hoverBox);
+  }
+
+  /** position a chrome overlay box over an element's bounding rect (relative to
+      #stagearea), or hide it when there's nothing to show. Drawn in studio
+      chrome rather than on the element, so it survives opacity:0 / clipping. */
+  private positionBox(box: HTMLElement | null, target: HTMLElement | null): void {
+    if (!box) return;
+    const sa = document.getElementById("stagearea");
+    if (!target || !this.active || !sa || document.body.classList.contains("clean")) {
+      box.style.display = "none";
+      return;
+    }
+    const sr = sa.getBoundingClientRect();
+    const r = target.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) { box.style.display = "none"; return; }
+    box.style.display = "block";
+    box.style.left = (r.left - sr.left) + "px";
+    box.style.top = (r.top - sr.top) + "px";
+    box.style.width = r.width + "px";
+    box.style.height = r.height + "px";
+  }
+
+  private repositionBoxes(): void {
+    if (!this.active) return;
+    this.positionBox(this.selBox, this.sel ? this.sceneEl(this.sel.id) : null);
+    this.positionBox(this.hoverBox, this.hoverEl);
   }
 
   deleteSelection(): void {
@@ -422,12 +492,20 @@ export class StageView {
 
   private addEntry(id: string, cls?: string): void {
     const scene = this.player.scene;
+    const enter = round(Math.max(0, Math.min(scene.len - 0.1, this.player.localTime)));
+    const wantCls = cls && cls !== "on" ? cls : undefined;
+    /* don't stack an exact-duplicate entry (same id + enter + class, no exit/fx);
+       just select the one that's already there */
+    const dup = scene.schedule.find((s) =>
+      s.id === id && s.enter === enter && s.exit === undefined &&
+      (s.cls ?? "on") === (wantCls ?? "on") && !s.fx);
+    if (dup) {
+      this.selectEntry(dup);
+      return;
+    }
     const before = this.history.snapshot(scene);
-    const entry: ScheduleEntry = {
-      id,
-      enter: round(Math.max(0, Math.min(scene.len - 0.1, this.player.localTime))),
-    };
-    if (cls && cls !== "on") entry.cls = cls;
+    const entry: ScheduleEntry = { id, enter };
+    if (wantCls) entry.cls = wantCls;
     scene.schedule.push(entry);
     this.history.commit(scene, before);
     this.sync.changed(scene);
@@ -447,37 +525,62 @@ export class StageView {
 
   /* ------------------- live-preview select + drag (T19/T22) ------------- */
 
-  private onPreviewPointerDown = (e: PointerEvent): void => {
+  /** topmost VISIBLE id-bearing element under a point. Native hit-testing returns
+      the literal topmost element, but a transparent full-stage overlay (opacity:0
+      inactive .ovl) sits on top and would swallow it — so walk the hit stack and
+      take the first visible id-element, falling back to the first id-element if
+      none are visible (e.g. before anything has entered). */
+  private pickAt(clientX: number, clientY: number): HTMLElement | null {
     const content = document.getElementById("scenecontent");
-    if (!content) return;
-    /* Native hit-testing returns the topmost element, but a transparent
-       full-stage overlay (opacity:0, e.g. an inactive .ovl) sits on top and
-       would swallow the click. Walk the hit stack and take the first VISIBLE
-       id-bearing element instead; fall back to the first id-element if none of
-       them are visible (e.g. clicking before anything has entered). */
-    const stack = document.elementsFromPoint(e.clientX, e.clientY);
-    let chosen: HTMLElement | null = null;
+    if (!content) return null;
     let fallback: HTMLElement | null = null;
-    for (const n of stack) {
+    for (const n of document.elementsFromPoint(clientX, clientY)) {
       if (!(n instanceof HTMLElement) || !content.contains(n)) continue;
       const idEl = n.closest<HTMLElement>("[id]");
       if (!idEl || idEl.id === "scenecontent" || idEl.id === "caption") continue;
       if (!/^[\w.-]+$/.test(idEl.id)) continue;
       if (!fallback) fallback = idEl;
-      if (this.isVisible(idEl)) { chosen = idEl; break; }
+      if (this.isVisible(idEl)) return idEl;
     }
-    const node = chosen ?? fallback;
-    if (!node) return;
-    e.stopPropagation();
-    if (!this.sel || this.sel.id !== node.id) this.selectElement(node.id);
-    this.beginElementDrag(e, node, node.id);
-  };
+    return fallback;
+  }
 
   private isVisible(el: HTMLElement): boolean {
     const s = getComputedStyle(el);
     return s.visibility !== "hidden" && s.display !== "none" &&
       parseFloat(s.opacity || "1") > 0.05;
   }
+
+  private onPreviewPointerDown = (e: PointerEvent): void => {
+    const node = this.pickAt(e.clientX, e.clientY);
+    if (!node) return;
+    e.stopPropagation();
+    if (!this.sel || this.sel.id !== node.id) this.selectElement(node.id);
+    this.beginElementDrag(e, node, node.id);
+  };
+
+  private onPreviewPointerMove = (e: PointerEvent): void => {
+    if (this.dragging) return;
+    const node = this.pickAt(e.clientX, e.clientY);
+    this.hoverEl = node && node.id !== this.sel?.id ? node : null;
+    this.positionBox(this.hoverBox, this.hoverEl);
+  };
+
+  private onPreviewPointerLeave = (): void => {
+    this.hoverEl = null;
+    this.positionBox(this.hoverBox, null);
+  };
+
+  /* T27: double-click an element to select it AND jump the playhead to its
+     entrance (its first schedule entry); unscheduled elements just select */
+  private onPreviewDblClick = (e: MouseEvent): void => {
+    const node = this.pickAt(e.clientX, e.clientY);
+    if (!node) return;
+    e.stopPropagation();
+    this.selectElement(node.id);
+    const entry = this.player.scene.schedule.find((s) => s.id === node.id);
+    if (entry) this.player.seek(this.player.offsets[this.player.sceneIndex] + entry.enter);
+  };
 
   /** drag an element in the preview to reposition it. The offset is written as a
       `translate` override (which composes with the entrance animation's
@@ -894,5 +997,6 @@ export class StageView {
     const local = this.player.localTime;
     this.playhead.style.left = local * this.pps + "px";
     for (const c of this.clips) c.div.classList.toggle("current", c.isCurrent(local));
+    this.repositionBoxes(); // track elements as they move through animations
   }
 }
