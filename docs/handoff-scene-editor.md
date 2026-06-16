@@ -70,13 +70,10 @@ Code: `StageView.startInlineEdit` in [stage-view.ts](../src/ui/stage-view.ts)
   selection box to an "editing" variant; optionally dim the rest of the stage.
   Remove the class in `cleanup()`.
 
-### 3. Drag leaves the highlight box behind  (one-liner)
-Root cause: `StageView.beginElementDrag` move handler sets `node.style.translate`
-([stage-view.ts](../src/ui/stage-view.ts) ~L753) but never repositions the
-selection box; `onTime` only repositions during playback, so a paused drag
-leaves the box at the start rect.
-Fix: call `this.positionBox(this.selBox, node)` right after setting
-`node.style.translate` in the move handler (also hide/keep the hover box).
+### 3. Drag leaves the highlight box behind  (one-liner)  ✅ DONE
+The `beginElementDrag` move handler now calls `this.positionBox(this.selBox,
+node)` right after setting `node.style.translate` (and hides the hover box), so
+the selection box tracks the node during a paused drag.
 
 ### 4. Undo/redo for text & style edits  (T28, the meaty one)
 Today `History` ([src/history.ts](../src/history.ts)) snapshots only the

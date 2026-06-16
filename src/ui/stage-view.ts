@@ -751,6 +751,10 @@ export class StageView {
       nx = Math.round(base.x + dx / scale);
       ny = Math.round(base.y + dy / scale);
       node.style.translate = `${nx}px ${ny}px`;
+      // onTime only repositions during playback; a paused drag would leave the
+      // selection box at the start rect — track the node as it moves.
+      this.positionBox(this.selBox, node);
+      this.positionBox(this.hoverBox, null);
     };
     const up = (): void => {
       node.removeEventListener("pointermove", move);
