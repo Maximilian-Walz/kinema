@@ -89,6 +89,23 @@ export async function setElementStyle(
   return (await r.json()).css as string;
 }
 
+/** Overwrite a scene's whole scene.html (used by undo/redo to restore a prior
+    snapshot — element-text/html patch incrementally, this writes the lot). */
+export async function putSceneHtml(sceneId: string, html: string): Promise<void> {
+  await check(await fetch(withProject(`/api/scenes/${sceneId}/html`), {
+    method: 'PUT',
+    body: JSON.stringify({ html }),
+  }));
+}
+
+/** Overwrite a scene's whole scene.css (undo/redo counterpart to putSceneHtml). */
+export async function putSceneCss(sceneId: string, css: string): Promise<void> {
+  await check(await fetch(withProject(`/api/scenes/${sceneId}/css`), {
+    method: 'PUT',
+    body: JSON.stringify({ css }),
+  }));
+}
+
 export async function fetchTakes(): Promise<TakesMap> {
   return (await check(await fetch(withProject('/api/takes')))).json();
 }

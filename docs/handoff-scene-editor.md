@@ -66,24 +66,22 @@ The `beginElementDrag` move handler now calls `this.positionBox(this.selBox,
 node)` right after setting `node.style.translate` (and hides the hover box), so
 the selection box tracks the node during a paused drag.
 
-### 4. Undo/redo for text & style edits  (T28, the meaty one)
-Today `History` ([src/history.ts](../src/history.ts)) snapshots only the
-`scene.json` fields (`len/schedule/captions/lines`). Text writes `scene.html`
-and style writes `scene.css`, so neither is undoable.
-Plan:
-- Extend `SceneSnapshot` with `html` + `css`; `snapshot()` reads
-  `scene.html/scene.css`, `apply()` restores them.
-- Add raw write endpoints `PUT /api/scenes/:id/html` and `/css` in
-  [server/api.mjs](../server/api.mjs) (overwrite the file; track as self-write),
-  plus `api.putSceneHtml/putSceneCss` clients.
-- Wrap SCENE text/style/position commits in `history.snapshot(before)` →
-  edit → `history.commit`. (They already write to disk immediately; snapshot
-  BEFORE the edit captures the prior html/css.)
-- In [main.ts](../src/main.ts) undo/redo: after `history.undo()` returns the
-  scene, persist whichever of timings/html/css changed and refresh the engine
-  (`replaceSceneHtml` / `replaceSceneCss` / `refreshTimings`). Simplest: always
-  persist+apply all three on undo/redo of a scene.
-- Add a stage-check assertion: edit text → ctrl+Z restores `scene.html`.
+### 4. Undo/redo for text & style edits  ✅ DONE (T28)
+- `SceneSnapshot` now carries `html` + `css`; `snapshot()` reads them and
+  `apply()` restores them ([src/history.ts](../src/history.ts)).
+- Raw write endpoints `PUT /api/scenes/:id/html` and `/css` overwrite the file
+  (tracked as self-writes) in [server/api.mjs](../server/api.mjs); clients are
+  `api.putSceneHtml` / `putSceneCss` ([src/api.ts](../src/api.ts)).
+- SCENE text/style/position commits are wrapped in `history.snapshot(before)` →
+  edit → `history.commit` (`commitText`, the inline-edit `commit`,
+  `beginElementDrag` up, `commitStyle` in [stage-view.ts](../src/ui/stage-view.ts)).
+  The snapshot is taken BEFORE the API call, while `scene.html/css` still hold
+  the prior values.
+- `main.ts` undo/redo calls a `restoreScene()` helper that always persists +
+  re-applies all three (`replaceSceneHtml` + `putSceneHtml`, `replaceSceneCss` +
+  `putSceneCss`, `sync.changed` for timings) — simple and idempotent.
+- stage-check has a T28 assertion: edit #title text → ctrl+Z restores
+  `scene.html` in memory AND on disk.
 
 ## Where to go from here (after 1–4)
 

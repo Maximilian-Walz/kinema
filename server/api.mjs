@@ -207,6 +207,19 @@ export function createApi({ registry }) {
       writeFileTracked(file, JSON.stringify(data, null, 2) + '\n');
     }
 
+    /* Overwrite a scene's whole scene.html / scene.css. Unlike element-text /
+       element-style (targeted, structure-preserving patches), these replace the
+       file outright -- used by undo/redo to restore a prior snapshot. Tracked as
+       a self-write so the dev watcher doesn't bounce the page. */
+    function putSceneHtml(sid, html) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      writeFileTracked(path.join(projectDir, 'scenes', sid, 'scene.html'), html);
+    }
+    function putSceneCss(sid, css) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      writeFileTracked(path.join(projectDir, 'scenes', sid, 'scene.css'), css);
+    }
+
     const VOID_TAGS = new Set([
       'img', 'br', 'hr', 'input', 'meta', 'link', 'source', 'area',
       'base', 'col', 'embed', 'param', 'track', 'wbr',
@@ -449,7 +462,8 @@ export function createApi({ registry }) {
     return {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
       loadProject, sceneIds, lineIds, writeTimings, setElementText,
-      setElementHtml, setElementStyle, sectionTakesDir, sectionKey,
+      setElementHtml, setElementStyle, putSceneHtml, putSceneCss,
+      sectionTakesDir, sectionKey,
       readTakesState, writeTakesState, listTakes, listSection,
     };
   }
@@ -569,6 +583,32 @@ export function createApi({ registry }) {
         try {
           const css = ctx.setElementStyle(id, body.id, body.style);
           json(res, 200, { ok: true, css });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/html$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.html !== 'string') { json(res, 400, { error: 'html is required' }); return; }
+        try {
+          ctx.putSceneHtml(id, body.html);
+          json(res, 200, { ok: true });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/css$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.css !== 'string') { json(res, 400, { error: 'css is required' }); return; }
+        try {
+          ctx.putSceneCss(id, body.css);
+          json(res, 200, { ok: true });
         } catch (err) {
           json(res, 400, { error: String(err.message || err) });
         }

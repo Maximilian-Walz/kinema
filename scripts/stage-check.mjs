@@ -294,6 +294,34 @@ try {
   ok(added && exitVal != null && Math.abs(exitVal - 5) < 0.2,
     `"+ add exit" spawns the exit at the playhead (exit=${exitVal})`);
 
+  /* --- T28: a SCENE text edit is undoable (ctrl+Z restores scene.html) --- */
+  await page.evaluate(() => window.__studio.player.seek(2)); // #title visible
+  await new Promise((r) => setTimeout(r, 120));
+  await page.click("#title");
+  await new Promise((r) => setTimeout(r, 150));
+  await selectTab(page, "text");
+  const undo = await page.evaluate(async () => {
+    const sceneId = window.__studio.player.scene.id;
+    const inp = document.querySelector(".sv-tabbody .sv-input[type=text]");
+    inp.value = "UNDO_PROBE";
+    inp.dispatchEvent(new Event("change", { bubbles: true }));
+    inp.blur(); // so the global ctrl+Z handler isn't suppressed by an input focus
+    await new Promise((r) => setTimeout(r, 500)); // setElementText round-trip + history.commit
+    return { sceneId, edited: window.__studio.player.scene.html.includes("UNDO_PROBE") };
+  });
+  await page.keyboard.down("Control");
+  await page.keyboard.press("KeyZ");
+  await page.keyboard.up("Control");
+  await new Promise((r) => setTimeout(r, 500)); // undo -> putSceneHtml write
+  const restored = await page.evaluate(async (sceneId) => {
+    const mem = !window.__studio.player.scene.html.includes("UNDO_PROBE");
+    const proj = await (await fetch("/api/project?project=intro")).json();
+    const disk = proj.scenes.find((s) => s.id === sceneId)?.html || "";
+    return { mem, diskReverted: !disk.includes("UNDO_PROBE") };
+  }, undo.sceneId);
+  ok(undo.edited && restored.mem && restored.diskReverted,
+    `text edit is undoable: ctrl+Z restores scene.html (${JSON.stringify({ ...undo, ...restored })})`);
+
   ok(errors.length === 0, "no page errors" + (errors.length ? ": " + errors[0] : ""));
 } finally {
   await browser.close();

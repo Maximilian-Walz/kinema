@@ -1,4 +1,4 @@
-import { fetchProject, getProject } from "./api";
+import { fetchProject, getProject, putSceneCss, putSceneHtml } from "./api";
 import { MicMonitor, PlaybackMeter } from "./audio/monitor";
 import { Takes } from "./audio/takes";
 import { Player } from "./engine/player";
@@ -197,6 +197,19 @@ async function bootStudio(): Promise<void> {
   new ResizeObserver(rescale).observe(stagearea);
   rescale();
 
+  /* Undo/redo can touch a scene's timings (scene.json), text (scene.html) and
+     style (scene.css). The history snapshot already restored all three in
+     memory; persist + re-apply each so the engine and disk match. We always
+     write all three (cheap, idempotent — identical bytes are a no-op for git)
+     rather than tracking which field actually changed. */
+  function restoreScene(scene: SceneData): void {
+    player.replaceSceneHtml(scene, scene.html); // remount markup (re-applies css)
+    player.replaceSceneCss(scene, scene.css);
+    void putSceneHtml(scene.id, scene.html).catch((err) => console.warn("[undo] html save failed:", err));
+    void putSceneCss(scene.id, scene.css).catch((err) => console.warn("[undo] css save failed:", err));
+    sync.changed(scene); // refresh + persist timings (scene.json)
+  }
+
   /* ----------------------------- keyboard ------------------------------- */
   document.addEventListener("keydown", (e) => {
     const t = e.target as HTMLElement;
@@ -212,11 +225,11 @@ async function bootStudio(): Promise<void> {
     if (ctrl && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
       const scene = e.shiftKey ? history.redo() : history.undo();
-      if (scene) sync.changed(scene);
+      if (scene) restoreScene(scene);
     } else if (ctrl && (e.key === "y" || e.key === "Y")) {
       e.preventDefault();
       const scene = history.redo();
-      if (scene) sync.changed(scene);
+      if (scene) restoreScene(scene);
     } else if (e.code === "Space") {
       e.preventDefault();
       player.toggle();

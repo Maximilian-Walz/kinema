@@ -12,6 +12,10 @@ export interface SceneSnapshot {
   schedule: ScheduleEntry[];
   captions: TimedText[];
   lines: TimedText[];
+  /* SCENE editor text/style/position edits live in scene.html / scene.css, not
+     scene.json — snapshot them too so those edits are undoable as well. */
+  html: string;
+  css: string;
 }
 
 interface Edit {
@@ -32,6 +36,8 @@ export class History {
       schedule: scene.schedule,
       captions: scene.captions,
       lines: scene.lines,
+      html: scene.html,
+      css: scene.css,
     });
   }
 
@@ -67,5 +73,7 @@ export class History {
     scene.schedule.splice(0, scene.schedule.length, ...copy.schedule);
     scene.captions.splice(0, scene.captions.length, ...copy.captions);
     scene.lines.splice(0, scene.lines.length, ...copy.lines);
+    scene.html = copy.html;
+    scene.css = copy.css;
   }
 }

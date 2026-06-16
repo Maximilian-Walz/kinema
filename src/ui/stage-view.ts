@@ -728,8 +728,10 @@ export class StageView {
       const text = node.textContent ?? "";
       cleanup();
       if (text === orig) return;
+      const before = this.history.snapshot(scene); // pre-edit html, for undo
       const done = (html: string): void => {
         this.player.replaceSceneHtml(scene, html);
+        this.history.commit(scene, before);
         this.rebuild();
       };
       const fail = (err: unknown): void => {
@@ -784,10 +786,14 @@ export class StageView {
       if (!moved) return;
       this.dragging = false;
       const val = nx === 0 && ny === 0 ? null : `${nx}px ${ny}px`;
+      /* the drag only moved the node's inline transform; scene.css still holds
+         the pre-drag translate, so snapshot now for an undoable reposition */
+      const before = this.history.snapshot(scene);
       api.setElementStyle(scene.id, id, { translate: val })
         .then((css) => {
           this.player.replaceSceneCss(scene, css);
           node.style.translate = ""; // hand off to the CSS override
+          this.history.commit(scene, before);
           this.renderInspector();
         })
         .catch((err) => console.warn("[stage] reposition failed:", err));
@@ -927,8 +933,10 @@ export class StageView {
   ): void {
     if (value === span.text) return;
     status.textContent = "…";
+    const before = this.history.snapshot(scene); // pre-edit html, for undo
     const done = (html: string): void => {
       this.player.replaceSceneHtml(scene, html);
+      this.history.commit(scene, before);
       status.textContent = "✓";
       this.rebuild();
     };
@@ -1010,9 +1018,13 @@ export class StageView {
   }
 
   private commitStyle(scene: SceneData, id: string, decls: Record<string, string | null>): void {
+    /* snapshot the pre-edit css (still in scene.css until the server replies) so
+       the style change is undoable */
+    const before = this.history.snapshot(scene);
     api.setElementStyle(scene.id, id, decls)
       .then((css) => {
         this.player.replaceSceneCss(scene, css);
+        this.history.commit(scene, before);
         this.renderInspector();
       })
       .catch((err) => console.warn("[stage] style write failed:", err));
