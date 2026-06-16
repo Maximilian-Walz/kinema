@@ -299,10 +299,10 @@ export class RecordView {
 
     private paintChainBtn(btn: HTMLButtonElement, on: boolean): void {
         btn.classList.toggle("on", on);
-        btn.textContent = on ? "\u21a6 chain" : "\u25fc hold";
+        btn.textContent = on ? "\u21a6 chain" : "\u221e free";
         btn.title = on
-            ? "chain: after a line, auto-start a take on the next line (click to switch to hold)"
-            : "hold: after a line, stay put so you can re-record (click to switch to chain)";
+            ? "chain: auto-record the next line when this one ends (click for free)"
+            : "free: stay on this line, record as long as you like, then pick or extend the take (click for chain)";
     }
 
     private buildChainToggle(): HTMLElement {
@@ -376,19 +376,31 @@ export class RecordView {
         return this.lineEls[i].line.id ?? null;
     }
 
+    /** progress bar shown under the line currently being recorded */
+    private lineProgress: HTMLElement | null = null;
+
     /* highlight + autoscroll the current line, light up the section dot */
     private tick(): void {
         if (!this.lineEls.length) return;
         const local = this.player.localTime;
-        const curIdx = this.currentLineIndex();
+        let curIdx = this.currentLineIndex();
+        /* FREE-mode recording freezes the prompter on the line being recorded:
+           the playhead rolls on (so you can overrun), but we don't promote the
+           next line -- that auto-advance belongs to chain mode. */
+        const recId = this.takes.recording ? this.takes.recordingLine : null;
+        if (recId && !this.takes.chainMode) {
+            const ri = this.lineEls.findIndex((le) => le.line.id === recId);
+            if (ri >= 0) curIdx = ri;
+        }
         for (let i = 0; i < this.lineEls.length; i++) {
             const le = this.lineEls[i];
             const cur = i === curIdx;
             le.div.classList.toggle("current", cur);
-            le.div.classList.toggle("done", local >= le.to);
+            le.div.classList.toggle("done", local >= le.to && !cur);
             le.div.classList.toggle("next", i === curIdx + 1);
             le.div.classList.toggle("prev", i === curIdx - 1);
         }
+        this.updateLineProgress(recId, local);
         const cur = curIdx >= 0 ? this.lineEls[curIdx] : null;
         const curId = cur ? cur.line.id ?? `__idx${curIdx}` : null;
         if (cur && curId !== this.lastCurrentId) {
@@ -404,6 +416,30 @@ export class RecordView {
             this.recLabelEl.textContent = "rec";
             this.recBtn.disabled = false;
         }
+    }
+
+    /** Draw a thin progress bar under the line being recorded: it fills across
+        the line's intended duration, then flips to a pulsing "over" colour once
+        the take overruns the slot (FREE mode). Hidden when not recording. */
+    private updateLineProgress(recId: string | null, local: number): void {
+        const le = recId ? this.lineEls.find((l) => l.line.id === recId) : null;
+        if (!le) {
+            if (this.lineProgress) this.lineProgress.style.display = "none";
+            return;
+        }
+        if (!this.lineProgress) {
+            this.lineProgress = el("div", { class: "rv-line-bar" },
+                el("div", { class: "rv-line-bar-fill" }));
+        }
+        if (this.lineProgress.parentElement !== le.div) {
+            le.div.appendChild(this.lineProgress);
+        }
+        const dur = Math.max(0.01, le.to - le.from);
+        const prog = (local - le.from) / dur;
+        const fill = this.lineProgress.firstElementChild as HTMLElement;
+        fill.style.width = Math.max(0, Math.min(1, prog)) * 100 + "%";
+        this.lineProgress.classList.toggle("over", prog > 1);
+        this.lineProgress.style.display = "block";
     }
 
     /** Scroll the current line into the upper third of the prompter, without

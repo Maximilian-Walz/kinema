@@ -175,13 +175,9 @@ export class Takes {
       as the reference for the chain-mode "did the take reach the slot end?"
       decision. */
   private recStopAt = Infinity;
-  /** Overrun: allow a section recording to continue past the line's slot
-      (recStopAt). The time listener no longer auto-stops at recStopAt; only a
-      manual stop, a pause, or a scene boundary ends it. */
-  overrun = true;
   /** True iff the most recent stopRecording() call happened while the playhead
       had already passed the line's end (the take covers at least the full
-      slot). Used by chain mode to decide whether to auto-advance. With overrun
+      slot). Used by chain mode to decide whether to auto-advance. In FREE mode
       there is no slot-end auto-stop, so this is computed at manual-stop time. */
   private naturalStop = false;
   /** Set true on the stop following a recording whose captured length exceeded
@@ -243,13 +239,12 @@ export class Takes {
   constructor(player: Player) {
     this.player = player;
     player.events.on("time", () => {
-      /* Overrun: do NOT force-stop at the line end. Recording continues past
-         the slot so the user can capture a longer take and pick its window in
-         TUNE; only a manual stop, a pause, or a scene boundary ends it. When
-         overrun is off (legacy behaviour) we still hard-stop at recStopAt and
-         mark the stop as natural for chain mode. */
+      /* CHAIN mode auto-stops a take at the line end (then auto-advances to the
+         next line). FREE mode never auto-stops at the slot — recording rolls on
+         past the line so you can read long and pick/extend the take afterwards;
+         only a manual stop, a pause, or a scene boundary ends it. */
       if (
-        !this.overrun && this.recorder &&
+        this.chainMode && this.recorder &&
         this.player.localTime >= this.recStopAt
       ) {
         this.naturalStop = true;
@@ -432,13 +427,12 @@ export class Takes {
   stopRecording(): void {
     this.cancelCountIn();
     if (this.recorder && this.recorder.state === "recording") {
-      /* With overrun there is no slot-end auto-stop, so decide here whether
-         this stop should be treated as "natural" for chain mode: it is natural
-         iff the playhead already passed the line's end, i.e. the take covers at
-         least the full slot. (When overrun is off, naturalStop was set by the
-         time listener at recStopAt and we leave it as-is.) Also record whether
-         the take ran past the slot so the UI can hint about the TUNE window. */
-      if (this.overrun) {
+      /* In FREE mode there is no slot-end auto-stop, so decide here whether this
+         stop is "natural" for chain mode: natural iff the playhead already
+         passed the line's end (the take covers at least the full slot). (In
+         CHAIN mode naturalStop was set by the time listener at recStopAt, so we
+         leave it as-is.) Also record whether the take overran its slot. */
+      if (!this.chainMode) {
         const passedEnd = this.player.localTime >= this.recStopAt;
         this.naturalStop = passedEnd;
         this.overranLastStop = passedEnd && isFinite(this.recStopAt);

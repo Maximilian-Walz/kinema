@@ -66,20 +66,27 @@ they land. Commit completed+verified work to `main` (solo workflow).
   selecting an element that isn't visible at the current playhead hides the box
   immediately instead of only on the next playhead move
   ([stage-view.ts](../src/ui/stage-view.ts) ~497).
-- **Line recording — sub-take picker (overrun).** Recording no longer hard-stops
-  at the line's slot end (`Takes.overrun` gates the old auto-stop in
-  [takes.ts](../src/audio/takes.ts)); you can capture a longer take, then in TUNE
-  drag a fixed-length window (= the line's duration) over the take's waveform to
-  pick which slice plays. New per-file `inPoint` persists in `takes.json`
-  (`inPoints` map; route `POST /api/takes/:sid/:lid/:file/inpoint`), honored in
-  preview (`Takes.sync` adds `inPoint`) and export (`render.mjs` uses
-  `winLen = ln.to-ln.from`, `audible = winLen - max(0,off)` so existing exports
-  are unchanged for inPoint=0). Picker overlay: `TakeStrip` window box, mounted
-  on the candidate strip in [tune-view.ts](../src/ui/tune-view.ts). No ripple;
-  the line's duration is unchanged. Chain-mode auto-advance keys off whether the
-  playhead actually passed `line.to` at manual-stop time.
-  **Still needs a manual ear/export check** (record past a slot, drag the window,
-  export, compare preview vs MP4). Length-redefinition + ripple remains deferred.
+- **Recording modes: CHAIN | FREE** (toggle in [record-view.ts](../src/ui/record-view.ts),
+  `rv.chainMode`). CHAIN hard-stops each take at `line.to` and auto-advances to
+  the next line (prompter scrolls along). FREE never auto-stops at the slot —
+  recording rolls on so you can read long; the prompter freezes on the line you
+  started, and you pick/extend afterwards. The mode now drives the slot-end
+  auto-stop in `Takes` (was a separate `overrun` flag). A per-line **progress
+  bar** (RecBar + the current prompter line, [recbar.ts](../src/ui/recbar.ts) /
+  `RecordView.updateLineProgress`) fills across the line's duration and pulses
+  red on overrun.
+- **Line recording — sub-take picker.** Capture a longer take, then drag a
+  fixed-length window (= the line's duration) over the take waveform to pick
+  which slice plays. Per-file `inPoint` persists in `takes.json` (`inPoints`
+  map; route `POST /api/takes/:sid/:lid/:file/inpoint`), honored in preview
+  (`Takes.sync` adds `inPoint`) and export (`render.mjs` uses `winLen = ln.to-ln.from`,
+  `audible = winLen - max(0,off)` so existing exports are unchanged for
+  inPoint=0). Picker overlay: `TakeStrip` window box ([tune-view.ts](../src/ui/tune-view.ts)).
+  **Open follow-ups (in progress):** the picker drag is buggy and needs fixing +
+  relocating inline to record view (T3); edge-drag to **re-length** the line with
+  a full ripple (shift following lines + scene `len` + that scene's later
+  element/caption schedule entries by Δ) is the agreed next step (T4). Needs a
+  manual ear/export check too.
 
 ### Backlog
 - **Editable element labels** (`data-label`) via the HTML patch — names are

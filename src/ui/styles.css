@@ -117,6 +117,14 @@ body.clean #frame{outline:none}
   padding:2px 9px;font-size:12px;line-height:1;min-width:0}
 .rb-stop:hover{background:var(--st-red);color:#0d1117}
 @keyframes blink{50%{opacity:.35}}
+/* per-line recording progress bar pinned to the banner's bottom edge: fills
+   across the line's intended duration, pulses red once the take overruns. */
+.rb-bar{position:absolute;left:0;right:0;bottom:0;height:3px;
+  background:rgba(255,255,255,.12)}
+.rb-bar-fill{height:100%;width:0;background:#7ee787;transition:width .08s linear}
+.rb-bar.over .rb-bar-fill{background:var(--st-red);
+  animation:rb-over .7s ease-in-out infinite}
+@keyframes rb-over{50%{opacity:.35}}
 
 /* script (teleprompter) */
 .sp-lines{display:flex;flex-direction:column;gap:10px;padding-bottom:35vh}
@@ -618,6 +626,15 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
   background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.35);
   opacity:1;line-height:1.4}
 .rv-empty{color:var(--st-faint);font-family:var(--st-mono);font-size:12.5px}
+/* recording progress bar under the current prompter line (mirrors the RecBar
+   bar): fills across the line's duration, pulses red on overrun. */
+.rv-line{position:relative}
+.rv-line-bar{position:absolute;left:8%;right:8%;bottom:4px;height:3px;
+  border-radius:2px;background:rgba(255,255,255,.10);overflow:hidden}
+.rv-line-bar-fill{height:100%;width:0;background:#7ee787;transition:width .08s linear}
+.rv-line-bar.over{background:rgba(248,81,73,.25)}
+.rv-line-bar.over .rv-line-bar-fill{width:100%;background:var(--st-red);
+  animation:rb-over .7s ease-in-out infinite}
 
 /* prompter text-size zoom (A-/A+). Absolute-positioned overlay on the
    .rv-prompter-wrap so it survives renderPrompter()'s replaceChildren()

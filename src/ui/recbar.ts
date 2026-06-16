@@ -41,6 +41,11 @@ export class RecBar {
     private takeStartMs = 0;
     private tickRaf = 0;
 
+    private readonly barEl: HTMLElement;
+    private readonly barFill: HTMLElement;
+    /** intended duration (s) of the line being recorded, for the progress bar */
+    private lineDur = 0;
+
     constructor(takes: Takes, _micMonitor: MicMonitor, player: Player) {
         this.takes = takes;
         this.player = player;
@@ -56,6 +61,9 @@ export class RecBar {
         });
         stop.onclick = () => takes.stopRecording();
 
+        this.barFill = el("div", { class: "rb-bar-fill" });
+        this.barEl = el("div", { class: "rb-bar" }, this.barFill);
+
         this.element = el(
             "div",
             { id: "recbar" },
@@ -64,6 +72,7 @@ export class RecBar {
             this.contextEl,
             this.timeEl,
             stop,
+            this.barEl,
         );
         this.element.style.display = "none";
         document.body.appendChild(this.element);
@@ -76,6 +85,9 @@ export class RecBar {
         document.body.classList.toggle("recording", on);
         if (on) {
             this.updateContext();
+            this.lineDur = this.lineDuration();
+            this.barFill.style.width = "0%";
+            this.barEl.classList.remove("over");
             this.takeStartMs = performance.now();
             this.timeEl.textContent = "0:00.0";
             this.startTick();
@@ -107,12 +119,31 @@ export class RecBar {
         } \u00b7 ${scene.title}${linePart}`;
     }
 
+    /** intended duration (s) of the line being recorded, for the progress bar */
+    private lineDuration(): number {
+        const id = this.takes.recordingLine;
+        const ln = id ? this.player.scene.lines.find((l) => l.id === id) : null;
+        return ln ? Math.max(0.01, ln.to - ln.from) : 0;
+    }
+
     private startTick(): void {
         const loop = (): void => {
             const elapsed = (performance.now() - this.takeStartMs) / 1000;
             const m = Math.floor(elapsed / 60);
             const s = elapsed - m * 60;
             this.timeEl.textContent = `${m}:${s.toFixed(1).padStart(4, "0")}`;
+            /* progress across the line's intended duration; once the take runs
+               long the bar flips to a pulsing "over" colour and we append the
+               overshoot to the clock (FREE mode reads long on purpose). */
+            if (this.lineDur > 0) {
+                const prog = elapsed / this.lineDur;
+                this.barFill.style.width = Math.min(1, prog) * 100 + "%";
+                const over = prog > 1;
+                this.barEl.classList.toggle("over", over);
+                if (over) {
+                    this.timeEl.textContent += `  +${(elapsed - this.lineDur).toFixed(1)}`;
+                }
+            }
             /* keep the scene/line context current too -- in chain mode the
                playhead crosses lines mid-take */
             this.updateContext();
