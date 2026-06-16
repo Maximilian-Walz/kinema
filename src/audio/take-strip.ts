@@ -67,7 +67,6 @@ export class TakeStrip {
     private inPoint: number;
     private readonly onInPointChange?: (inPoint: number) => void;
     private readonly windowEl: HTMLElement;
-    private inPointTimer: number | undefined;
 
     constructor(
         takes: Takes,
@@ -124,47 +123,38 @@ export class TakeStrip {
             "position:relative;display:block;width:100%;border-radius:4px;overflow:hidden;background:rgba(63,185,80,.06);";
         this.element.append(this.canvas, this.windowEl, this.playhead);
 
-        /* drag the window box to choose the in-point. Computes the new start
-           from the box's left edge under the pointer, clamps to
-           [0, duration - windowLen], repositions, scrubs an audition at the
-           window start, and debounces the persisting callback (like timeline). */
+        /* Drag the window box to choose the in-point. Window-level pointer
+           listeners (like StageView.beginFontResize) so the drag keeps tracking
+           even as the box moves under the cursor — element pointer-capture was
+           unreliable here and was the cause of the broken drag. Audition +
+           persist happen once on release, not on every move (no audio
+           machine-gunning, no mid-drag rebuild from the refresh). */
         if (this.windowLen > 0 && this.onInPointChange) {
-            let grabDx = 0; // pointer offset within the box at grab time
-            const dragTo = (ev: PointerEvent): void => {
-                const usable = this.duration - this.windowLen;
-                if (usable <= 0) return;
-                const r = this.element.getBoundingClientRect();
-                const leftPx = ev.clientX - r.left - grabDx;
-                const frac = Math.max(0, Math.min(1, leftPx / r.width));
-                const inp = Math.max(0, Math.min(usable, frac * this.duration));
-                this.inPoint = inp;
-                this.positionWindow();
-                this.takes.scrubAudition(
-                    this.sceneId,
-                    this.lineId,
-                    this.file,
-                    inp,
-                );
-                clearTimeout(this.inPointTimer);
-                this.inPointTimer = window.setTimeout(() => {
-                    this.onInPointChange?.(this.inPoint);
-                }, 400);
-            };
             this.windowEl.addEventListener("pointerdown", (ev) => {
                 if (this.windowEl.style.display === "none") return;
+                const usable = this.duration - this.windowLen;
+                if (usable <= 0) return;
+                ev.preventDefault();
                 ev.stopPropagation(); // don't let the canvas scrub-click fire
+                const r = this.element.getBoundingClientRect();
                 const box = this.windowEl.getBoundingClientRect();
-                grabDx = ev.clientX - box.left;
-                this.windowEl.setPointerCapture(ev.pointerId);
+                const grabDx = ev.clientX - box.left; // pointer offset within the box
                 this.windowEl.style.cursor = "grabbing";
-                const onMove = (mv: PointerEvent) => dragTo(mv);
-                const onUp = () => {
-                    this.windowEl.style.cursor = "grab";
-                    this.windowEl.removeEventListener("pointermove", onMove);
-                    this.windowEl.removeEventListener("pointerup", onUp);
+                const move = (mv: PointerEvent): void => {
+                    const leftPx = mv.clientX - r.left - grabDx;
+                    const frac = r.width > 0 ? leftPx / r.width : 0;
+                    this.inPoint = Math.max(0, Math.min(usable, frac * this.duration));
+                    this.positionWindow();
                 };
-                this.windowEl.addEventListener("pointermove", onMove);
-                this.windowEl.addEventListener("pointerup", onUp);
+                const up = (): void => {
+                    window.removeEventListener("pointermove", move);
+                    window.removeEventListener("pointerup", up);
+                    this.windowEl.style.cursor = "grab";
+                    this.takes.scrubAudition(this.sceneId, this.lineId, this.file, this.inPoint);
+                    this.onInPointChange?.(this.inPoint);
+                };
+                window.addEventListener("pointermove", move);
+                window.addEventListener("pointerup", up);
             });
         }
 
@@ -206,7 +196,6 @@ export class TakeStrip {
     destroy(): void {
         this.destroyed = true;
         cancelAnimationFrame(this.rafId);
-        clearTimeout(this.inPointTimer);
         this.resizeObs.disconnect();
     }
 
