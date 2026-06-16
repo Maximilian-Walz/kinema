@@ -416,17 +416,17 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
 .sv-insp-warn{color:#ffb4a8;font-size:11px;line-height:1.4}
 .sv-insp-note{color:var(--st-faint);font-size:11px;line-height:1.4}
 
-/* collapsible cards (TEXT / LOOK / TIMING), matching TUNE's post-chain cards */
-.sv-card{border:1px solid var(--st-line);border-radius:8px;background:var(--st-panel2);
-  overflow:hidden}
-.sv-card-sum{display:flex;align-items:center;cursor:pointer;list-style:none;
-  padding:7px 10px;font-family:var(--st-mono);font-size:10px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--st-dim)}
-.sv-card-sum::-webkit-details-marker{display:none}
-.sv-card-name{flex:1}
-.sv-card-chev{transition:transform .15s}
-.sv-card[open] .sv-card-chev{transform:rotate(180deg)}
-.sv-card-body{display:flex;flex-direction:column;gap:9px;padding:4px 10px 11px}
+/* tab strip (TEXT | LOOK | TIMING) — one group shown at a time. Segmented
+   control idiom in the inspector's mono-uppercase voice. */
+.sv-tabs{display:flex;gap:2px;border:1px solid var(--st-line);border-radius:8px;
+  background:var(--st-panel);padding:2px}
+.sv-tab{flex:1;padding:6px 4px;border:0;border-radius:6px;background:transparent;
+  cursor:pointer;font-family:var(--st-mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--st-dim);transition:background .12s,color .12s}
+.sv-tab:hover{color:var(--st-text)}
+.sv-tab-on,.sv-tab-on:hover{background:var(--st-panel2);color:var(--st-mode)}
+.sv-tab-empty{opacity:.45}
+.sv-tabbody{display:flex;flex-direction:column;gap:9px}
 .sv-field{display:flex;flex-direction:column;gap:3px}
 .sv-field-label{font-family:var(--st-mono);font-size:9.5px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--st-faint)}

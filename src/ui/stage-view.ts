@@ -93,6 +93,21 @@ export class StageView {
       select/drag handlers stand down and let the caret work */
   private editing = false;
 
+  /** which inspector group is shown (TEXT / LOOK / TIMING). One at a time —
+      persisted per session so re-selecting an element doesn't reset it. */
+  private static readonly TAB_KEY = "sv.tab";
+  private static readonly TABS = ["text", "look", "timing"] as const;
+  private activeTab: (typeof StageView.TABS)[number] = StageView.readTab();
+  private static readTab(): (typeof StageView.TABS)[number] {
+    try {
+      const raw = localStorage.getItem(StageView.TAB_KEY);
+      if (raw && (StageView.TABS as readonly string[]).includes(raw)) {
+        return raw as (typeof StageView.TABS)[number];
+      }
+    } catch { /* localStorage may be unavailable */ }
+    return "text";
+  }
+
   constructor(
     root: HTMLElement,
     player: Player,
@@ -823,38 +838,59 @@ export class StageView {
       return;
     }
 
-    /* collapsible cards; drop a card if it ends up empty */
-    const card = (title: string, fill: (body: HTMLElement) => boolean): void => {
-      const c = this.mkCard(host, title);
-      if (!fill(c.body)) c.card.remove();
-    };
-    card("text", (body) => this.appendTextSection(body, scene, sel.id));
-    card("look", (body) => this.appendStyleSection(body, scene, sel.id));
-    if (entry) {
-      card("timing", (body) => this.appendScheduleSection(body, scene, entry));
-    } else {
-      const add = el("button", {
-        class: "sv-mini sv-add",
-        text: "+ add to schedule at playhead",
-        title: "give this element an enter time so it animates in",
-      });
-      add.onclick = () => this.addEntry(sel.id);
-      host.appendChild(add);
+    /* one group at a time, chosen by the tab strip (B): TEXT | LOOK | TIMING.
+       TEXT dims when the element has no editable text; TIMING shows either the
+       schedule fields or the add-to-schedule button. */
+    const hasText = this.textSpansUnder(this.sceneEl(sel.id) as HTMLElement).length > 0;
+    host.appendChild(this.mkTabs({ text: hasText, look: true, timing: true }));
+    const body = el("div", { class: "sv-tabbody" });
+    host.appendChild(body);
+
+    switch (this.activeTab) {
+      case "text":
+        if (!this.appendTextSection(body, scene, sel.id)) {
+          body.appendChild(el("div", { class: "sv-insp-note", text: "This element has no editable text." }));
+        }
+        break;
+      case "look":
+        this.appendStyleSection(body, scene, sel.id);
+        break;
+      case "timing":
+        if (entry) {
+          this.appendScheduleSection(body, scene, entry);
+        } else {
+          const add = el("button", {
+            class: "sv-mini sv-add",
+            text: "+ add to schedule at playhead",
+            title: "give this element an enter time so it animates in",
+          });
+          add.onclick = () => this.addEntry(sel.id);
+          body.appendChild(add);
+        }
+        break;
     }
   }
 
-  private mkCard(host: HTMLElement, title: string): { card: HTMLDetailsElement; body: HTMLElement } {
-    const card = el("details", { class: "sv-card" }) as HTMLDetailsElement;
-    card.open = true;
-    const summary = document.createElement("summary");
-    summary.className = "sv-card-sum";
-    summary.append(
-      el("span", { class: "sv-card-name", text: title }),
-      el("span", { class: "sv-card-chev", text: "▾" }),
-    );
-    card.append(summary, el("div", { class: "sv-card-body" }));
-    host.appendChild(card);
-    return { card, body: card.lastElementChild as HTMLElement };
+  /** the TEXT | LOOK | TIMING tab strip. `enabled[tab]` false dims a tab (kept
+      clickable — it still shows its empty note). Persists the active tab. */
+  private mkTabs(enabled: Record<(typeof StageView.TABS)[number], boolean>): HTMLElement {
+    const strip = el("div", { class: "sv-tabs", role: "tablist" });
+    for (const tab of StageView.TABS) {
+      const btn = el("button", {
+        class: "sv-tab"
+          + (tab === this.activeTab ? " sv-tab-on" : "")
+          + (enabled[tab] ? "" : " sv-tab-empty"),
+        text: tab,
+      });
+      btn.onclick = () => {
+        if (this.activeTab === tab) return;
+        this.activeTab = tab;
+        try { localStorage.setItem(StageView.TAB_KEY, tab); } catch { /* unavailable */ }
+        this.renderInspector();
+      };
+      strip.appendChild(btn);
+    }
+    return strip;
   }
 
   /* T20: one field per editable text run under the element (handles text nested

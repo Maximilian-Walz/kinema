@@ -40,24 +40,18 @@ they land. Commit completed+verified work to `main` (solo workflow).
 
 ## Open items
 
-### 1. Properties panel: scroll + maybe tabs  (design)
-`.sp-body` already has `overflow-y:auto` ([styles.css](../src/ui/styles.css)
-~L89), so the whole panel scrolls today. The real question is information
-architecture, since TEXT/LOOK/TIMING is a lot at once:
+### 1. Properties panel tabs  ✅ DONE (Option B)
+The inspector now shows one group at a time behind a TEXT | LOOK | TIMING tab
+strip (`StageView.mkTabs` / `.sv-tabs` in [styles.css](../src/ui/styles.css)),
+replacing the collapsible `<details>` cards. Active tab persists to localStorage
+(`sv.tab`, `StageView.TAB_KEY`). TEXT dims (`.sv-tab-empty`) when the element
+has no editable text but stays clickable (shows the empty note). The old
+`.sv-card*` rules and `mkCard` were removed. stage-check gained a `selectTab()`
+helper and switches to the relevant tab before querying group DOM.
 
-- **Option A — keep collapsible cards + whole-panel scroll** (current). Cheapest;
-  user collapses what they don't need.
-- **Option B — top tabs** (TEXT | LOOK | TIMING). One group visible at a time;
-  less scrolling, but a click to switch.
-- **Option C — left-edge icon rail (Blender-style)** the user liked: a thin
-  vertical strip of icons on the left of the side panel; click switches the
-  panel body. Most compact header, scales to more groups later (e.g. add a
-  SCENE/global tab). Needs icons (inline SVG; no icon lib in repo yet).
-
-Recommendation: **C** if we expect more property groups, else **B**. Either way
-keep per-group scroll inside `.sp-body`. Implementation touches
-`StageView.renderInspector` (render one group based on an active-tab field) +
-styles. Persist the active tab per session (localStorage) so it doesn't reset.
+Future: a 4th SCENE/global tab is now a one-liner if we want scene-level props.
+Option C (icon rail) was deferred — only worth it at 5+ groups with reusable
+icons, and the repo has no icon vocabulary yet.
 
 ### 2. In-place text edit: caret invisible + unclear edit mode  ✅ DONE
 `startInlineEdit` now adds a `.sv-editing` class to the node (removed in

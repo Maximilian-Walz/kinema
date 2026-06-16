@@ -10,6 +10,16 @@ const ok = (cond, name) => {
   if (!cond) failures++;
 };
 
+/* inspector groups live behind tabs (TEXT | LOOK | TIMING) — one shown at a
+   time; click the matching tab before querying that group's DOM. */
+const selectTab = async (page, name) => {
+  await page.evaluate((n) => {
+    const t = [...document.querySelectorAll(".sv-tab")].find((b) => b.textContent === n);
+    t?.click();
+  }, name);
+  await new Promise((r) => setTimeout(r, 100));
+};
+
 const browser = await puppeteer.launch({
   executablePath: findChrome(),
   headless: true,
@@ -57,6 +67,7 @@ try {
   /* --- T14: clicking a clip opens the inspector --- */
   await page.click(".sv-lanes .tl-element");
   await new Promise((r) => setTimeout(r, 200));
+  await selectTab(page, "timing"); // the animation select lives in the TIMING group
   const insp = await page.evaluate(() => ({
     name: document.querySelector(".sv-insp-name")?.textContent,
     fields: document.querySelectorAll(".sv-field").length,
@@ -154,12 +165,10 @@ try {
   await new Promise((r) => setTimeout(r, 150));
   await page.click("#fHtml");
   await new Promise((r) => setTimeout(r, 150));
-  const spanFields = await page.evaluate(() => {
-    const card = [...document.querySelectorAll(".sv-card")]
-      .find((c) => c.querySelector(".sv-card-name")?.textContent === "text");
-    return card ? card.querySelectorAll(".sv-input[type=text]").length : 0;
-  });
-  ok(spanFields >= 2, `TEXT card lists each nested text run as a field (${spanFields})`);
+  await selectTab(page, "text");
+  const spanFields = await page.evaluate(() =>
+    document.querySelectorAll(".sv-tabbody .sv-input[type=text]").length);
+  ok(spanFields >= 2, `TEXT group lists each nested text run as a field (${spanFields})`);
 
   /* --- T21/T22: style + position overrides land in scene.css --- */
   const style = await page.evaluate(async () => {
@@ -269,6 +278,7 @@ try {
   /* "+ add exit" spawns the exit at the playhead (when past the entrance) */
   await page.click(".sv-lanes .tl-element"); // select #title (a marker)
   await new Promise((r) => setTimeout(r, 120));
+  await selectTab(page, "timing"); // the "+ add exit" button lives in the TIMING group
   await page.evaluate(() => window.__studio.player.seek(5));
   await new Promise((r) => setTimeout(r, 100));
   const added = await page.evaluate(() => {
