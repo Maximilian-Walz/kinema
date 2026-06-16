@@ -217,21 +217,22 @@ try {
   const scrubbed = await page.evaluate(() => window.__studio.player.localTime);
   ok(scrubbed > 1, `dragging the STAGE ruler scrubs the playhead (local=${scrubbed.toFixed(2)})`);
 
-  /* --- T25: selection overlay box shows, even for a not-yet-entered element --- */
+  /* --- T25: selection overlay box draws over the element while it's on-screen,
+     and hides once it's off-screen (before entrance / after exit) --- */
+  await page.evaluate(() => window.__studio.player.seek(2)); // #title visible (enter 0.4)
   await page.click(".sv-lanes .tl-element"); // selects #title
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 200));
   const selBox = await page.evaluate(() => {
     const b = document.querySelector(".sv-ovl-sel");
     return b ? { shown: getComputedStyle(b).display !== "none", w: b.getBoundingClientRect().width } : null;
   });
   ok(selBox && selBox.shown && selBox.w > 0, `selection overlay box is drawn (${JSON.stringify(selBox)})`);
-  await page.evaluate(() => window.__studio.player.seek(0)); // title hidden (enter 0.4)
-  await new Promise((r) => setTimeout(r, 120));
-  const hiddenSel = await page.evaluate(() => {
-    const b = document.querySelector(".sv-ovl-sel");
-    return b && getComputedStyle(b).display !== "none" && b.getBoundingClientRect().width > 0;
-  });
-  ok(hiddenSel, "selection box shows even when the element is hidden before its entrance");
+  await page.evaluate(() => window.__studio.player.seek(0)); // before #title's entrance (0.4)
+  await new Promise((r) => setTimeout(r, 250)); // schedule-based hide is instant on seek
+  const hiddenSel = await page.evaluate(() =>
+    !!document.querySelector(".sv-ovl-sel") &&
+    getComputedStyle(document.querySelector(".sv-ovl-sel")).display !== "none");
+  ok(!hiddenSel, "selection box hides when the element is off-screen before its entrance");
 
   /* hover box appears over the element under the cursor */
   await page.evaluate(() => window.__studio.player.seek(6));

@@ -545,10 +545,14 @@ export class StageView {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       if (!moved) return;
+      /* the drag only set node.style.fontSize inline; scene.css still holds the
+         prior size, so snapshot now for an undoable resize */
+      const before = this.history.snapshot(scene);
       api.setElementStyle(scene.id, id, { "font-size": font + "px" })
         .then((css) => {
           this.player.replaceSceneCss(scene, css);
           node.style.fontSize = ""; // hand off to the override
+          this.history.commit(scene, before);
           this.renderInspector();
         })
         .catch((err) => console.warn("[stage] font resize failed:", err));
@@ -577,10 +581,52 @@ export class StageView {
     box.style.height = r.height + "px";
   }
 
+  /** Is element `id` on-screen at the current playhead? When it's scheduled,
+      use the schedule window (deterministic + instant on a seek, vs. waiting on
+      the entrance/exit fade). Otherwise fall back to computed visibility. */
+  private isOnScreen(id: string): boolean {
+    const entry = this.player.scene.schedule.find((s) => s.id === id);
+    if (entry) {
+      const local = this.player.localTime;
+      return local >= entry.enter && (entry.exit === undefined || local < entry.exit);
+    }
+    const node = this.sceneEl(id);
+    if (!node) return false;
+    const cs = getComputedStyle(node);
+    return cs.display !== "none" && cs.visibility !== "hidden" && parseFloat(cs.opacity) > 0.01;
+  }
+
   private repositionBoxes(): void {
     if (!this.active) return;
-    this.positionBox(this.selBox, this.sel ? this.sceneEl(this.sel.id) : null);
+    /* while editing text in place, the .sv-editing outline owns the element's
+       visuals — keep the chrome boxes hidden so they don't reappear over the
+       caret on a stray player event */
+    if (this.editing) {
+      this.positionBox(this.selBox, null);
+      this.positionBox(this.hoverBox, null);
+      return;
+    }
+    /* hide the selection box when its element isn't on-screen (before entrance /
+       after exit) — a box floating over an invisible element is just noise */
+    const selNode = this.sel && this.isOnScreen(this.sel.id) ? this.sceneEl(this.sel.id) : null;
+    this.positionBox(this.selBox, selNode);
     this.positionBox(this.hoverBox, this.hoverEl);
+  }
+
+  /** Keep the overlay boxes glued to their elements across a CSS transition
+      while paused (playback already repositions every frame). Undo/redo and
+      style edits can re-trigger an entrance or move an element over ~0.5s; a
+      single reposition would capture only the start of that motion. */
+  private settleRaf = 0;
+  private settleBoxes(): void {
+    if (this.player.playing) return;
+    cancelAnimationFrame(this.settleRaf);
+    let frames = 0;
+    const tick = (): void => {
+      this.repositionBoxes();
+      if (++frames < 45) this.settleRaf = requestAnimationFrame(tick); // ~0.7s @60fps
+    };
+    this.settleRaf = requestAnimationFrame(tick);
   }
 
   deleteSelection(): void {
@@ -1077,6 +1123,20 @@ export class StageView {
     this.stopKeys(fxSel);
     parent.appendChild(this.field("animation", fxSel));
 
+    /* The dropdown only reflects the schedule's `fx` field. When an element has
+       no preset but still animates (a class like .el / .ovl with a CSS
+       transition), "none" looks wrong — say so, and that a preset overrides it. */
+    if (!entry.fx) {
+      const node = this.sceneEl(entry.id);
+      const dur = node ? getComputedStyle(node).transitionDuration : "0s";
+      if (dur && dur.split(",").some((d) => parseFloat(d) > 0)) {
+        parent.appendChild(el("div", {
+          class: "sv-insp-note",
+          text: "Animates via its own CSS class (e.g. .el). Pick a preset to override that motion.",
+        }));
+      }
+    }
+
     const clsInput = el("input", {
       type: "text", class: "sv-input", value: entry.cls ?? "on",
       title: "CSS class the engine toggles (default 'on'); animation presets pair with 'on'.",
@@ -1220,5 +1280,9 @@ export class StageView {
     this.playhead.style.left = local * this.pps + "px";
     for (const c of this.clips) c.div.classList.toggle("current", c.isCurrent(local));
     this.repositionBoxes(); // track elements as they move through animations
+    /* during playback the player's rAF calls onTime every frame, so the boxes
+       already track; a paused seek/scrub/undo fires onTime once, so kick a short
+       settle loop to follow the element through its entrance/exit transition. */
+    this.settleBoxes();
   }
 }

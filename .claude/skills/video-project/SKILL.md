@@ -46,6 +46,13 @@ What separates a valid project from a watchable one:
   fires. Use `.ovl` for full-frame beats; stack overlays and let an opaque one cover
   the previous (no `exit` needed). Never animate from JavaScript. A class change must
   look identical played forward or scrubbed backward.
+- **Two ways to animate; prefer the `fx` preset for new work.** Set `fx` in the
+  schedule (`up`/`fade`/`down`/`left`/`right`/`pop`) and the theme's `.fx-*` rules
+  animate it — fully driven by the SCENE editor's animation dropdown, no scene CSS.
+  Class-based (`.el` etc.) is the alternative for bespoke motion, but the dropdown
+  can't see it (reads "none"). **Always copy the `.fx-*` block from
+  projects/intro/theme.css into a new project's `theme.css`** or the dropdown does
+  nothing. `.el` is just the class-based equivalent of `fx: "up"`.
 - **1920x1080 stage. Keep content above the caption band.** The lower third is
   reserved for captions. If a scene uses captions, include `<div id="caption"></div>`
   and keep real content out of the bottom band.
@@ -72,7 +79,8 @@ What separates a valid project from a watchable one:
    at ~2.5 w/s. Sum them to get `len`.
 3. **Scaffold.** Create `projects/<name>/` with `project.json` (name, scene order,
    1920x1080), a `theme.css` (start from projects/intro/theme.css so `.el`/`.ovl`
-   exist), and `scenes/<id>/` folders. Scene ids match `[\w.-]+`.
+   **and the `.fx-*` presets** exist), and `scenes/<id>/` folders. Scene ids
+   match `[\w.-]+`.
 4. **Build each scene.** `scene.html` (markup with ids, `#caption` if used),
    `scene.css` (scene-scoped look), `scene.json` (`title`, `len`, `schedule`,
    `captions`, `lines`). Put schedule entries on the line beats.

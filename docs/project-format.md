@@ -82,6 +82,21 @@ element with that `#id`:
 The engine never animates directly. It only flips classes. Put the motion in CSS
 transitions so a class change looks the same played forward or scrubbed backward.
 
+#### Two ways to animate an element
+
+Both drive motion off the same class toggle; they differ in *where the CSS
+lives*, and the SCENE editor's **animation dropdown reflects only the `fx`
+field** (see [theme.css helpers](#themecss-helpers)):
+
+1. **Preset (`fx`)** — set `fx` in the schedule; the theme's `.fx-*` rules supply
+   the motion. Zero scene CSS, fully dropdown-driven. **Requires the theme to
+   define the `.fx-*` rules** — without them the class is added but nothing
+   animates. This is the recommended default for new projects.
+2. **Class-based** — give the element a class in `scene.html` (e.g. `.el`) whose
+   CSS animates on `.on`. More flexible (any bespoke motion), but the editor's
+   dropdown can't see it, so it reads "none" (the inspector notes this). Picking
+   a preset then *overrides* the class-based motion.
+
 ### captions
 
 A scene with captions must include `<div id="caption"></div>` in its markup. The
@@ -132,8 +147,16 @@ reusing across scenes (see [projects/intro/theme.css](../projects/intro/theme.cs
 
 - `.el` — starts hidden and shifted down; `.el.on` fades and slides it into
   place. Give a scheduled element `.el` and it animates in when its entry fires.
+  (`.el` is the class-based equivalent of the `fx: "up"` preset.)
 - `.ovl` — a full-stage overlay that fades in on `.on`. Stack several and toggle
   between them for full-frame beats.
+
+**Include the `fx` presets in every project's `theme.css`** so the SCENE
+editor's animation dropdown works (intro and groupchat both ship them). The
+canonical block — `.fx-fade/.fx-up/.fx-down/.fx-left/.fx-right/.fx-pop` plus the
+shared `.fx-*.on` reset — is in
+[projects/intro/theme.css](../projects/intro/theme.css); copy it verbatim (tune
+the distances/easing to taste). Without it, picking a preset does nothing.
 
 ## behaviors
 
