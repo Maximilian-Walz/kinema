@@ -4,19 +4,23 @@
   "schedule": [
     {
       "id": "rec",
-      "enter": 0.4
+      "enter": 0.4,
+      "fx": "fade"
     },
     {
       "id": "wave",
-      "enter": 5.6
+      "enter": 5.6,
+      "fx": "pop"
     },
     {
       "id": "picked",
-      "enter": 10.6
+      "enter": 10.6,
+      "fx": "up"
     },
     {
       "id": "align",
-      "enter": 16.4
+      "enter": 16.4,
+      "fx": "up"
     }
   ],
   "captions": [

@@ -4,15 +4,18 @@
   "schedule": [
     {
       "id": "title",
-      "enter": 0.4
+      "enter": 0.4,
+      "fx": "up"
     },
     {
       "id": "sub",
-      "enter": 1.5
+      "enter": 1.5,
+      "fx": "fade"
     },
     {
       "id": "proj",
-      "enter": 4.8
+      "enter": 4.8,
+      "fx": "up"
     },
     {
       "id": "o1b",
@@ -20,19 +23,23 @@
     },
     {
       "id": "fHtml",
-      "enter": 12.9
+      "enter": 12.9,
+      "fx": "up"
     },
     {
       "id": "fCss",
-      "enter": 14.4
+      "enter": 14.4,
+      "fx": "up"
     },
     {
       "id": "fJson",
-      "enter": 17.8
+      "enter": 17.8,
+      "fx": "up"
     },
     {
       "id": "note",
-      "enter": 22
+      "enter": 22,
+      "fx": "fade"
     }
   ],
   "captions": [
@@ -52,7 +59,7 @@
       "id": "01-what-l1",
       "from": 0,
       "to": 4.6,
-      "text": "This is video-studio. It turns plain web files into data-driven videos."
+      "text": "This is Kinema. It turns plain web files into data-driven videos."
     },
     {
       "id": "01-what-l2",

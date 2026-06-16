@@ -1,30 +1,47 @@
 {
-  "title": "PLAYBACK + TIMELINE",
-  "len": 24.5,
+  "title": "TIMELINE + SCENE",
+  "len": 44.5,
   "schedule": [
     {
       "id": "frame",
-      "enter": 0.3
+      "enter": 0.3,
+      "fx": "fade"
+    },
+    {
+      "id": "modes",
+      "enter": 0.6,
+      "fx": "fade"
+    },
+    {
+      "id": "mTl",
+      "enter": 0.6,
+      "cls": "hot",
+      "exit": 25.8
     },
     {
       "id": "stage",
-      "enter": 0.6
+      "enter": 0.9,
+      "fx": "pop"
     },
     {
       "id": "tl",
-      "enter": 4.4
+      "enter": 4.4,
+      "fx": "up"
     },
     {
       "id": "cl1",
-      "enter": 4.6
+      "enter": 4.6,
+      "fx": "pop"
     },
     {
       "id": "cl2",
-      "enter": 4.9
+      "enter": 4.9,
+      "fx": "pop"
     },
     {
       "id": "cl3",
-      "enter": 5.2
+      "enter": 5.2,
+      "fx": "pop"
     },
     {
       "id": "cl4",
@@ -36,15 +53,55 @@
     },
     {
       "id": "ph",
-      "enter": 8.6
+      "enter": 8.6,
+      "fx": "fade"
     },
     {
       "id": "snap",
-      "enter": 13.6
+      "enter": 13.6,
+      "fx": "up"
     },
     {
       "id": "undo",
-      "enter": 18.6
+      "enter": 18.6,
+      "fx": "up"
+    },
+    {
+      "id": "mScene",
+      "enter": 25.8,
+      "cls": "hot"
+    },
+    {
+      "id": "insp",
+      "enter": 25.8,
+      "fx": "up"
+    },
+    {
+      "id": "caret",
+      "enter": 30,
+      "fx": "fade"
+    },
+    {
+      "id": "tabText",
+      "enter": 30,
+      "cls": "hot",
+      "exit": 35
+    },
+    {
+      "id": "tabLook",
+      "enter": 35,
+      "cls": "hot",
+      "exit": 39.2
+    },
+    {
+      "id": "tabTiming",
+      "enter": 39.2,
+      "cls": "hot"
+    },
+    {
+      "id": "restyle",
+      "enter": 39.2,
+      "fx": "up"
     }
   ],
   "captions": [
@@ -57,6 +114,16 @@
       "from": 13.6,
       "to": 18.4,
       "text": "clips snap so the beats line up"
+    },
+    {
+      "from": 25.8,
+      "to": 34.8,
+      "text": "SCENE mode (F4): edit the frame in place"
+    },
+    {
+      "from": 35,
+      "to": 43.6,
+      "text": "restyle and retype write back to disk"
     }
   ],
   "lines": [
@@ -95,6 +162,36 @@
       "from": 20.4,
       "to": 24,
       "text": "Every edit writes straight back into the scene's JSON."
+    },
+    {
+      "id": "02-timeline-l7",
+      "from": 24.2,
+      "to": 25.6,
+      "text": "That's TIMELINE mode."
+    },
+    {
+      "id": "02-timeline-l8",
+      "from": 25.8,
+      "to": 29.8,
+      "text": "Press F4 for SCENE mode and edit the frame itself."
+    },
+    {
+      "id": "02-timeline-l9",
+      "from": 30,
+      "to": 34.8,
+      "text": "Click any line of text and retype it right in place."
+    },
+    {
+      "id": "02-timeline-l10",
+      "from": 35,
+      "to": 39,
+      "text": "The inspector tabs restyle the look and nudge the timing."
+    },
+    {
+      "id": "02-timeline-l11",
+      "from": 39.2,
+      "to": 43.6,
+      "text": "Retype or restyle, and it writes back to scene.html and scene.css."
     }
   ]
 }

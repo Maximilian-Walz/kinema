@@ -4,35 +4,43 @@
   "schedule": [
     {
       "id": "p1",
-      "enter": 0.5
+      "enter": 0.5,
+      "fx": "left"
     },
     {
       "id": "a1",
-      "enter": 2.4
+      "enter": 2.4,
+      "fx": "left"
     },
     {
       "id": "p2",
-      "enter": 2.7
+      "enter": 2.7,
+      "fx": "left"
     },
     {
       "id": "a2",
-      "enter": 10.8
+      "enter": 10.8,
+      "fx": "left"
     },
     {
       "id": "p3",
-      "enter": 11
+      "enter": 11,
+      "fx": "left"
     },
     {
       "id": "a3",
-      "enter": 15.8
+      "enter": 15.8,
+      "fx": "left"
     },
     {
       "id": "p4",
-      "enter": 16
+      "enter": 16,
+      "fx": "pop"
     },
     {
       "id": "enote",
-      "enter": 17.5
+      "enter": 17.5,
+      "fx": "fade"
     }
   ],
   "captions": [

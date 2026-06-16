@@ -1,5 +1,13 @@
 .frame{width:1280px;background:var(--panel);border:1px solid var(--line);
   border-radius:20px;padding:26px;display:flex;flex-direction:column;gap:22px}
+
+/* mode switch — TIMELINE (F3) vs SCENE (F4) */
+.modes{display:flex;gap:14px}
+.mode{font-family:var(--mono);font-size:20px;letter-spacing:.12em;
+  color:var(--dim);background:var(--panel2);border:1px solid var(--line);
+  border-radius:999px;padding:10px 22px}
+.mode.hot{color:#0b1020;background:var(--accent);border-color:var(--accent)}
+
 .stage{height:300px;border-radius:12px;background:var(--panel2);
   border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
   font-family:var(--mono);letter-spacing:.3em;color:var(--dim);font-size:28px}
@@ -22,7 +30,17 @@
 .playhead{position:absolute;top:8px;bottom:8px;left:430px;width:3px;
   background:var(--warn);box-shadow:0 0 12px var(--warn)}
 
-.badges{display:flex;gap:28px}
-.badge{font-family:var(--mono);font-size:26px;color:var(--text);
+/* SCENE inspector — the TEXT | LOOK | TIMING tabs + the in-place edit caret */
+.insp{width:1280px;background:var(--panel);border:1px solid var(--line);
+  border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:18px}
+.tabs{display:flex;gap:10px}
+.tab{font-family:var(--mono);font-size:20px;letter-spacing:.16em;
+  color:var(--dim);background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;padding:10px 24px}
+.tab.hot{color:#0b1020;background:var(--accent2);border-color:var(--accent2)}
+.caret{font-size:26px;color:var(--text);font-family:var(--mono)}
+
+.badges{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;max-width:1280px}
+.badge{font-family:var(--mono);font-size:24px;color:var(--text);
   background:var(--panel);border:1px solid var(--line);border-radius:999px;
-  padding:14px 28px}
+  padding:14px 26px}

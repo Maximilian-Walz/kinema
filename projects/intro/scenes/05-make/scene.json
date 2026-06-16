@@ -4,15 +4,18 @@
   "schedule": [
     {
       "id": "st1",
-      "enter": 2
+      "enter": 2,
+      "fx": "left"
     },
     {
       "id": "st2",
-      "enter": 3.5
+      "enter": 3.5,
+      "fx": "left"
     },
     {
       "id": "st3",
-      "enter": 5
+      "enter": 5,
+      "fx": "left"
     },
     {
       "id": "o5b",
@@ -20,11 +23,13 @@
     },
     {
       "id": "end",
-      "enter": 15.2
+      "enter": 15.2,
+      "fx": "up"
     },
     {
       "id": "endsub",
-      "enter": 16.1
+      "enter": 16.1,
+      "fx": "fade"
     }
   ],
   "captions": [
