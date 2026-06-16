@@ -521,8 +521,10 @@ export class Timeline {
             },
           });
         } else if (target === hr) {
-          /* dragging the right edge of a marker creates its exit */
-          const orig = ev.exit ?? ev.enter;
+          /* dragging the right edge of a marker creates its exit — spawn it at
+             the mouse (the visual right edge), not back at `enter`, so it
+             doesn't jump */
+          const orig = ev.exit ?? (this.timeAt(e.clientX) - P.offsets[si]);
           this.beginDrag(e, {
             scenes: [scene],
             excluded: new Set([clip]),
@@ -537,6 +539,13 @@ export class Timeline {
         } else {
           this.dragSelection(e, record);
         }
+      };
+      /* double-click an element clip: select it and jump the playhead to its
+         entrance (script/caption clips keep their text editor instead) */
+      clip.ondblclick = (e) => {
+        e.stopPropagation();
+        this.setSelection([key]);
+        this.player.seek(P.offsets[si] + ev.enter);
       };
       track.appendChild(clip);
       place();
@@ -683,7 +692,12 @@ export class Timeline {
       before: this.history.snapshot(s),
     }));
     const targets = this.snapTargets(spec.excluded);
+    let moved = false;
     this.capture(e, (ev) => {
+      /* sub-threshold jitter isn't a drag: skipping the rebuild on a plain
+         click keeps the clip div alive so a double-click can land on it */
+      if (!moved && Math.abs(ev.clientX - startX) < 3) return;
+      moved = true;
       const raw = (ev.clientX - startX) / this.pps;
       const delta = this.snapDelta(raw, spec.edges, targets, ev.shiftKey);
       spec.apply(delta);
@@ -692,8 +706,10 @@ export class Timeline {
     }, () => {
       this.dragging = false;
       this.snapGuide.style.display = "none";
-      snaps.forEach(({ s, before }) => this.history.commit(s, before));
-      this.rebuild();
+      if (moved) {
+        snaps.forEach(({ s, before }) => this.history.commit(s, before));
+        this.rebuild();
+      }
     });
   }
 

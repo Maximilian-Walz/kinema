@@ -250,6 +250,31 @@ try {
   const dblLocal = await page.evaluate(() => window.__studio.player.localTime);
   ok(Math.abs(dblLocal - 1.5) < 0.2, `double-click element seeks to its entrance (local=${dblLocal.toFixed(2)})`);
 
+  /* double-click a timeline CLIP seeks to its element's entrance too */
+  await page.evaluate(() => window.__studio.player.seek(6));
+  await page.click(".sv-lanes .tl-element", { clickCount: 2 }); // first clip = #title (enter 0.4)
+  await new Promise((r) => setTimeout(r, 150));
+  const clipDbl = await page.evaluate(() => window.__studio.player.localTime);
+  ok(Math.abs(clipDbl - 0.4) < 0.2, `double-click a clip seeks to its entrance (local=${clipDbl.toFixed(2)})`);
+
+  /* "+ add exit" spawns the exit at the playhead (when past the entrance) */
+  await page.click(".sv-lanes .tl-element"); // select #title (a marker)
+  await new Promise((r) => setTimeout(r, 120));
+  await page.evaluate(() => window.__studio.player.seek(5));
+  await new Promise((r) => setTimeout(r, 100));
+  const added = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll(".sv-inspector button")]
+      .find((b) => /add exit/.test(b.textContent));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const exitVal = await page.evaluate(() =>
+    window.__studio.player.project.scenes[0].schedule.find((s) => s.id === "title")?.exit);
+  ok(added && exitVal != null && Math.abs(exitVal - 5) < 0.2,
+    `"+ add exit" spawns the exit at the playhead (exit=${exitVal})`);
+
   ok(errors.length === 0, "no page errors" + (errors.length ? ": " + errors[0] : ""));
 } finally {
   await browser.close();

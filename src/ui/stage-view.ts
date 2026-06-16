@@ -200,17 +200,8 @@ export class StageView {
   /** scrub the playhead by clicking or dragging the ruler / empty lanes
       (window-level listeners so the drag keeps tracking outside the element) */
   private seekDrag(e: PointerEvent): void {
-    const seek = (clientX: number): void => {
-      const rect = this.scroll.getBoundingClientRect();
-      const local = Math.max(
-        0,
-        Math.min(
-          this.player.scene.len,
-          (clientX - rect.left + this.scroll.scrollLeft) / this.pps,
-        ),
-      );
-      this.player.seek(this.player.offsets[this.player.sceneIndex] + local);
-    };
+    const seek = (clientX: number): void =>
+      this.player.seek(this.player.offsets[this.player.sceneIndex] + this.localAt(clientX));
     seek(e.clientX);
     const move = (ev: PointerEvent): void => seek(ev.clientX);
     const up = (): void => {
@@ -321,7 +312,9 @@ export class StageView {
           );
         });
       } else if (target === hr) {
-        const orig = entry.exit ?? entry.enter;
+        /* a marker has no exit yet: spawn it where the mouse grabbed (the
+           visual right edge), not back at `enter`, so it doesn't jump */
+        const orig = entry.exit ?? this.localAt(e.clientX);
         this.beginDrag(e, entry, [orig], (delta) => {
           entry.exit = Math.max(
             entry.enter + 0.1,
@@ -338,8 +331,28 @@ export class StageView {
       }
     };
 
+    /* double-click a clip: select it and jump the playhead to its entrance
+       (mirrors double-clicking the element in the preview) */
+    clip.ondblclick = (e) => {
+      e.stopPropagation();
+      this.selectEntry(entry);
+      this.player.seek(this.player.offsets[this.player.sceneIndex] + entry.enter);
+    };
+
     this.lanes.appendChild(clip);
     place();
+  }
+
+  /** scene-local time under a client x (shared by scrubbing + exit-on-drag) */
+  private localAt(clientX: number): number {
+    const rect = this.scroll.getBoundingClientRect();
+    return Math.max(
+      0,
+      Math.min(
+        this.player.scene.len,
+        (clientX - rect.left + this.scroll.scrollLeft) / this.pps,
+      ),
+    );
   }
 
   /* ------------------------------- drag (clips) ------------------------- */
@@ -357,7 +370,12 @@ export class StageView {
     const targets = this.snapTargets(entry);
     const target = e.target as HTMLElement;
     target.setPointerCapture(e.pointerId);
+    let moved = false;
     const move = (ev: PointerEvent): void => {
+      /* ignore sub-threshold jitter so a plain click isn't treated as a drag:
+         no rebuild on click keeps the clip div alive across a double-click */
+      if (!moved && Math.abs(ev.clientX - startX) < 3) return;
+      moved = true;
       apply(this.snapDelta((ev.clientX - startX) / this.pps, edges, targets, ev.shiftKey));
       this.sync.changed(scene);
       for (const c of this.clips) c.place();
@@ -368,8 +386,10 @@ export class StageView {
       target.removeEventListener("pointercancel", up);
       this.dragging = false;
       this.snapGuide.style.display = "none";
-      this.history.commit(scene, before);
-      this.rebuild();
+      if (moved) {
+        this.history.commit(scene, before);
+        this.rebuild();
+      }
     };
     target.addEventListener("pointermove", move);
     target.addEventListener("pointerup", up);
@@ -836,8 +856,18 @@ export class StageView {
       rm.onclick = () => this.commit(scene, () => delete entry.exit);
       sec.appendChild(this.field("exit (s)", el("div", { class: "sv-insp-inline" }, exitInput, rm)));
     } else {
-      const add = el("button", { class: "sv-mini", text: "+ add exit", title: "give the element an exit time" });
-      add.onclick = () => this.commit(scene, () => { entry.exit = round(Math.min(scene.len, entry.enter + 2)); });
+      const add = el("button", {
+        class: "sv-mini", text: "+ add exit",
+        title: "give the element an exit — at the playhead if it's past the entrance",
+      });
+      add.onclick = () => this.commit(scene, () => {
+        const p = this.player.localTime;
+        entry.exit = round(
+          p > entry.enter + 0.1
+            ? Math.min(scene.len, p)
+            : Math.min(scene.len, entry.enter + 2),
+        );
+      });
       sec.appendChild(this.field("exit", add));
     }
 
