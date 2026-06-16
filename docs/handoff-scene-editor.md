@@ -52,14 +52,15 @@ they land. Commit completed+verified work to `main` (solo workflow).
 - Inspector TEXT | LOOK | TIMING tabs (replaced the `<details>` cards).
 - Undo/redo for SCENE text & style edits (T28).
 - Selection box tracks the node during a paused drag.
-- **Edit-mode caret now always visible.** Root cause: Blink derives the caret
-  from `-webkit-text-fill-color`, so transparent-fill / gradient text painted a
-  transparent caret on *some* elements. Fix in `.sv-editing,.sv-editing *`
-  ([styles.css](../src/ui/styles.css) ~460): force `caret-color`, `color`, and
-  `-webkit-text-fill-color` opaque + `background-clip:border-box` while editing.
-  **Tradeoff:** edited text is recoloured amber during the edit (fill-independent
-  way to guarantee the caret). If WYSIWYG colour-while-editing is wanted, switch
-  to a JS per-element computed-colour approach instead.
+- **Edit-mode caret — custom caret (real root cause).** The native caret is a
+  1px line; inside the scaled `#stage` (`main.ts` `transform:scale()`) it lands
+  on/off a rasterised pixel column at different sub-pixel x, so it vanishes at
+  some caret positions, consistently per text/font. (An earlier amber-fill fix
+  was wrong — it's geometry, not colour.) Now the native caret is hidden
+  (`caret-color:transparent`) and `StageView.positionCaret()` draws a custom
+  `.sv-caret` in the `#stagearea` chrome at the selection focus rect (post-scale
+  `getClientRects()`, same basis as `positionBox`), updated on
+  `selectionchange`/`input`/`keyup`/`pointerup`. Text keeps its real colour.
 - **Off-screen selection no longer leaves a stale highlight box.** `highlight()`
   now applies the same `isOnScreen(id)` gate that `repositionBoxes()` uses, so
   selecting an element that isn't visible at the current playhead hides the box

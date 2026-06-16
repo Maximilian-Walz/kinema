@@ -457,23 +457,21 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
 .sv-ovl-sel{outline:2px solid var(--st-mode);
   box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 12px rgba(57,197,207,.6)}
 .sv-ovl-hover{outline:1px dashed var(--st-mode);opacity:.75}
-/* in-place text editing (StageView.startInlineEdit). Visually distinct from the
-   cyan selection (solid) and hover (dashed) boxes — a warm amber solid outline +
-   glow reads unmistakably as "you are editing this".
-   Caret visibility: caret-color alone is NOT enough. Blink/WebKit derive the
-   caret colour from -webkit-text-fill-color, so transparent-fill or gradient
-   (background-clip:text + transparent fill) text paints a transparent caret no
-   matter what caret-color says — that's why it was invisible on some elements.
-   Force a concrete amber fill (and undo any clip-to-text) on the edited node and
-   its descendants, so the caret AND the typed text stay visible for every
-   element regardless of its own colour/gradient styling. Recolouring the text
-   amber while editing also reinforces the "you are editing this" signal. */
-.sv-editing,.sv-editing *{caret-color:#ffd166!important;color:#ffd166!important;
-  -webkit-text-fill-color:#ffd166!important;
-  -webkit-background-clip:border-box!important;background-clip:border-box!important}
+/* in-place text editing (StageView.startInlineEdit). A warm amber outline + glow
+   reads unmistakably as "you are editing this", distinct from the cyan selection
+   (solid) and hover (dashed) boxes. Text keeps its real colour.
+   The native caret is unreliable inside the scaled #stage: a 1px caret lands
+   on/off a rasterised pixel column at different sub-pixel x, so it vanishes at
+   some positions (consistently, per text/font). We hide it and draw our own
+   scale-proof caret (.sv-caret) in the #stagearea chrome instead. */
+.sv-editing,.sv-editing *{caret-color:transparent!important}
 .sv-editing{outline:2px solid #ffd166;outline-offset:3px;border-radius:3px;
-  min-width:.5ch;background:rgba(255,209,102,.14);cursor:text;
-  box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 16px rgba(255,209,102,.5)}
+  min-width:.5ch;background:rgba(255,209,102,.10);cursor:text;
+  box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 16px rgba(255,209,102,.45)}
+.sv-caret{position:absolute;width:2px;z-index:62;pointer-events:none;
+  background:var(--st-mode);border-radius:1px;box-shadow:0 0 4px var(--st-mode);
+  animation:sv-caret-blink 1.06s steps(1,end) infinite}
+@keyframes sv-caret-blink{0%,50%{opacity:1}50.01%,100%{opacity:0}}
 /* corner handle on the selection box: drag to resize font (pointer-events on,
    though the box itself is inert) */
 .sv-ovl-handle{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;

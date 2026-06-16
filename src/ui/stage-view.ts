@@ -89,9 +89,15 @@ export class StageView {
   private hoverBox: HTMLElement | null = null;
   private hoverEl: HTMLElement | null = null;
   private fontHandle: HTMLElement | null = null;
+  /** custom text caret drawn in #stagearea chrome. The native caret is a 1px
+      line that lands on/off a rasterised column at different sub-pixel x inside
+      the scaled #stage, so it vanishes at some positions — we draw our own. */
+  private caret: HTMLElement | null = null;
   /** true while an in-place text edit (contenteditable) is open, so the
       select/drag handlers stand down and let the caret work */
   private editing = false;
+  /** the node currently being edited in place (for caret fallback metrics) */
+  private editingNode: HTMLElement | null = null;
 
   /** which inspector group is shown (TEXT / LOOK / TIMING). One at a time —
       persisted per session so re-selecting an element doesn't reset it. */
@@ -519,8 +525,44 @@ export class StageView {
     this.fontHandle = el("div", { class: "sv-ovl-handle", title: "drag to resize the font" });
     this.fontHandle.onpointerdown = (e) => this.beginFontResize(e);
     this.selBox.appendChild(this.fontHandle);
-    sa.append(this.selBox, this.hoverBox);
+    this.caret = el("div", { class: "sv-caret" });
+    this.caret.style.display = "none";
+    sa.append(this.selBox, this.hoverBox, this.caret);
   }
+
+  /** Position the custom caret at the selection's focus point, in #stagearea
+      coordinates (same basis as positionBox — getClientRects() is post-scale).
+      Restarts the blink so the caret is solid immediately after it moves. */
+  private positionCaret = (): void => {
+    if (!this.editing || !this.caret) return;
+    const sa = document.getElementById("stagearea");
+    const sel = window.getSelection();
+    if (!sa || !sel || !sel.focusNode || !this.editingNode?.contains(sel.focusNode)) {
+      this.caret.style.display = "none";
+      return;
+    }
+    let rect: DOMRect | null = null;
+    try {
+      const r = document.createRange();
+      r.setStart(sel.focusNode, sel.focusOffset);
+      r.collapse(true);
+      rect = r.getClientRects()[0] ?? r.getBoundingClientRect();
+    } catch { /* fall through to the node-metrics fallback */ }
+    // empty element / zero rect: derive a caret box from the node's font metrics
+    if (!rect || (rect.height === 0 && rect.width === 0 && rect.left === 0)) {
+      const nr = this.editingNode.getBoundingClientRect();
+      const fs = parseFloat(getComputedStyle(this.editingNode).fontSize) || 16;
+      rect = new DOMRect(nr.left + 1, nr.top + Math.max(0, (nr.height - fs) / 2), 0, fs);
+    }
+    const sr = sa.getBoundingClientRect();
+    this.caret.style.left = (rect.left - sr.left) + "px";
+    this.caret.style.top = (rect.top - sr.top) + "px";
+    this.caret.style.height = (rect.height || 16) + "px";
+    this.caret.style.display = "block";
+    this.caret.style.animation = "none";
+    void this.caret.offsetWidth; // reflow to restart the blink
+    this.caret.style.animation = "";
+  };
 
   /** R6: drag the selection's corner handle to scale the element's font-size,
       written to the scene.css override (live preview while dragging). */
@@ -755,6 +797,8 @@ export class StageView {
     const scene = this.player.scene;
     const orig = node.textContent ?? "";
     this.editing = true;
+    this.editingNode = node;
+    this.ensureOverlays(); // make sure the custom caret element exists
     node.setAttribute("contenteditable", "plaintext-only");
     node.classList.add("sv-editing");
     // the selection box (outline + glow) would compete with the editing outline
@@ -766,13 +810,26 @@ export class StageView {
     const selc = window.getSelection();
     selc?.removeAllRanges();
     selc?.addRange(range);
+    // custom caret: native caret is unreliable inside the scaled stage. Track
+    // every way the caret can move while editing and redraw our own.
+    document.addEventListener("selectionchange", this.positionCaret);
+    node.addEventListener("input", this.positionCaret);
+    node.addEventListener("keyup", this.positionCaret);
+    node.addEventListener("pointerup", this.positionCaret);
+    this.positionCaret();
 
     const cleanup = (): void => {
       node.removeAttribute("contenteditable");
       node.classList.remove("sv-editing");
       node.removeEventListener("keydown", onKey, true);
       node.removeEventListener("blur", onBlur, true);
+      document.removeEventListener("selectionchange", this.positionCaret);
+      node.removeEventListener("input", this.positionCaret);
+      node.removeEventListener("keyup", this.positionCaret);
+      node.removeEventListener("pointerup", this.positionCaret);
+      if (this.caret) this.caret.style.display = "none";
       this.editing = false;
+      this.editingNode = null;
       this.repositionBoxes(); // re-show the selection box
     };
     const commit = (): void => {
