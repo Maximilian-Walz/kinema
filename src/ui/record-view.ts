@@ -455,7 +455,17 @@ export class RecordView {
         this.recIconEl.textContent = on ? "\u25a0" : "\u25cf";
         this.recLabelEl.textContent = on ? "stop" : "rec";
         this.root.classList.toggle("recording", on);
-        if (!on) this.tick();
+        if (!on) {
+            this.tick();
+            /* Overrun: if the take ran past the line's slot, tell the user the
+               extra audio was kept and the window can be picked in TUNE. */
+            if (this.takes.overranLastStop) {
+                this.takes.overranLastStop = false;
+                this.setStatus(
+                    "longer take captured \u2014 drag its window in TUNE to pick what plays",
+                );
+            }
+        }
     }
 
     private onCountdown(n: number | null): void {

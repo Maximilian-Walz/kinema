@@ -169,12 +169,25 @@ export class Takes {
   private readonly player: Player;
   private recorder: MediaRecorder | null = null;
   private recSceneIndex = -1;
-  /** in-scene time at which the recording should auto-stop (line.to) */
+  /** in-scene time at which the line's slot ends (line.to). Recording is NO
+      LONGER force-stopped here: with overrun the user can capture a take longer
+      than the slot and later pick a sub-window in TUNE. We keep recStopAt only
+      as the reference for the chain-mode "did the take reach the slot end?"
+      decision. */
   private recStopAt = Infinity;
-  /** True iff the most recent stopRecording() call was triggered by the
-      playhead reaching the line's end (not by the user pressing stop). Used
-      by chain mode to decide whether to auto-advance to the next line. */
+  /** Overrun: allow a section recording to continue past the line's slot
+      (recStopAt). The time listener no longer auto-stops at recStopAt; only a
+      manual stop, a pause, or a scene boundary ends it. */
+  overrun = true;
+  /** True iff the most recent stopRecording() call happened while the playhead
+      had already passed the line's end (the take covers at least the full
+      slot). Used by chain mode to decide whether to auto-advance. With overrun
+      there is no slot-end auto-stop, so this is computed at manual-stop time. */
   private naturalStop = false;
+  /** Set true on the stop following a recording whose captured length exceeded
+      the line's slot (overran past recStopAt). Read once by the UI to surface a
+      "longer take captured — pick the window in TUNE" hint, then cleared. */
+  overranLastStop = false;
   /** Chain mode: when a recording ends naturally at line.to, automatically
       seek to the next line and start a fresh count-in. Persisted by the UI;
       Takes just reads the flag. */
@@ -230,8 +243,15 @@ export class Takes {
   constructor(player: Player) {
     this.player = player;
     player.events.on("time", () => {
-      /* stop a section recording the moment the playhead reaches the line end */
-      if (this.recorder && this.player.localTime >= this.recStopAt) {
+      /* Overrun: do NOT force-stop at the line end. Recording continues past
+         the slot so the user can capture a longer take and pick its window in
+         TUNE; only a manual stop, a pause, or a scene boundary ends it. When
+         overrun is off (legacy behaviour) we still hard-stop at recStopAt and
+         mark the stop as natural for chain mode. */
+      if (
+        !this.overrun && this.recorder &&
+        this.player.localTime >= this.recStopAt
+      ) {
         this.naturalStop = true;
         this.stopRecording();
       }
@@ -277,6 +297,12 @@ export class Takes {
 
   offset(sceneId: string, lineId: string): number {
     return this.map[sceneId]?.[lineId]?.offset ?? 0;
+  }
+
+  /** seconds into the candidate take where this line's window starts (the
+      overrun sub-take picker). 0 = window starts at the take head. */
+  inPoint(sceneId: string, lineId: string): number {
+    return this.map[sceneId]?.[lineId]?.inPoint ?? 0;
   }
 
   /** the candidate take's audio chain for a section, or undefined if identity.
@@ -406,6 +432,17 @@ export class Takes {
   stopRecording(): void {
     this.cancelCountIn();
     if (this.recorder && this.recorder.state === "recording") {
+      /* With overrun there is no slot-end auto-stop, so decide here whether
+         this stop should be treated as "natural" for chain mode: it is natural
+         iff the playhead already passed the line's end, i.e. the take covers at
+         least the full slot. (When overrun is off, naturalStop was set by the
+         time listener at recStopAt and we leave it as-is.) Also record whether
+         the take ran past the slot so the UI can hint about the TUNE window. */
+      if (this.overrun) {
+        const passedEnd = this.player.localTime >= this.recStopAt;
+        this.naturalStop = passedEnd;
+        this.overranLastStop = passedEnd && isFinite(this.recStopAt);
+      }
       this.recorder.stop();
     }
     if (this.player.playing) this.player.setPlaying(false);
@@ -811,8 +848,12 @@ export class Takes {
       new URL(api.takeUrl(scene.id, line.id, file), location.href).href;
     const buf = this.peek(url); // kicks off the decode if needed; warms the cache while paused
 
-    /* take time = how far into this line the playhead is, minus the alignment */
-    const t = local - line.from - this.offset(scene.id, line.id);
+    /* take time = how far into this line the playhead is, minus the alignment,
+       plus the in-point (the chosen window start for an overrun take). For a
+       normal take inPoint is 0 and this is unchanged. refresh() -> sync() makes
+       an in-point edit audible immediately. */
+    const t = (local - line.from - this.offset(scene.id, line.id)) +
+      this.inPoint(scene.id, line.id);
     if (!this.player.playing || t < 0 || !buf || t >= buf.duration) {
       this.stopPreview();
       return;

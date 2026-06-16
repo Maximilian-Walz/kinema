@@ -29,6 +29,17 @@ export interface TakeStripOptions {
     cursorColor?: string;
     /** dpr override. Default: window.devicePixelRatio */
     dpr?: number;
+    /** Overrun sub-take picker: the fixed length (seconds) of the window that
+        plays/exports for this line (= the line's own duration). When set and
+        shorter than the take duration, a draggable translucent rectangle is
+        drawn over the waveform; drag it to choose which winLen-long slice the
+        line uses. Omitted (or >= duration) = no overlay, current behaviour. */
+    windowLen?: number;
+    /** Initial window start (seconds into the take). Default 0. Clamped to
+        [0, duration - windowLen]. */
+    inPoint?: number;
+    /** Called (debounced) with the new in-point as the window is dragged. */
+    onInPointChange?: (inPoint: number) => void;
 }
 
 const DEFAULT_COLOR = "#7ee787";
@@ -51,6 +62,12 @@ export class TakeStrip {
     private destroyed = false;
     private readonly onTakesChange: () => void;
     private readonly resizeObs: ResizeObserver;
+    /* overrun sub-take picker (optional) */
+    private readonly windowLen: number;
+    private inPoint: number;
+    private readonly onInPointChange?: (inPoint: number) => void;
+    private readonly windowEl: HTMLElement;
+    private inPointTimer: number | undefined;
 
     constructor(
         takes: Takes,
@@ -67,6 +84,9 @@ export class TakeStrip {
         this.dpr = Math.max(1, opts.dpr ?? window.devicePixelRatio ?? 1);
         this.h = opts.height ?? 40;
         this.color = opts.color ?? DEFAULT_COLOR;
+        this.windowLen = opts.windowLen ?? 0;
+        this.inPoint = Math.max(0, opts.inPoint ?? 0);
+        this.onInPointChange = opts.onInPointChange;
 
         /* Canvas backing-store width is sized from the rendered CSS width
            (set up below by ResizeObserver) so the waveform stays crisp on
@@ -87,11 +107,66 @@ export class TakeStrip {
             };` +
             `pointer-events:none;left:0;display:none;box-shadow:0 0 4px rgba(255,255,255,.6);`;
 
+        /* Overrun window overlay: a translucent draggable rectangle marking the
+           winLen-long slice the line uses. Hidden until load() decides the take
+           is longer than windowLen. pointer-events:auto so it captures drags;
+           the canvas underneath still handles scrub clicks outside the box. */
+        this.windowEl = document.createElement("div");
+        this.windowEl.className = "vs-take-window";
+        this.windowEl.style.cssText =
+            "position:absolute;top:0;bottom:0;left:0;width:0;display:none;" +
+            "background:rgba(126,231,135,.18);border:1px solid rgba(126,231,135,.85);" +
+            "box-sizing:border-box;cursor:grab;touch-action:none;";
+
         this.element = document.createElement("div");
         this.element.className = "vs-take-strip";
         this.element.style.cssText =
             "position:relative;display:block;width:100%;border-radius:4px;overflow:hidden;background:rgba(63,185,80,.06);";
-        this.element.append(this.canvas, this.playhead);
+        this.element.append(this.canvas, this.windowEl, this.playhead);
+
+        /* drag the window box to choose the in-point. Computes the new start
+           from the box's left edge under the pointer, clamps to
+           [0, duration - windowLen], repositions, scrubs an audition at the
+           window start, and debounces the persisting callback (like timeline). */
+        if (this.windowLen > 0 && this.onInPointChange) {
+            let grabDx = 0; // pointer offset within the box at grab time
+            const dragTo = (ev: PointerEvent): void => {
+                const usable = this.duration - this.windowLen;
+                if (usable <= 0) return;
+                const r = this.element.getBoundingClientRect();
+                const leftPx = ev.clientX - r.left - grabDx;
+                const frac = Math.max(0, Math.min(1, leftPx / r.width));
+                const inp = Math.max(0, Math.min(usable, frac * this.duration));
+                this.inPoint = inp;
+                this.positionWindow();
+                this.takes.scrubAudition(
+                    this.sceneId,
+                    this.lineId,
+                    this.file,
+                    inp,
+                );
+                clearTimeout(this.inPointTimer);
+                this.inPointTimer = window.setTimeout(() => {
+                    this.onInPointChange?.(this.inPoint);
+                }, 400);
+            };
+            this.windowEl.addEventListener("pointerdown", (ev) => {
+                if (this.windowEl.style.display === "none") return;
+                ev.stopPropagation(); // don't let the canvas scrub-click fire
+                const box = this.windowEl.getBoundingClientRect();
+                grabDx = ev.clientX - box.left;
+                this.windowEl.setPointerCapture(ev.pointerId);
+                this.windowEl.style.cursor = "grabbing";
+                const onMove = (mv: PointerEvent) => dragTo(mv);
+                const onUp = () => {
+                    this.windowEl.style.cursor = "grab";
+                    this.windowEl.removeEventListener("pointermove", onMove);
+                    this.windowEl.removeEventListener("pointerup", onUp);
+                };
+                this.windowEl.addEventListener("pointermove", onMove);
+                this.windowEl.addEventListener("pointerup", onUp);
+            });
+        }
 
         /* click/drag to scrub */
         const seekFromEvent = (ev: PointerEvent): void => {
@@ -131,6 +206,7 @@ export class TakeStrip {
     destroy(): void {
         this.destroyed = true;
         cancelAnimationFrame(this.rafId);
+        clearTimeout(this.inPointTimer);
         this.resizeObs.disconnect();
     }
 
@@ -144,6 +220,14 @@ export class TakeStrip {
             if (this.destroyed) return;
             this.peaks = peaks;
             this.duration = duration;
+            /* now that the duration is known, defensively clamp the in-point in
+               case the line was retimed (windowLen) shorter than the stored
+               value would allow, then show/position the overlay */
+            if (this.windowLen > 0) {
+                const usable = this.duration - this.windowLen;
+                this.inPoint = Math.max(0, Math.min(Math.max(0, usable), this.inPoint));
+            }
+            this.positionWindow();
             this.resizeAndDraw();
             this.tickOnce();
         } catch {
@@ -192,6 +276,22 @@ export class TakeStrip {
         const frac = Math.max(0, Math.min(1, t / this.duration));
         this.playhead.style.display = "block";
         this.playhead.style.left = `${(frac * 100).toFixed(2)}%`;
+    }
+
+    /** Show and position the overrun window box (percent-based, so resize-safe).
+        Hidden when no windowLen is set or the take is not longer than the
+        window (nothing to pick). */
+    private positionWindow(): void {
+        if (this.windowLen <= 0 || !this.duration ||
+            this.duration <= this.windowLen) {
+            this.windowEl.style.display = "none";
+            return;
+        }
+        const leftFrac = Math.max(0, Math.min(1, this.inPoint / this.duration));
+        const widthFrac = Math.max(0, Math.min(1, this.windowLen / this.duration));
+        this.windowEl.style.display = "block";
+        this.windowEl.style.left = `${(leftFrac * 100).toFixed(3)}%`;
+        this.windowEl.style.width = `${(widthFrac * 100).toFixed(3)}%`;
     }
 
     /** read the current audition position and paint the cursor accordingly.

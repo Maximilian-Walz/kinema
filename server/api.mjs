@@ -410,6 +410,7 @@ export function createApi({ registry }) {
       return {
         picks: raw.picks && typeof raw.picks === 'object' ? raw.picks : {},
         offsets: raw.offsets || {},
+        inPoints: raw.inPoints || {},
         chains: raw.chains || {},
       };
     }
@@ -433,7 +434,7 @@ export function createApi({ registry }) {
     /* takes grouped by scene then by line id (section). Walks the on-disk
        takes/<sceneId>/<lineId>/ tree; trash/ and stray files are ignored. */
     function listTakes() {
-      const { picks, offsets, chains } = readTakesState();
+      const { picks, offsets, inPoints, chains } = readTakesState();
       const out = {};
       if (!fs.existsSync(TAKES_DIR)) return out;
       for (const sd of fs.readdirSync(TAKES_DIR)) {
@@ -450,6 +451,7 @@ export function createApi({ registry }) {
           sections[ld] = {
             candidate,
             offset: candidate ? offsets[sectionKey(sd, ld, candidate)] || 0 : 0,
+            inPoint: candidate ? inPoints[sectionKey(sd, ld, candidate)] || 0 : 0,
             ...(chain ? { chain } : {}),
             takes,
           };
@@ -501,6 +503,7 @@ export function createApi({ registry }) {
       takesDir: ctx.TAKES_DIR,
       picks: takesState.picks,
       offsets: takesState.offsets,
+      inPoints: takesState.inPoints,
       chains: takesState.chains,
       onProgress: (p) => Object.assign(job, p),
     }).then(() => {
@@ -666,6 +669,24 @@ export function createApi({ registry }) {
         ctx.writeTakesState(state);
         json(res, 200, { ok: true, offset });
 
+      } else if (req.method === 'POST' && /^\/api\/takes\/[\w.-]+\/[\w.-]+\/[\w.-]+\/inpoint$/.test(p)) {
+        if (!ctx) return noProject();
+        const [, , , sid, lid, file] = p.split('/');
+        if (!safeName(file) || !fs.existsSync(path.join(ctx.sectionTakesDir(sid, lid), file))) {
+          json(res, 404, { error: 'take not found' }); return;
+        }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        /* seconds into the take where the line's window starts; clamp to a
+           generous range (a take can be long, but not absurd). 0 deletes the
+           key so an unset in-point writes nothing (same precedent as offset). */
+        const inPoint = Math.max(0, Math.min(3600, Number(body.inPoint) || 0));
+        const state = ctx.readTakesState();
+        const key = ctx.sectionKey(sid, lid, file);
+        if (inPoint === 0) delete state.inPoints[key];
+        else state.inPoints[key] = inPoint;
+        ctx.writeTakesState(state);
+        json(res, 200, { ok: true, inPoint });
+
       } else if (req.method === 'POST' && /^\/api\/takes\/[\w.-]+\/[\w.-]+\/[\w.-]+\/chain$/.test(p)) {
         if (!ctx) return noProject();
         const [, , , sid, lid, file] = p.split('/');
@@ -727,6 +748,7 @@ export function createApi({ registry }) {
         fs.renameSync(src, path.join(trash, Date.now() + '-' + file));
         const state = ctx.readTakesState();
         delete state.offsets[ctx.sectionKey(sid, lid, file)];
+        delete state.inPoints[ctx.sectionKey(sid, lid, file)];
         delete state.chains[ctx.sectionKey(sid, lid, file)];
         if (state.picks[sid] && state.picks[sid][lid] === file) {
           /* auto-pick the newest remaining take in this section */

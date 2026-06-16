@@ -129,6 +129,13 @@ export async function setTakeOffset(sceneId: string, lineId: string, file: strin
   }));
 }
 
+export async function setTakeInPoint(sceneId: string, lineId: string, file: string, inPoint: number): Promise<void> {
+  await check(await fetch(withProject(`/api/takes/${sceneId}/${lineId}/${file}/inpoint`), {
+    method: 'POST',
+    body: JSON.stringify({ inPoint }),
+  }));
+}
+
 export async function setTakeChain(sceneId: string, lineId: string, file: string, chain: TakeChain): Promise<void> {
   await check(await fetch(withProject(`/api/takes/${sceneId}/${lineId}/${file}/chain`), {
     method: 'POST',

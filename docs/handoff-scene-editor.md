@@ -65,15 +65,20 @@ they land. Commit completed+verified work to `main` (solo workflow).
   selecting an element that isn't visible at the current playhead hides the box
   immediately instead of only on the next playhead move
   ([stage-view.ts](../src/ui/stage-view.ts) ~497).
-
-## Next up
-
-### Line recording — sub-take picker (planned, v1 scope confirmed)
-When a recorded take is longer than the line's slot, **keep the line's current
-duration** and let the user scrub/select which window of the take to use. No
-ripple — other lines, scenes, and scene elements stay put. (Length-redefinition
-+ ripple was explicitly deferred to a later ticket; revisit only after this is
-in use.) Touches the record-mode take UI + the take/window selection model.
+- **Line recording — sub-take picker (overrun).** Recording no longer hard-stops
+  at the line's slot end (`Takes.overrun` gates the old auto-stop in
+  [takes.ts](../src/audio/takes.ts)); you can capture a longer take, then in TUNE
+  drag a fixed-length window (= the line's duration) over the take's waveform to
+  pick which slice plays. New per-file `inPoint` persists in `takes.json`
+  (`inPoints` map; route `POST /api/takes/:sid/:lid/:file/inpoint`), honored in
+  preview (`Takes.sync` adds `inPoint`) and export (`render.mjs` uses
+  `winLen = ln.to-ln.from`, `audible = winLen - max(0,off)` so existing exports
+  are unchanged for inPoint=0). Picker overlay: `TakeStrip` window box, mounted
+  on the candidate strip in [tune-view.ts](../src/ui/tune-view.ts). No ripple;
+  the line's duration is unchanged. Chain-mode auto-advance keys off whether the
+  playhead actually passed `line.to` at manual-stop time.
+  **Still needs a manual ear/export check** (record past a slot, drag the window,
+  export, compare preview vs MP4). Length-redefinition + ripple remains deferred.
 
 ### Backlog
 - **Editable element labels** (`data-label`) via the HTML patch — names are

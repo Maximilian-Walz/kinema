@@ -200,12 +200,33 @@ export class TuneView {
                 await this.takes.refresh();
             };
             const stripHost = el("div", { class: "tv-strip" });
+            /* Overrun sub-take picker: only the picked (candidate) take exports/
+               previews, so only it gets the draggable window. windowLen is the
+               line's own duration; the strip hides the overlay when the take is
+               not longer than that. */
+            const isCandidate = tk.file === sect.candidate;
+            const windowLen = activeLine ? activeLine.to - activeLine.from : 0;
             const strip = new TakeStrip(
                 this.takes,
                 scene.id,
                 activeId,
                 tk.file,
-                { height: 56 },
+                isCandidate && windowLen > 0
+                    ? {
+                        height: 56,
+                        windowLen,
+                        inPoint: sect.inPoint,
+                        onInPointChange: async (inPoint: number) => {
+                            await api.setTakeInPoint(
+                                scene.id,
+                                activeId,
+                                tk.file,
+                                inPoint,
+                            );
+                            await this.takes.refresh();
+                        },
+                    }
+                    : { height: 56 },
             );
             stripHost.appendChild(strip.element);
             this.strips.push(strip);

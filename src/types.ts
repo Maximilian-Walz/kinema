@@ -86,6 +86,11 @@ export interface SectionTakes {
   candidate: string | null;
   /** seconds the candidate take is shifted against the line (mic latency trim) */
   offset: number;
+  /** seconds into the candidate take where this line's playback/export window
+      starts. Only meaningful when the take is longer than the line's slot (an
+      overrun recording); the window length is the line's own duration. 0/absent
+      = window starts at the take head (normal behaviour). */
+  inPoint?: number;
   /** the candidate take's audio chain (gain etc.); absent if it is identity */
   chain?: TakeChain;
   takes: TakeInfo[];

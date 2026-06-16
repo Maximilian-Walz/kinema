@@ -223,6 +223,7 @@ export async function exportVideo(opts) {
        The audible window runs to the next line's start so a take recorded
        slightly past its `to` does not bleed into the following section. */
     const offsets = opts.offsets || {};
+    const inPoints = opts.inPoints || {};
     const picks = opts.picks || {};
     const chains = opts.chains || {};
     const sceneLines = opts.sceneLines || [];
@@ -231,18 +232,28 @@ export async function exportVideo(opts) {
       const picked = picks[sceneId];
       if (!picked) return;
       const lines = linesOf(sceneId);
-      lines.forEach((ln, i) => {
+      lines.forEach((ln) => {
         const file = picked[ln.id];
         if (!file || !fs.existsSync(path.join(opts.takesDir, sceneId, ln.id, file))) return;
         const key = sceneId + '/' + ln.id + '/' + file;
         const off = offsets[key] || 0;
-        const next = lines[i + 1];
-        const span = Math.max(0.05, (next ? next.from : ln.to) - ln.from);
+        const inp = inPoints[key] || 0;
+        /* The audible window is the line's OWN duration (not the inter-line
+           span): the overrun sub-take picker chooses WHICH winLen-long slice of
+           a longer take plays here, starting at `inp` seconds in. A positive
+           latency `off` delays placement, so the window is shortened by that
+           much to stay inside the line slot (never bleeding into the next
+           line) — same as the old `span - max(0,off)`. For a contiguous next
+           line (next.from === ln.to) with inPoint=0 this equals the old result
+           for ANY offset, so existing exports are unchanged. */
+        const winLen = Math.max(0.05, ln.to - ln.from);
+        const trimStart = inp + Math.max(0, -off);
+        const audible = Math.max(0.05, winLen - Math.max(0, off));
         takes.push({
           path: path.join(opts.takesDir, sceneId, ln.id, file),
           delay: sceneOffset + ln.from + Math.max(0, off),
-          trimStart: Math.max(0, -off),
-          audible: Math.max(0.05, span - Math.max(0, off)),
+          trimStart,
+          audible,
           filters: chainFilters(chains[key]),
         });
       });
