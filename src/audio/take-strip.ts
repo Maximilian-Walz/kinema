@@ -40,17 +40,10 @@ export interface TakeStripOptions {
     inPoint?: number;
     /** Called (debounced) with the new in-point as the window is dragged. */
     onInPointChange?: (inPoint: number) => void;
-    /** Re-length picker: when set, a right-edge handle lets the user resize the
-        window, i.e. redefine the line's duration. Called once on release with
-        the new window length (seconds). The window is also always shown (so the
-        line can be shortened even when the take isn't longer than it). */
-    onWindowLenChange?: (windowLen: number) => void;
 }
 
 const DEFAULT_COLOR = "#7ee787";
 const CURSOR_COLOR = "#ffffff";
-/** smallest line length (s) the re-length handle allows */
-const MIN_WINDOW = 0.2;
 
 export class TakeStrip {
     readonly element: HTMLElement;
@@ -70,10 +63,9 @@ export class TakeStrip {
     private readonly onTakesChange: () => void;
     private readonly resizeObs: ResizeObserver;
     /* overrun sub-take picker (optional) */
-    private windowLen: number;
+    private readonly windowLen: number;
     private inPoint: number;
     private readonly onInPointChange?: (inPoint: number) => void;
-    private readonly onWindowLenChange?: (windowLen: number) => void;
     private readonly windowEl: HTMLElement;
 
     constructor(
@@ -94,7 +86,6 @@ export class TakeStrip {
         this.windowLen = opts.windowLen ?? 0;
         this.inPoint = Math.max(0, opts.inPoint ?? 0);
         this.onInPointChange = opts.onInPointChange;
-        this.onWindowLenChange = opts.onWindowLenChange;
 
         /* Canvas backing-store width is sized from the rendered CSS width
            (set up below by ResizeObserver) so the waveform stays crisp on
@@ -161,41 +152,6 @@ export class TakeStrip {
                     this.windowEl.style.cursor = "grab";
                     this.takes.scrubAudition(this.sceneId, this.lineId, this.file, this.inPoint);
                     this.onInPointChange?.(this.inPoint);
-                };
-                window.addEventListener("pointermove", move);
-                window.addEventListener("pointerup", up);
-            });
-        }
-
-        /* Right-edge handle: drag to re-length the line (resize the window).
-           stopPropagation so it doesn't also start a window move-drag. */
-        if (this.onWindowLenChange) {
-            const edge = document.createElement("div");
-            edge.className = "vs-take-window-edge";
-            edge.style.cssText =
-                "position:absolute;top:0;bottom:0;right:-4px;width:9px;" +
-                "cursor:ew-resize;touch-action:none;pointer-events:auto;";
-            this.windowEl.appendChild(edge);
-            edge.addEventListener("pointerdown", (ev) => {
-                if (this.windowEl.style.display === "none" || !this.duration) return;
-                ev.preventDefault();
-                ev.stopPropagation();
-                const r = this.element.getBoundingClientRect();
-                const leftPx = (this.inPoint / this.duration) * r.width;
-                const maxLen = this.duration - this.inPoint;
-                const move = (mv: PointerEvent): void => {
-                    const wPx = mv.clientX - r.left - leftPx;
-                    const frac = r.width > 0 ? wPx / r.width : 0;
-                    this.windowLen = Math.max(
-                        MIN_WINDOW,
-                        Math.min(maxLen, frac * this.duration),
-                    );
-                    this.positionWindow();
-                };
-                const up = (): void => {
-                    window.removeEventListener("pointermove", move);
-                    window.removeEventListener("pointerup", up);
-                    this.onWindowLenChange?.(this.windowLen);
                 };
                 window.addEventListener("pointermove", move);
                 window.addEventListener("pointerup", up);
@@ -315,17 +271,13 @@ export class TakeStrip {
         Hidden when no windowLen is set or the take is not longer than the
         window (nothing to pick). */
     private positionWindow(): void {
-        /* Show when there's a sub-window to pick (take longer than the line) OR
-           when re-length is enabled (then it's always shown so the line can be
-           shortened too). */
-        const show = this.windowLen > 0 && this.duration > 0 &&
-            (this.duration > this.windowLen || !!this.onWindowLenChange);
-        if (!show) {
+        if (this.windowLen <= 0 || !this.duration ||
+            this.duration <= this.windowLen) {
             this.windowEl.style.display = "none";
             return;
         }
+        const leftFrac = Math.max(0, Math.min(1, this.inPoint / this.duration));
         const widthFrac = Math.max(0, Math.min(1, this.windowLen / this.duration));
-        const leftFrac = Math.max(0, Math.min(1 - widthFrac, this.inPoint / this.duration));
         this.windowEl.style.display = "block";
         this.windowEl.style.left = `${(leftFrac * 100).toFixed(3)}%`;
         this.windowEl.style.width = `${(widthFrac * 100).toFixed(3)}%`;

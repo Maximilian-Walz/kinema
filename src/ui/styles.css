@@ -626,12 +626,6 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
   background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.35);
   opacity:1;line-height:1.4}
 .rv-empty{color:var(--st-faint);font-family:var(--st-mono);font-size:12.5px}
-/* post-take review panel: candidate waveform with the sub-take window +
-   re-length edge handle, shown under the monitor bar after a take. */
-.rv-review{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.08);
-  background:rgba(63,185,80,.05)}
-.rv-review-label{font-family:var(--st-mono);font-size:11px;color:var(--st-dim);
-  margin-bottom:6px;letter-spacing:.02em}
 /* recording progress bar under the current prompter line (mirrors the RecBar
    bar): fills across the line's duration, pulses red on overrun. */
 .rv-line{position:relative}

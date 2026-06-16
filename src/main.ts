@@ -164,7 +164,7 @@ async function bootStudio(): Promise<void> {
      and initialise active state for a boot straight into SCENE */
   stageView.onModeChange(mode.mode === "stage");
   sidePanel.setStageInspector((host) => stageView.mountInspector(host));
-  new RecordView(recordview, player, takes, micMonitor, sync, history);
+  new RecordView(recordview, player, takes, micMonitor);
   new TuneView(tuneview, player, takes);
   new DockResize();
   new RecBar(takes, micMonitor, player);

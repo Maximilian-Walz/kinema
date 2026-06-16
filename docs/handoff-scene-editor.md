@@ -83,25 +83,33 @@ they land. Commit completed+verified work to `main` (solo workflow).
   `audible = winLen - max(0,off)` so existing exports are unchanged for
   inPoint=0). Picker overlay: `TakeStrip` window box ([tune-view.ts](../src/ui/tune-view.ts)).
   The picker drag is **fixed** (window-level listeners in `TakeStrip`; audition +
-  persist on release) and now lives **inline in record view** as a post-take
-  review panel (`RecordView.renderReview`), not just TUNE. Needs a manual
-  ear/export check.
+  persist on release). It lives in **TUNE** and should stay there — reviewing
+  recordings inside record mode felt wrong. Needs a manual ear/export check too.
 
-### T4 — edge-drag re-length + ripple  ✅ DONE
-A right-edge handle on the `TakeStrip` window (gated on `onWindowLenChange`)
-resizes the window = redefines the line's duration. On release,
-`RecordView.renderReview`'s callback snapshots `History`, calls
-`rippleLineLength(scene, lineId, newDur)` ([timings.ts](../src/timings.ts)), then
-`sync.changed(scene)` + `history.commit` — persisted and undoable.
+### Shelved: edge-drag re-length + ripple (revisit in TUNE)
+A first cut (a post-take review panel in **record view** with edge-drag
+re-length) was built then **reverted** — reviewing/tuning recordings in record
+mode felt wrong. When we pick this up, build it into **TUNE** (where the sub-take
+picker already lives), not record view. The design below still stands; the
+reverted implementation is in git history for reference.
 
-`rippleLineLength` is a pure in-memory transform of one `SceneData` (anchor =
-old `L.to`): `L.to += Δ`; every later line `from/to += Δ`; `scene.len += Δ`; each
-schedule entry `enter/exit += Δ` and each caption `from/to += Δ` when `>= anchor`
-(insert-time semantics — intervals straddling the anchor stretch). Growing
-`scene.len` shifts later scenes automatically (global offsets are cumulative), so
-no cross-scene writes and no new endpoint. The edge handle clamps the new length
-to `[0.2s, takeDuration − inPoint]`. TUNE keeps sub-take-only (no
-`onWindowLenChange`); it could gain re-length the same way later.
+Persistence is simpler than expected: `TimingSync.changed(scene)` →
+`player.refreshTimings()` + debounced `api.putTimings(scene)` writes
+`len/schedule/captions/lines` for the one scene; growing `scene.len` shifts later
+scenes automatically (global offsets are cumulative); `History.snapshot` already
+covers those fields, so re-length is undoable. So the **ripple is a pure
+in-memory transform of one `SceneData`** then `sync.changed(scene)` + a history
+commit — no new endpoint, no cross-scene writes.
+
+Transform (re-length line L by Δ, anchor = old `L.to`): `L.to += Δ`; every later
+line `from/to += Δ`; `scene.len += Δ`; each schedule entry `enter/exit += Δ` when
+`>= anchor`; each caption `from/to += Δ` when `>= anchor` (insert-time semantics:
+intervals straddling the anchor stretch). Clamp new length to
+`[~0.2s, takeDuration − inPoint]`. UI: a right-edge handle on the `TakeStrip`
+window (make `windowLen` mutable + `onWindowLenChange`), wired where the **TUNE**
+picker is mounted ([tune-view.ts](../src/ui/tune-view.ts)). Needs `TimingSync` +
+`History` available there (TUNE is currently constructed with just player +
+takes).
 
 ### Backlog
 - **Editable element labels** (`data-label`) via the HTML patch — names are

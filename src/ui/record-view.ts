@@ -1,10 +1,6 @@
-import * as api from "../api";
 import type { MicMonitor } from "../audio/monitor";
-import { TakeStrip } from "../audio/take-strip";
 import type { Takes } from "../audio/takes";
 import { fmt, type Player } from "../engine/player";
-import type { History } from "../history";
-import { rippleLineLength, type TimingSync } from "../timings";
 import type { TimedText } from "../types";
 import { el } from "./dom";
 
@@ -65,48 +61,27 @@ export class RecordView {
     }[] = [];
     private lastCurrentId: string | null = null;
 
-    /* post-take review panel (sub-take window + re-length) */
-    private readonly sync: TimingSync;
-    private readonly history: History;
-    private reviewHost!: HTMLElement;
-    private reviewStrip: TakeStrip | null = null;
-    /** the line whose take we're reviewing (the most recently recorded line) */
-    private reviewLineId: string | null = null;
-    /** lineId|file currently shown, so we only rebuild when the take changes */
-    private reviewKey: string | null = null;
-
     constructor(
         root: HTMLElement,
         player: Player,
         takes: Takes,
         micMonitor: MicMonitor,
-        sync: TimingSync,
-        history: History,
     ) {
         this.root = root;
         this.player = player;
         this.takes = takes;
         this.micMonitor = micMonitor;
-        this.sync = sync;
-        this.history = history;
 
         this.build();
 
-        player.events.on("scene", () => {
-            this.reviewLineId = null; // navigated away -> drop the review
-            this.renderReview();
-            this.renderPrompter();
-        });
+        player.events.on("scene", () => this.renderPrompter());
         player.events.on("time", () => this.tick());
         player.events.on("timings", () => this.renderPrompter());
 
         takes.events.on("monitor", () => this.refreshMonitor());
         takes.events.on("recording", (on) => this.onRecording(on));
         takes.events.on("countdown", (n) => this.onCountdown(n));
-        takes.events.on("change", () => {
-            this.tick();
-            this.renderReview();
-        });
+        takes.events.on("change", () => this.tick());
 
         this.renderPrompter();
         this.refreshMonitor();
@@ -248,10 +223,8 @@ export class RecordView {
         );
         this.applyPrompterFontSize();
 
-        this.reviewHost = el("div", { class: "rv-review" });
-        this.reviewHost.style.display = "none";
         this.root.classList.add("rv");
-        this.root.append(monitor, this.reviewHost, promptWrap);
+        this.root.append(monitor, promptWrap);
     }
 
     /* ---------------------------- font-size ------------------------------- */
@@ -518,81 +491,17 @@ export class RecordView {
         this.recIconEl.textContent = on ? "\u25a0" : "\u25cf";
         this.recLabelEl.textContent = on ? "stop" : "rec";
         this.root.classList.toggle("recording", on);
-        if (on) {
-            /* remember which line we're capturing so we can review its take
-               (sub-take window + re-length) inline once recording stops. */
-            this.reviewLineId = this.takes.recordingLine;
-        } else {
+        if (!on) {
             this.tick();
-            this.renderReview();
-            /* Overrun: if the take ran past the line's slot, point the user at
-               the inline review panel. */
+            /* Overrun: if the take ran past the line's slot, tell the user the
+               extra audio was kept and the window can be picked in TUNE. */
             if (this.takes.overranLastStop) {
                 this.takes.overranLastStop = false;
                 this.setStatus(
-                    "longer take captured \u2014 drag the window below to pick what plays, or its right edge to set the line length",
+                    "longer take captured \u2014 drag its window in TUNE to pick what plays",
                 );
             }
         }
-    }
-
-    /* --------------------------- post-take review -------------------------- */
-
-    /** Show the just-recorded line's candidate take with a draggable sub-take
-        window (which slice plays) and a right-edge handle (re-length the line,
-        rippling the rest of the scene). Rebuilt only when the line or its
-        candidate take changes, so it survives auditions / in-point edits. */
-    private renderReview(): void {
-        const lineId = this.reviewLineId;
-        const scene = lineId
-            ? this.player.project.scenes.find((s) =>
-                s.lines.some((l) => l.id === lineId))
-            : undefined;
-        const line = scene?.lines.find((l) => l.id === lineId);
-        const file = scene && lineId ? this.takes.candidate(scene.id, lineId) : null;
-        if (!scene || !line || !lineId || !file) {
-            this.clearReview();
-            return;
-        }
-        const key = lineId + "|" + file;
-        if (this.reviewStrip && this.reviewKey === key) return; // already shown
-        this.clearReview();
-        this.reviewKey = key;
-        const strip = new TakeStrip(this.takes, scene.id, lineId, file, {
-            height: 54,
-            windowLen: Math.max(0.01, line.to - line.from),
-            inPoint: this.takes.inPoint(scene.id, lineId),
-            onInPointChange: async (inPoint) => {
-                await api.setTakeInPoint(scene.id, lineId, file, inPoint);
-                await this.takes.refresh();
-            },
-            onWindowLenChange: (newDur) => {
-                const before = this.history.snapshot(scene);
-                rippleLineLength(scene, lineId, newDur);
-                this.sync.changed(scene); // refresh engine + persist scene.json
-                this.history.commit(scene, before);
-            },
-        });
-        this.reviewStrip = strip;
-        this.reviewHost.replaceChildren(
-            el("div", {
-                class: "rv-review-label",
-                text:
-                    "review take \u00b7 drag the window to pick what plays \u00b7 drag its right edge to set the line length",
-            }),
-            strip.element,
-        );
-        this.reviewHost.style.display = "block";
-    }
-
-    private clearReview(): void {
-        if (this.reviewStrip) {
-            this.reviewStrip.destroy();
-            this.reviewStrip = null;
-        }
-        this.reviewKey = null;
-        this.reviewHost.replaceChildren();
-        this.reviewHost.style.display = "none";
     }
 
     private onCountdown(n: number | null): void {
