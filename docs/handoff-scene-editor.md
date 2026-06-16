@@ -82,11 +82,28 @@ they land. Commit completed+verified work to `main` (solo workflow).
   (`Takes.sync` adds `inPoint`) and export (`render.mjs` uses `winLen = ln.to-ln.from`,
   `audible = winLen - max(0,off)` so existing exports are unchanged for
   inPoint=0). Picker overlay: `TakeStrip` window box ([tune-view.ts](../src/ui/tune-view.ts)).
-  **Open follow-ups (in progress):** the picker drag is buggy and needs fixing +
-  relocating inline to record view (T3); edge-drag to **re-length** the line with
-  a full ripple (shift following lines + scene `len` + that scene's later
-  element/caption schedule entries by Δ) is the agreed next step (T4). Needs a
-  manual ear/export check too.
+  The picker drag is **fixed** (window-level listeners in `TakeStrip`; audition +
+  persist on release). **Open follow-ups:** edge-drag to **re-length** the line
+  with a full ripple, and relocate the picker inline to record view (T4, below).
+  Needs a manual ear/export check too.
+
+### Next: T4 — edge-drag re-length + ripple
+Persistence is simpler than expected: `TimingSync.changed(scene)` →
+`player.refreshTimings()` + debounced `api.putTimings(scene)` writes
+`len/schedule/captions/lines` for the one scene; growing `scene.len` shifts later
+scenes automatically (global offsets are cumulative); `History.snapshot` already
+covers those fields, so re-length is undoable. So the **ripple is a pure
+in-memory transform of one `SceneData`** then `sync.changed(scene)` + a history
+commit — no new endpoint, no cross-scene writes.
+
+Transform (re-length line L by Δ, anchor = old `L.to`): `L.to += Δ`; every later
+line `from/to += Δ`; `scene.len += Δ`; each schedule entry `enter/exit += Δ` when
+`>= anchor`; each caption `from/to += Δ` when `>= anchor` (insert-time semantics:
+intervals straddling the anchor stretch). Clamp new length to
+`[~0.2s, takeDuration − inPoint]`. UI: a right-edge handle on the `TakeStrip`
+window (make `windowLen` mutable + `onWindowLenChange`); mount the picker in a
+post-take review panel in record view. Needs `TimingSync` + `History` wired into
+wherever the picker's callback lives.
 
 ### Backlog
 - **Editable element labels** (`data-label`) via the HTML patch — names are
