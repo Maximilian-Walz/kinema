@@ -83,27 +83,25 @@ they land. Commit completed+verified work to `main` (solo workflow).
   `audible = winLen - max(0,off)` so existing exports are unchanged for
   inPoint=0). Picker overlay: `TakeStrip` window box ([tune-view.ts](../src/ui/tune-view.ts)).
   The picker drag is **fixed** (window-level listeners in `TakeStrip`; audition +
-  persist on release). **Open follow-ups:** edge-drag to **re-length** the line
-  with a full ripple, and relocate the picker inline to record view (T4, below).
-  Needs a manual ear/export check too.
+  persist on release) and now lives **inline in record view** as a post-take
+  review panel (`RecordView.renderReview`), not just TUNE. Needs a manual
+  ear/export check.
 
-### Next: T4 — edge-drag re-length + ripple
-Persistence is simpler than expected: `TimingSync.changed(scene)` →
-`player.refreshTimings()` + debounced `api.putTimings(scene)` writes
-`len/schedule/captions/lines` for the one scene; growing `scene.len` shifts later
-scenes automatically (global offsets are cumulative); `History.snapshot` already
-covers those fields, so re-length is undoable. So the **ripple is a pure
-in-memory transform of one `SceneData`** then `sync.changed(scene)` + a history
-commit — no new endpoint, no cross-scene writes.
+### T4 — edge-drag re-length + ripple  ✅ DONE
+A right-edge handle on the `TakeStrip` window (gated on `onWindowLenChange`)
+resizes the window = redefines the line's duration. On release,
+`RecordView.renderReview`'s callback snapshots `History`, calls
+`rippleLineLength(scene, lineId, newDur)` ([timings.ts](../src/timings.ts)), then
+`sync.changed(scene)` + `history.commit` — persisted and undoable.
 
-Transform (re-length line L by Δ, anchor = old `L.to`): `L.to += Δ`; every later
-line `from/to += Δ`; `scene.len += Δ`; each schedule entry `enter/exit += Δ` when
-`>= anchor`; each caption `from/to += Δ` when `>= anchor` (insert-time semantics:
-intervals straddling the anchor stretch). Clamp new length to
-`[~0.2s, takeDuration − inPoint]`. UI: a right-edge handle on the `TakeStrip`
-window (make `windowLen` mutable + `onWindowLenChange`); mount the picker in a
-post-take review panel in record view. Needs `TimingSync` + `History` wired into
-wherever the picker's callback lives.
+`rippleLineLength` is a pure in-memory transform of one `SceneData` (anchor =
+old `L.to`): `L.to += Δ`; every later line `from/to += Δ`; `scene.len += Δ`; each
+schedule entry `enter/exit += Δ` and each caption `from/to += Δ` when `>= anchor`
+(insert-time semantics — intervals straddling the anchor stretch). Growing
+`scene.len` shifts later scenes automatically (global offsets are cumulative), so
+no cross-scene writes and no new endpoint. The edge handle clamps the new length
+to `[0.2s, takeDuration − inPoint]`. TUNE keeps sub-take-only (no
+`onWindowLenChange`); it could gain re-length the same way later.
 
 ### Backlog
 - **Editable element labels** (`data-label`) via the HTML patch — names are
