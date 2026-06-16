@@ -63,7 +63,7 @@ export interface MeterOptions {
 
 /* ── injected stylesheet (once per document) ────────────────────────────── */
 
-const STYLE_ID = 'video-studio-meter-style';
+const STYLE_ID = 'kinema-meter-style';
 
 function ensureStyle(): void {
   if (document.getElementById(STYLE_ID)) return;

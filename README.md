@@ -1,4 +1,4 @@
-# video-studio
+# Kinema
 
 A local studio for data-driven animation videos. Play and scrub HTML/CSS scenes
 on one global timeline, drag clips to tune every timing, read narration off a
@@ -18,7 +18,7 @@ Requires Node.js and an installed Chrome or Edge (for export).
 
 1. `npm install`
 2. `npm run dev`
-3. Open http://localhost:4321/ and pick the **Meet video-studio** project.
+3. Open http://localhost:4321/ and pick the **Meet Kinema** project.
 
 That intro project is a short tour of the tool. The keys and interactions live in
 the UI hint bar and button tooltips, so just start playing and dragging.
@@ -29,6 +29,8 @@ the UI hint bar and button tooltips, so just start playing and dragging.
   timings, record voice, export MP4, and how to pick or add a project.
 - [docs/project-format.md](docs/project-format.md) — the file format: folders,
   `project.json`, `scene.json`, schedule semantics, theme helpers.
+- [docs/project-repos.md](docs/project-repos.md) — how projects relate to git:
+  why your videos aren't in the studio repo, and the recommended own-repo setup.
 
 ## Develop
 

@@ -24,7 +24,7 @@ import { el } from "./dom";
 export type Mode = "record" | "tune" | "time" | "stage";
 export const MODES: Mode[] = ["record", "tune", "time", "stage"];
 
-const LS_KEY = "video-studio.mode";
+const LS_KEY = "kinema.mode";
 
 function storageKey(): string {
     return `${LS_KEY}:${getProject() ?? "__default__"}`;

@@ -92,7 +92,7 @@ export function createRegistry(root) {
 
 export function studioPlugin() {
   return {
-    name: 'video-studio-api',
+    name: 'kinema-api',
 
     configureServer(server) {
       const root = server.config.root;

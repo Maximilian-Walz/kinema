@@ -1,7 +1,7 @@
 ---
 name: video-project
 description: >
-  Create or revise a video-studio project (a folder of HTML/CSS/JSON scenes on a
+  Create or revise a Kinema project (a folder of HTML/CSS/JSON scenes on a
   global timeline). Use when the user wants to draft a new video from a topic,
   article, or outline; add or revise a single scene in an existing project; or
   retime a scene against narration they have edited. Reads docs/project-format.md
@@ -10,7 +10,7 @@ description: >
 
 # video-project
 
-Generate and revise video-studio projects. The studio plays plain web files on one
+Generate and revise Kinema projects. The studio plays plain web files on one
 timeline; a video is a folder of scenes, each scene three files. You write those
 files. The format is the contract; the craft is what makes it watchable.
 

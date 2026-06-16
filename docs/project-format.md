@@ -33,7 +33,7 @@ Scene order is whatever `project.json` lists, not alphabetical.
 
 ```jsonc
 {
-  "name": "Meet video-studio",  // shown in the picker; defaults to the folder name
+  "name": "Meet Kinema",  // shown in the picker; defaults to the folder name
   "width": 1920,                // stage size, defaults to 1920x1080
   "height": 1080,
   "scenes": ["01-what", "02-timeline", "03-takes"]   // order = timeline order

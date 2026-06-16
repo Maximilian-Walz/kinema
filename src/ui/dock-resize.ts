@@ -15,7 +15,7 @@ import { el } from "./dom";
    CSS custom property the grid template reads.
 ============================================================================ */
 
-const STORAGE_PREFIX = "video-studio.dock-h";
+const STORAGE_PREFIX = "kinema.dock-h";
 const MIN_PX = 160;
 
 function storageKey(): string {

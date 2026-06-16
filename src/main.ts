@@ -84,7 +84,7 @@ if (new URLSearchParams(location.search).has("render")) {
 /* boot failed (project.json invalid, a scene.json missing, unknown ?project=,
    server down): show a readable screen instead of a blank stage. */
 function showBootError(err: unknown): void {
-  document.title = "video-studio — error";
+  document.title = "Kinema — error";
   const app = document.getElementById("app")!;
   app.textContent = "";
   const id = getProject();
@@ -112,7 +112,7 @@ function showBootError(err: unknown): void {
 
 async function bootStudio(): Promise<void> {
   const project = await fetchProject();
-  document.title = `${project.name} — video-studio`;
+  document.title = `${project.name} — Kinema`;
 
   /* content styles: theme once, scene css swapped by the engine */
   const themeStyle = document.createElement("style");

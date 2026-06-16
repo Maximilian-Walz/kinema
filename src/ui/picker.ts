@@ -5,12 +5,12 @@ import { el } from './dom';
    project; picking one navigates to ?project=<id>, which reloads and boots the
    studio on that project. */
 export async function showPicker(): Promise<void> {
-  document.title = 'video-studio';
+  document.title = 'Kinema';
   const app = document.getElementById('app')!;
 
   const list = el('div', { class: 'pick-list' });
   const screen = el('div', { class: 'picker' },
-    el('h1', { text: 'video-studio' }),
+    el('h1', { text: 'Kinema' }),
     el('p', { class: 'pick-sub', text: 'pick a project' }),
     list,
   );
