@@ -16,7 +16,9 @@ they land. Commit completed+verified work to `main` (solo workflow).
   `StageView.mountInspector(host)`; SidePanel's `case "stage"` in
   [src/ui/panels.ts](../src/ui/panels.ts) delegates. The bottom dock
   (`#stageview`) is a full-width scene-local timeline (ruler + read-only SCRIPT
-  lane + element lanes).
+  lane + element lanes). The inspector shows one group at a time behind a
+  TEXT | LOOK | TIMING tab strip (`StageView.mkTabs`; active tab persists to
+  `localStorage["sv.tab"]`).
 - **Where edits go:**
   - text → `scene.html` (`api.setElementText` leaf / `api.setElementHtml`
     nested); engine applies live via `player.replaceSceneHtml`.
@@ -24,67 +26,56 @@ they land. Commit completed+verified work to `main` (solo workflow).
     (`api.setElementStyle`); engine applies via `player.replaceSceneCss`.
   - timing/animation/class → `scene.json` schedule, undoable via `History` +
     `TimingSync.changed`.
+- **Undo/redo** for SCENE edits: `SceneSnapshot` carries `html` + `css` +
+  timings ([src/history.ts](../src/history.ts)). Text/style/position commits
+  wrap `history.snapshot(before)` → edit → `history.commit`; `main.ts`
+  `restoreScene()` re-persists + re-applies all three on undo/redo. Raw writes:
+  `PUT /api/scenes/:id/html` and `/css` (`api.putSceneHtml` / `putSceneCss`).
 - **Server endpoints**: [server/api.mjs](../server/api.mjs) — `element-text`,
-  `element-html` (nesting-aware), `element-style` (overrides region).
+  `element-html` (nesting-aware), `element-style` (overrides region), plus the
+  raw html/css writes above.
 - **Tests / verify loop:**
   - `npm run typecheck` (must be clean), `npm run build`,
     `node scripts/validate.mjs projects/intro`.
   - SCENE runtime: start `npm run dev`, then
-    `node scripts/stage-check.mjs http://127.0.0.1:<port>` (25 assertions,
-    targets `?project=intro`). It mutates intro files then restore with
+    `node scripts/stage-check.mjs http://127.0.0.1:<port>` (targets
+    `?project=intro`). It mutates intro files then restore with
     `git checkout -- projects/intro`.
   - `scripts/smoke.mjs` needs the **groupchat** default (start `npm run dev`
     with no `STUDIO_PROJECT`), then `STUDIO_URL=... node scripts/smoke.mjs`.
 - `projects/groupchat` is an in-tree but **untracked/gitignored** demo project
-  (9 scenes) — edits there won't show in `git status` / commits.
+  (its own nested git repo, with `takes/` on disk) — edits there won't show in
+  the studio repo's `git status`. See [project-repos.md](project-repos.md).
 
-## Open items
+## Recently landed
 
-### 1. Properties panel tabs  ✅ DONE (Option B)
-The inspector now shows one group at a time behind a TEXT | LOOK | TIMING tab
-strip (`StageView.mkTabs` / `.sv-tabs` in [styles.css](../src/ui/styles.css)),
-replacing the collapsible `<details>` cards. Active tab persists to localStorage
-(`sv.tab`, `StageView.TAB_KEY`). TEXT dims (`.sv-tab-empty`) when the element
-has no editable text but stays clickable (shows the empty note). The old
-`.sv-card*` rules and `mkCard` were removed. stage-check gained a `selectTab()`
-helper and switches to the relevant tab before querying group DOM.
+- Inspector TEXT | LOOK | TIMING tabs (replaced the `<details>` cards).
+- Undo/redo for SCENE text & style edits (T28).
+- Selection box tracks the node during a paused drag.
+- **Edit-mode caret now always visible.** Root cause: Blink derives the caret
+  from `-webkit-text-fill-color`, so transparent-fill / gradient text painted a
+  transparent caret on *some* elements. Fix in `.sv-editing,.sv-editing *`
+  ([styles.css](../src/ui/styles.css) ~460): force `caret-color`, `color`, and
+  `-webkit-text-fill-color` opaque + `background-clip:border-box` while editing.
+  **Tradeoff:** edited text is recoloured amber during the edit (fill-independent
+  way to guarantee the caret). If WYSIWYG colour-while-editing is wanted, switch
+  to a JS per-element computed-colour approach instead.
+- **Off-screen selection no longer leaves a stale highlight box.** `highlight()`
+  now applies the same `isOnScreen(id)` gate that `repositionBoxes()` uses, so
+  selecting an element that isn't visible at the current playhead hides the box
+  immediately instead of only on the next playhead move
+  ([stage-view.ts](../src/ui/stage-view.ts) ~497).
 
-Future: a 4th SCENE/global tab is now a one-liner if we want scene-level props.
-Option C (icon rail) was deferred — only worth it at 5+ groups with reusable
-icons, and the repo has no icon vocabulary yet.
+## Next up
 
-### 2. In-place text edit: caret invisible + unclear edit mode  ✅ DONE
-`startInlineEdit` now adds a `.sv-editing` class to the node (removed in
-`cleanup()`): explicit `caret-color:var(--st-mode)!important` fixes the
-inherited-fill-vanishing caret, plus a dashed outline + tinted background +
-`min-width:.4ch` signal edit mode. The selection overlay box is hidden on edit
-start (`positionBox(selBox, null)`) and restored in `cleanup()` via
-`repositionBoxes()`, so it no longer competes with the editing outline.
+### Line recording — sub-take picker (planned, v1 scope confirmed)
+When a recorded take is longer than the line's slot, **keep the line's current
+duration** and let the user scrub/select which window of the take to use. No
+ripple — other lines, scenes, and scene elements stay put. (Length-redefinition
++ ripple was explicitly deferred to a later ticket; revisit only after this is
+in use.) Touches the record-mode take UI + the take/window selection model.
 
-### 3. Drag leaves the highlight box behind  (one-liner)  ✅ DONE
-The `beginElementDrag` move handler now calls `this.positionBox(this.selBox,
-node)` right after setting `node.style.translate` (and hides the hover box), so
-the selection box tracks the node during a paused drag.
-
-### 4. Undo/redo for text & style edits  ✅ DONE (T28)
-- `SceneSnapshot` now carries `html` + `css`; `snapshot()` reads them and
-  `apply()` restores them ([src/history.ts](../src/history.ts)).
-- Raw write endpoints `PUT /api/scenes/:id/html` and `/css` overwrite the file
-  (tracked as self-writes) in [server/api.mjs](../server/api.mjs); clients are
-  `api.putSceneHtml` / `putSceneCss` ([src/api.ts](../src/api.ts)).
-- SCENE text/style/position commits are wrapped in `history.snapshot(before)` →
-  edit → `history.commit` (`commitText`, the inline-edit `commit`,
-  `beginElementDrag` up, `commitStyle` in [stage-view.ts](../src/ui/stage-view.ts)).
-  The snapshot is taken BEFORE the API call, while `scene.html/css` still hold
-  the prior values.
-- `main.ts` undo/redo calls a `restoreScene()` helper that always persists +
-  re-applies all three (`replaceSceneHtml` + `putSceneHtml`, `replaceSceneCss` +
-  `putSceneCss`, `sync.changed` for timings) — simple and idempotent.
-- stage-check has a T28 assertion: edit #title text → ctrl+Z restores
-  `scene.html` in memory AND on disk.
-
-## Where to go from here (after 1–4)
-
+### Backlog
 - **Editable element labels** (`data-label`) via the HTML patch — names are
   read-only/derived today.
 - **Auto-assign an id** when scheduling an element that has none (the one gap in
