@@ -29,6 +29,10 @@ export class Player {
   time = 0;
   playing = false;
   loop: { start: number; end: number } | null = null;
+  /* optional playback ceiling: while set, the rAF advance pins the clock here
+     instead of rolling on (used to keep a FREE-mode take on its scene so an
+     overrun doesn't cross into the next scene). Manual seeks ignore it. */
+  maxTime: number | null = null;
   private mounted = -1;
   private lastFrame: number | null = null;
   private threadScroll = 0;
@@ -250,13 +254,14 @@ export class Player {
     const dt = (now - this.lastFrame) / 1000;
     this.lastFrame = now;
     if (this.playing) {
-      const next = this.time + dt;
+      let next = this.time + dt;
+      if (this.maxTime !== null && next > this.maxTime) next = this.maxTime;
       if (this.loop && this.time < this.loop.end && next >= this.loop.end) {
         this.update(this.loop.start);
       } else {
         this.update(next);
       }
-      if (this.time >= this.total) {
+      if (this.maxTime === null && this.time >= this.total) {
         this.setPlaying(false);
         this.events.emit('ended');
       }

@@ -383,6 +383,13 @@ export class Takes {
     const chunks: Blob[] = [];
     this.recSceneIndex = sceneIndex;
     this.recStopAt = line.to;
+    /* FREE mode: pin the playhead inside this scene while recording so an
+       overrun (especially on the last line) doesn't roll into the next scene —
+       which would stop the take via the scene hook and advance the prompter.
+       CHAIN mode advances line-to-line, so it sets no ceiling. Cleared on stop. */
+    this.player.maxTime = this.chainMode
+      ? null
+      : this.player.offsets[sceneIndex] + scene.len - 1e-3;
     const sceneId = scene.id;
     const lid = line.id;
     rec.ondataavailable = (e) => {
@@ -395,6 +402,7 @@ export class Takes {
       this.recorder = null;
       this.recordingLine = null;
       this.recStopAt = Infinity;
+      this.player.maxTime = null;
       const wasNatural = this.naturalStop;
       this.naturalStop = false;
       this.events.emit("recording", false);

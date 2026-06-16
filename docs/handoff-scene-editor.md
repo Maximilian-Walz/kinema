@@ -70,8 +70,11 @@ they land. Commit completed+verified work to `main` (solo workflow).
   `rv.chainMode`). CHAIN hard-stops each take at `line.to` and auto-advances to
   the next line (prompter scrolls along). FREE never auto-stops at the slot —
   recording rolls on so you can read long; the prompter freezes on the line you
-  started, and you pick/extend afterwards. The mode now drives the slot-end
-  auto-stop in `Takes` (was a separate `overrun` flag). A per-line **progress
+  started, and you pick/extend afterwards. While free-recording the playhead is
+  pinned inside the scene (`player.maxTime`), so an overrun — even on the last
+  line — never crosses into the next scene (which would otherwise stop the take
+  and advance the view). The mode now drives the slot-end auto-stop in `Takes`
+  (was a separate `overrun` flag). A per-line **progress
   bar** (RecBar + the current prompter line, [recbar.ts](../src/ui/recbar.ts) /
   `RecordView.updateLineProgress`) fills across the line's duration and pulses
   red on overrun.
