@@ -1,5 +1,5 @@
 /* ============================================================================
-   video-studio UI. The stage content itself is styled by the project's
+   Kinema UI. The stage content itself is styled by the project's
    theme.css + per-scene scene.css; everything here is studio chrome.
 ============================================================================ */
 :root{
@@ -459,10 +459,18 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
 .sv-ovl-hover{outline:1px dashed var(--st-mode);opacity:.75}
 /* in-place text editing (StageView.startInlineEdit). Visually distinct from the
    cyan selection (solid) and hover (dashed) boxes — a warm amber solid outline +
-   glow reads unmistakably as "you are editing this". The caret-color is forced
-   on the node AND its descendants because contenteditable inherits it from the
-   element's text fill, which can vanish against some backgrounds. */
-.sv-editing,.sv-editing *{caret-color:#ffd166!important}
+   glow reads unmistakably as "you are editing this".
+   Caret visibility: caret-color alone is NOT enough. Blink/WebKit derive the
+   caret colour from -webkit-text-fill-color, so transparent-fill or gradient
+   (background-clip:text + transparent fill) text paints a transparent caret no
+   matter what caret-color says — that's why it was invisible on some elements.
+   Force a concrete amber fill (and undo any clip-to-text) on the edited node and
+   its descendants, so the caret AND the typed text stay visible for every
+   element regardless of its own colour/gradient styling. Recolouring the text
+   amber while editing also reinforces the "you are editing this" signal. */
+.sv-editing,.sv-editing *{caret-color:#ffd166!important;color:#ffd166!important;
+  -webkit-text-fill-color:#ffd166!important;
+  -webkit-background-clip:border-box!important;background-clip:border-box!important}
 .sv-editing{outline:2px solid #ffd166;outline-offset:3px;border-radius:3px;
   min-width:.5ch;background:rgba(255,209,102,.14);cursor:text;
   box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 16px rgba(255,209,102,.5)}

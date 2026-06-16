@@ -494,10 +494,15 @@ export class StageView {
     this.renderInspector();
   }
 
-  /** draw the selection box over the element with this id (null = hide it) */
+  /** draw the selection box over the element with this id (null = hide it).
+      Gate on isOnScreen() — same as repositionBoxes() — so selecting an element
+      that isn't on-screen at the current playhead (before entrance / after exit /
+      off the viewport) hides the box immediately instead of leaving a stale box
+      that only corrects on the next playhead move. */
   private highlight(id: string | null): void {
     this.ensureOverlays();
-    this.positionBox(this.selBox, id ? this.sceneEl(id) : null);
+    const node = id && this.isOnScreen(id) ? this.sceneEl(id) : null;
+    this.positionBox(this.selBox, node);
   }
 
   private applyHighlight(): void {
