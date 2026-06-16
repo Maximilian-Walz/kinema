@@ -59,16 +59,13 @@ keep per-group scroll inside `.sp-body`. Implementation touches
 `StageView.renderInspector` (render one group based on an active-tab field) +
 styles. Persist the active tab per session (localStorage) so it doesn't reset.
 
-### 2. In-place text edit: caret invisible + unclear edit mode
-Code: `StageView.startInlineEdit` in [stage-view.ts](../src/ui/stage-view.ts)
-(sets `contenteditable="plaintext-only"`).
-- **Caret vanishes at end of a word**: try an explicit `caret-color` on an
-  `.sv-editing` class, ensure the node has a non-zero min-width, and check the
-  selection overlay box isn't visually competing (it stays drawn during edit).
-- **Communicate edit mode**: add a class to the node while editing
-  (`.sv-editing { outline; background; caret-color }`), and/or switch the
-  selection box to an "editing" variant; optionally dim the rest of the stage.
-  Remove the class in `cleanup()`.
+### 2. In-place text edit: caret invisible + unclear edit mode  ✅ DONE
+`startInlineEdit` now adds a `.sv-editing` class to the node (removed in
+`cleanup()`): explicit `caret-color:var(--st-mode)!important` fixes the
+inherited-fill-vanishing caret, plus a dashed outline + tinted background +
+`min-width:.4ch` signal edit mode. The selection overlay box is hidden on edit
+start (`positionBox(selBox, null)`) and restored in `cleanup()` via
+`repositionBoxes()`, so it no longer competes with the editing outline.
 
 ### 3. Drag leaves the highlight box behind  (one-liner)  ✅ DONE
 The `beginElementDrag` move handler now calls `this.positionBox(this.selBox,

@@ -457,6 +457,12 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
 .sv-ovl-sel{outline:2px solid var(--st-mode);
   box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 12px rgba(57,197,207,.6)}
 .sv-ovl-hover{outline:1px dashed var(--st-mode);opacity:.75}
+/* in-place text editing (StageView.startInlineEdit): signal edit mode and keep
+   the caret visible — contenteditable inherits caret-color from the element's
+   text fill, which can vanish at the end of a word against some backgrounds. */
+.sv-editing{caret-color:var(--st-mode)!important;
+  outline:2px dashed var(--st-mode);outline-offset:3px;border-radius:3px;
+  min-width:.4ch;background:rgba(57,197,207,.12);cursor:text}
 /* corner handle on the selection box: drag to resize font (pointer-events on,
    though the box itself is inert) */
 .sv-ovl-handle{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;

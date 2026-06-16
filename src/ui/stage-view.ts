@@ -690,6 +690,10 @@ export class StageView {
     const orig = node.textContent ?? "";
     this.editing = true;
     node.setAttribute("contenteditable", "plaintext-only");
+    node.classList.add("sv-editing");
+    // the selection box (outline + glow) would compete with the editing outline
+    // and obscure the caret — hide it while editing, restore in cleanup.
+    this.positionBox(this.selBox, null);
     node.focus();
     const range = document.createRange();
     range.selectNodeContents(node);
@@ -699,9 +703,11 @@ export class StageView {
 
     const cleanup = (): void => {
       node.removeAttribute("contenteditable");
+      node.classList.remove("sv-editing");
       node.removeEventListener("keydown", onKey, true);
       node.removeEventListener("blur", onBlur, true);
       this.editing = false;
+      this.repositionBoxes(); // re-show the selection box
     };
     const commit = (): void => {
       const text = node.textContent ?? "";
