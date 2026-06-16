@@ -160,6 +160,10 @@ async function bootStudio(): Promise<void> {
   );
   const tl = new Timeline(timeline, player, takes, sync, history);
   const stageView = new StageView(stageview, player, sync, history);
+  /* SCENE mode's element inspector lives in the side panel; wire the renderer
+     and initialise active state for a boot straight into SCENE */
+  stageView.onModeChange(mode.mode === "stage");
+  sidePanel.setStageInspector((host) => stageView.mountInspector(host));
   new RecordView(recordview, player, takes, micMonitor);
   new TuneView(tuneview, player, takes);
   new DockResize();

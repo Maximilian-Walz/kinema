@@ -42,7 +42,7 @@ try {
   await page.evaluate(() => {
     /* seek via keyboard: 2 = scene 2 */
   });
-  ok((await page.$$(".tl-track")).length === 5, "timeline: 5 tracks");
+  ok((await page.$$(".tl-track")).length === 4, "timeline: 4 tracks (scenes/script/captions/voice)");
   ok((await page.$$(".tl-scene")).length === 9, "timeline: 9 scene blocks");
   ok(
     (await page.$$(".sp-line")).length === 4,
@@ -71,10 +71,16 @@ try {
   );
 
   /* ---------------- loop region via keyboard ---------------- */
+  /* Alt+Arrow is the coarse +/-5s seek (plain Arrow steps narration lines) */
+  const seek5 = async () => {
+    await page.keyboard.down("Alt");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.up("Alt");
+  };
   await page.keyboard.press("1");
-  await page.keyboard.press("ArrowRight"); // t = 5
+  await seek5(); // t = 5
   await page.keyboard.press("i");
-  await page.keyboard.press("ArrowRight"); // t = 10
+  await seek5(); // t = 10
   await page.keyboard.press("o");
   const loop = await page.evaluate(() => window.__studio.player.loop);
   ok(

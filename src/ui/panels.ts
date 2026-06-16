@@ -28,6 +28,9 @@ export class SidePanel {
   private readonly history: History;
   private readonly mode: WorkspaceMode;
   private readonly playbackMeter: PlaybackMeter;
+  /** SCENE mode: the side panel hosts StageView's element inspector. StageView
+      renders into the body we hand it; null in the other modes. */
+  private renderStageInspector: ((host: HTMLElement) => void) | null = null;
   private readonly body: HTMLElement;
   /** debounce timers for per-section gain writes, keyed sceneId/lineId/file */
   private readonly chainTimers = new Map<string, number>();
@@ -96,11 +99,18 @@ export class SidePanel {
         this.renderScript();
         return;
       case "stage":
-        /* STAGE choreographs one scene; the script teleprompter is useful
-           context (the element schedule editor lives in the bottom dock) */
-        this.renderScript();
+        /* SCENE mode hosts StageView's element inspector here in the side panel
+           (roomier than the bottom dock); StageView renders into our body */
+        if (this.renderStageInspector) this.renderStageInspector(this.body);
         return;
     }
+  }
+
+  /** Wire the SCENE-mode inspector renderer (StageView.mountInspector). Re-renders
+      immediately if SCENE is the current mode (covers a boot straight into it). */
+  setStageInspector(fn: (host: HTMLElement) => void): void {
+    this.renderStageInspector = fn;
+    if (this.mode.mode === "stage") this.render();
   }
 
   /* SCRIPT ----------------------------------------------------------------- */

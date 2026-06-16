@@ -154,9 +154,12 @@ try {
   await new Promise((r) => setTimeout(r, 150));
   await page.click("#fHtml");
   await new Promise((r) => setTimeout(r, 150));
-  const spanFields = await page.evaluate(() =>
-    document.querySelectorAll(".sv-insp-sec .sv-field .sv-input[type=text]").length);
-  ok(spanFields >= 2, `inspector lists each nested text run as a field (${spanFields})`);
+  const spanFields = await page.evaluate(() => {
+    const card = [...document.querySelectorAll(".sv-card")]
+      .find((c) => c.querySelector(".sv-card-name")?.textContent === "text");
+    return card ? card.querySelectorAll(".sv-input[type=text]").length : 0;
+  });
+  ok(spanFields >= 2, `TEXT card lists each nested text run as a field (${spanFields})`);
 
   /* --- T21/T22: style + position overrides land in scene.css --- */
   const style = await page.evaluate(async () => {
@@ -179,13 +182,16 @@ try {
   ok(style.hasTranslate, "element-style stores a translate (drag-to-reposition) override");
   ok(style.cleaned, "clearing all props removes the overrides region");
 
-  /* --- T23: TIME elements track uses the same readable labels --- */
+  /* --- R2: TIME no longer carries an ELEMENTS track (4 tracks, scene-local
+     element timing lives in SCENE) --- */
   await page.keyboard.press("F3");
   await new Promise((r) => setTimeout(r, 250));
-  const timeLabel = await page.evaluate(() =>
-    document.querySelector(".tl-elements .tl-cliptext")?.textContent);
-  ok(timeLabel != null && /video.?studio/i.test(timeLabel),
-    `TIME elements track shows element text, not the raw id (got "${timeLabel}")`);
+  const timeTracks = await page.evaluate(() => ({
+    tracks: document.querySelectorAll(".tl-track").length,
+    hasElements: !!document.querySelector(".tl-elements"),
+  }));
+  ok(timeTracks.tracks === 4 && !timeTracks.hasElements,
+    `TIME has 4 tracks, no ELEMENTS (${timeTracks.tracks})`);
   await page.keyboard.press("F4");
   await new Promise((r) => setTimeout(r, 250));
 
@@ -242,13 +248,16 @@ try {
   });
   ok(ringColor === "rgb(121, 192, 255)", `selected clip keeps its blue ring over current (${ringColor})`);
 
-  /* --- T27: double-click an element seeks the playhead to its entrance --- */
-  await page.evaluate(() => window.__studio.player.seek(6));
+  /* --- R5: double-click an element in the preview starts in-place text edit --- */
+  await page.evaluate(() => window.__studio.player.seek(6)); // #sub visible
   await new Promise((r) => setTimeout(r, 100));
-  await page.click("#sub", { clickCount: 2 }); // #sub enters at 1.5
+  await page.click("#sub", { clickCount: 2 });
   await new Promise((r) => setTimeout(r, 150));
-  const dblLocal = await page.evaluate(() => window.__studio.player.localTime);
-  ok(Math.abs(dblLocal - 1.5) < 0.2, `double-click element seeks to its entrance (local=${dblLocal.toFixed(2)})`);
+  const editing = await page.evaluate(() =>
+    document.querySelector("#sub")?.getAttribute("contenteditable"));
+  ok(editing === "plaintext-only", `double-click an element edits its text in place (${editing})`);
+  await page.keyboard.press("Escape");
+  await new Promise((r) => setTimeout(r, 100));
 
   /* double-click a timeline CLIP seeks to its element's entrance too */
   await page.evaluate(() => window.__studio.player.seek(6));
@@ -263,7 +272,7 @@ try {
   await page.evaluate(() => window.__studio.player.seek(5));
   await new Promise((r) => setTimeout(r, 100));
   const added = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll(".sv-inspector button")]
+    const btn = [...document.querySelectorAll(".sp-body button")]
       .find((b) => /add exit/.test(b.textContent));
     if (!btn) return false;
     btn.click();

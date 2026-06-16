@@ -9,15 +9,15 @@ import type { SceneData, TimedText } from "../types";
 import { el } from "./dom";
 
 /* ============================================================================
-   Timeline editor. Tracks, top to bottom:
+   Timeline editor — the GLOBAL clock across all scenes. Tracks, top to bottom:
      ruler      time ticks: click/drag seeks, alt+drag sets the loop region
      SCENES     one block per scene, drag the right edge to change its length
      SCRIPT     narration lines as clips
      CAPTIONS   lower-third captions
-     ELEMENTS   the current scene's schedule (markers fire and stay on,
-                spans have an exit)
      VOICE      picked take waveform per scene — drag horizontally to align
                 the recording against the scene (offset kept for export)
+
+   Per-element enter/exit is scene-local and lives in SCENE mode, not here.
 
    Interactions:
    - drag clips to move, drag edges to retime; edits land in scene.json
@@ -26,7 +26,7 @@ import { el } from "./dom";
    - click selects, ctrl+click toggles, drag on empty space = marquee;
      a drag on any selected clip moves the whole selection; DEL deletes
    - double-click a script/caption clip to edit its text
-   - "+ line / + caption / + element" insert at the playhead
+   - "+ line / + caption" insert at the playhead
    - every transaction is undoable (ctrl+Z / ctrl+shift+Z)
 ============================================================================ */
 
@@ -128,13 +128,8 @@ export class Timeline {
       text: "+ caption",
       title: "add a caption at the playhead",
     });
-    const addElem = el("button", {
-      text: "+ element",
-      title: "add a schedule entry at the playhead",
-    });
     addLine.onclick = () => this.addText("lines");
     addCap.onclick = () => this.addText("captions");
-    addElem.onclick = () => this.addElement();
 
     const toolbar = el(
       "div",
@@ -146,7 +141,6 @@ export class Timeline {
       el("span", { class: "tl-sep" }),
       addLine,
       addCap,
-      addElem,
       el("span", {
         class: "tl-hint",
         text:
@@ -209,7 +203,8 @@ export class Timeline {
     this.canvas.appendChild(
       this.buildTextTrack("CAPTIONS", "tl-captions", (s) => s.captions),
     );
-    this.canvas.appendChild(this.buildElementsTrack());
+    /* element enter/exit is scene-local, so it lives in SCENE mode now, not on
+       this global timeline (which is about scene lengths + narration sync) */
     this.canvas.appendChild(this.buildTakesTrack());
 
     this.canvas.append(this.loopEl, this.snapGuide, this.playhead);
@@ -415,141 +410,6 @@ export class Timeline {
         place();
       });
     });
-    return track;
-  }
-
-  /* --------------------------- elements track ---------------------------- */
-
-  private buildElementsTrack(): HTMLElement {
-    const P = this.player;
-    const si = P.sceneIndex;
-    const scene = P.project.scenes[si];
-    const track = el(
-      "div",
-      { class: "tl-track tl-elements" },
-      this.label(`ELEMENTS · scene ${si + 1}`),
-    );
-
-    const lanes: number[] = [];
-    const entries = scene.schedule.map((ev, idx) => {
-      const isSpan = ev.exit !== undefined;
-      /* same readable label as STAGE: the element's text/data-label, not the
-         raw id (which stays in the tooltip); keep any custom class suffix */
-      const clsSuffix = ev.cls && ev.cls !== "on" ? "." + ev.cls : "";
-      const name = this.player.elementInfo(ev.id).label + clsSuffix;
-      const startPx = (P.offsets[si] + ev.enter) * this.pps;
-      const widthPx = isSpan
-        ? Math.max(10, (ev.exit! - ev.enter) * this.pps)
-        : name.length * 6.6 + 18;
-      let lane = lanes.findIndex((end) => end <= startPx + 0.5);
-      if (lane < 0) {
-        lane = lanes.length;
-        lanes.push(0);
-      }
-      lanes[lane] = startPx + widthPx + 6;
-      return { ev, idx, isSpan, name, lane };
-    });
-    track.style.height = 26 + Math.max(1, lanes.length) * 20 + "px";
-
-    for (const { ev, idx, isSpan, name, lane } of entries) {
-      const key = `${scene.id}|sched|${idx}`;
-      const clip = el("div", {
-        class: "tl-clip tl-element" + (isSpan ? "" : " tl-marker"),
-        title: `${name} · #${ev.id} · in ${ev.enter}s` +
-          (isSpan
-            ? ` · out ${ev.exit}s`
-            : " (stays on — drag right edge to add an exit)"),
-      }, el("span", { class: "tl-cliptext", text: name }));
-      const hl = isSpan ? el("div", { class: "tl-handle tl-handle-l" }) : null;
-      const hr = el("div", { class: "tl-handle tl-handle-r" });
-      if (hl) clip.appendChild(hl);
-      clip.appendChild(hr);
-
-      const place = (): void => {
-        clip.style.left = (P.offsets[si] + ev.enter) * this.pps + "px";
-        clip.style.top = 24 + lane * 20 + "px";
-        if (ev.exit !== undefined) {
-          clip.style.width = Math.max(8, (ev.exit - ev.enter) * this.pps - 1) +
-            "px";
-        }
-      };
-      const record: ClipRecord = {
-        div: clip,
-        place,
-        key,
-        scene,
-        isCurrent: (time) => {
-          const local = time - P.offsets[si];
-          return local >= ev.enter &&
-            (ev.exit === undefined || local < ev.exit);
-        },
-        edges: () =>
-          ev.exit === undefined
-            ? [P.offsets[si] + ev.enter]
-            : [P.offsets[si] + ev.enter, P.offsets[si] + ev.exit],
-        beginMove: () => {
-          const oE = ev.enter, oX = ev.exit;
-          return (delta) => {
-            const d = Math.max(-oE, delta);
-            ev.enter = round(oE + d, FINE);
-            if (oX !== undefined) {
-              ev.exit = Math.min(scene.len, round(oX + d, FINE));
-            }
-          };
-        },
-        remove: () => {
-          const at = scene.schedule.indexOf(ev);
-          if (at >= 0) scene.schedule.splice(at, 1);
-        },
-      };
-      this.clips.push(record);
-
-      clip.onpointerdown = (e) => {
-        e.stopPropagation();
-        const target = e.target as HTMLElement;
-        if (target === hl) {
-          const orig = ev.enter;
-          this.beginDrag(e, {
-            scenes: [scene],
-            excluded: new Set([clip]),
-            edges: [P.offsets[si] + orig],
-            apply: (delta) => {
-              ev.enter = Math.min(
-                (ev.exit ?? scene.len) - 0.1,
-                Math.max(0, round(orig + delta, FINE)),
-              );
-            },
-          });
-        } else if (target === hr) {
-          /* dragging the right edge of a marker creates its exit — spawn it at
-             the mouse (the visual right edge), not back at `enter`, so it
-             doesn't jump */
-          const orig = ev.exit ?? (this.timeAt(e.clientX) - P.offsets[si]);
-          this.beginDrag(e, {
-            scenes: [scene],
-            excluded: new Set([clip]),
-            edges: [P.offsets[si] + orig],
-            apply: (delta) => {
-              ev.exit = Math.max(
-                ev.enter + 0.1,
-                Math.min(scene.len, round(orig + delta, FINE)),
-              );
-            },
-          });
-        } else {
-          this.dragSelection(e, record);
-        }
-      };
-      /* double-click an element clip: select it and jump the playhead to its
-         entrance (script/caption clips keep their text editor instead) */
-      clip.ondblclick = (e) => {
-        e.stopPropagation();
-        this.setSelection([key]);
-        this.player.seek(P.offsets[si] + ev.enter);
-      };
-      track.appendChild(clip);
-      place();
-    }
     return track;
   }
 
@@ -891,34 +751,6 @@ export class Timeline {
     this.setSelection([key]);
     const rec = this.clips.find((c) => c.key === key);
     if (rec) this.editText(rec.div, scene, item);
-  }
-
-  private addElement(): void {
-    const scene = this.player.scene;
-    const raw = window.prompt(
-      'element id to schedule (e.g. "s1win", "s1win.hl" for a class other than "on"):',
-    );
-    if (!raw) return;
-    const m = /^([\w-]+)(?:\.([\w-]+))?$/.exec(raw.trim());
-    if (!m) return;
-    const id = m[1], cls = m[2];
-    const enter = round(Math.max(0, this.player.localTime), GRID);
-    /* don't stack an exact-duplicate entry; select the existing one instead */
-    const dupIdx = scene.schedule.findIndex((s) =>
-      s.id === id && s.enter === enter && s.exit === undefined &&
-      (s.cls ?? "on") === (cls ?? "on") && !s.fx);
-    if (dupIdx >= 0) {
-      this.setSelection([`${scene.id}|sched|${dupIdx}`]);
-      return;
-    }
-    const before = this.history.snapshot(scene);
-    const entry: { id: string; enter: number; cls?: string } = { id, enter };
-    if (cls) entry.cls = cls;
-    scene.schedule.push(entry);
-    this.history.commit(scene, before);
-    this.sync.changed(scene);
-    this.rebuild();
-    this.setSelection([`${scene.id}|sched|${scene.schedule.length - 1}`]);
   }
 
   /* ------------------------------ helpers -------------------------------- */

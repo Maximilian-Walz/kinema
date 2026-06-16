@@ -370,7 +370,14 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
   letter-spacing:.04em}
 .sv-hint{margin-left:auto;font-family:var(--st-mono);font-size:10.5px;
   color:var(--st-faint)}
-.sv-main{flex:1;display:flex;min-height:0}
+
+/* read-only narration lane in the SCENE timeline (context for timing elements
+   against the spoken words; click to seek) */
+.sv-script{position:relative;height:20px;margin-bottom:6px}
+.sv-script-clip{position:absolute;top:1px;height:18px;border-radius:5px;
+  background:rgba(63,185,80,.16);color:#9be8a4;font-family:var(--st-mono);
+  font-size:10px;padding:2px 7px;overflow:hidden;cursor:pointer}
+.sv-script-clip:hover{background:rgba(63,185,80,.3)}
 
 /* no horizontal padding: absolutely-positioned playhead/snapguide and the
    in-flow ruler/lanes then share one left origin, so the playhead lines up with
@@ -398,23 +405,28 @@ button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
 .sv-missing{opacity:.65}
 .sv-missing .sv-tag,.sv-tag-missing{color:#ffb4a8;background:rgba(248,81,73,.22)}
 
-/* inspector */
-.sv-inspector{width:320px;flex:none;border-left:1px solid var(--st-line);
-  padding:12px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;
-  background:var(--st-panel)}
+/* inspector — rendered into the side panel (.sp-body) in SCENE mode */
 .sv-insp-empty{color:var(--st-faint);font-family:var(--st-mono);font-size:11.5px;
-  margin-top:4px;line-height:1.5}
-.sv-insp-head{display:flex;align-items:center;gap:8px}
-.sv-insp-name{font-size:13px;color:var(--st-text);overflow:hidden;
+  line-height:1.5}
+.sv-insp-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sv-insp-name{font-size:14px;color:var(--st-text);overflow:hidden;
   white-space:nowrap;text-overflow:ellipsis}
 .sv-insp-id{font-family:var(--st-mono);font-size:10.5px;color:var(--st-faint);
-  margin-top:-7px}
+  width:100%}
 .sv-insp-warn{color:#ffb4a8;font-size:11px;line-height:1.4}
 .sv-insp-note{color:var(--st-faint);font-size:11px;line-height:1.4}
-.sv-insp-sec{display:flex;flex-direction:column;gap:8px;padding-top:8px;
-  border-top:1px solid var(--st-line)}
-.sv-sec-title{font-family:var(--st-mono);font-size:9.5px;letter-spacing:.14em;
+
+/* collapsible cards (TEXT / LOOK / TIMING), matching TUNE's post-chain cards */
+.sv-card{border:1px solid var(--st-line);border-radius:8px;background:var(--st-panel2);
+  overflow:hidden}
+.sv-card-sum{display:flex;align-items:center;cursor:pointer;list-style:none;
+  padding:7px 10px;font-family:var(--st-mono);font-size:10px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--st-dim)}
+.sv-card-sum::-webkit-details-marker{display:none}
+.sv-card-name{flex:1}
+.sv-card-chev{transition:transform .15s}
+.sv-card[open] .sv-card-chev{transform:rotate(180deg)}
+.sv-card-body{display:flex;flex-direction:column;gap:9px;padding:4px 10px 11px}
 .sv-field{display:flex;flex-direction:column;gap:3px}
 .sv-field-label{font-family:var(--st-mono);font-size:9.5px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--st-faint)}
@@ -445,6 +457,11 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
 .sv-ovl-sel{outline:2px solid var(--st-mode);
   box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 12px rgba(57,197,207,.6)}
 .sv-ovl-hover{outline:1px dashed var(--st-mode);opacity:.75}
+/* corner handle on the selection box: drag to resize font (pointer-events on,
+   though the box itself is inert) */
+.sv-ovl-handle{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;
+  background:var(--st-mode);border:1px solid var(--st-bg);border-radius:3px;
+  cursor:nwse-resize;pointer-events:auto;z-index:61}
 
 /* =============================== picker ================================= */
 .t-project{max-width:180px}

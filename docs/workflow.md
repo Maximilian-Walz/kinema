@@ -33,28 +33,30 @@ you need for the job are on screen:
   Side panel shows the playback meter, the "match all takes" button, and the
   collapsible post chain (high-pass / gate / compressor / gain) for whichever
   line the cursor is on.
-- **TIME** (`F3`) — full timeline at the bottom (scenes / script / captions /
-  elements / voice), side panel is just the script teleprompter. Drag the
-  divider at the top of the dock to resize it.
-- **STAGE** (`F4`) — choreograph one scene. The live preview stays up top; the
-  bottom dock is a scene-local element timeline plus an inspector. **Click any
-  element in the preview to select it** (the clip below and the inspector light
-  up; click a clip to highlight the element — selection is bidirectional). With
-  an element selected you can, without opening files:
-  - edit its on-screen **text**, including text nested inside animated divs —
-    each text run is its own field, patched into `scene.html`;
-  - tweak **font size and colour**, and **drag it on the stage to reposition**
-    it — these are stored as a generated `#id{}` rule in `scene.css`;
-  - retime it (drag the clip, or type exact enter/exit), give it an entrance
-    **animation** preset, and add/remove an exit.
+- **TIME** (`F3`) — the **global** timeline: scenes / script / captions / voice
+  on one clock across the whole video. This is where you set scene lengths, align
+  narration lines and captions, and drag voice takes into sync. Side panel is the
+  script teleprompter. (Per-element enter/exit is scene-local, so it lives in
+  SCENE, not here.) Drag the divider at the top of the dock to resize it.
+- **SCENE** (`F4`) — compose **one** scene. The live preview is the canvas; the
+  bottom dock is a scene-local timeline (a read-only SCRIPT lane for narration
+  context + the element lanes), and the **inspector** is in the side panel.
+  - **click** an element in the preview to select it (the clip + inspector light
+    up; click a clip to highlight the element — selection is bidirectional);
+  - **double-click** to edit its text right on the stage (incl. text nested in
+    animated divs) — saved into `scene.html`;
+  - **drag** to reposition, or grab the **corner handle** to resize the font —
+    stored as a generated `#id{}` rule in `scene.css`;
+  - the inspector's cards cover **text**, **look** (size / colour / position) and
+    **timing** (enter / exit, entrance **animation** preset, toggle class).
 
   Unscheduled elements get a "+ add to schedule" button; `+ by id` schedules
   elements you can't easily click. Elements are auto-named from their
   text/`data-label` with a tag chip, so you read "WHAT IT IS", not `title`.
 
-The line under the playhead is the implicit selection across all three modes,
-so clicking a section in the TUNE navigator or a line in the RECORD prompter
-just seeks — and the side panel updates in lock-step.
+The line under the playhead is the implicit selection across the modes, so
+clicking a section in the TUNE navigator or a line in the RECORD prompter just
+seeks — and the side panel updates in lock-step.
 
 ## 3. Tune timings (TIME mode)
 

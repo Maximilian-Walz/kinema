@@ -76,7 +76,7 @@ element with that `#id`:
   keeps a `fx-<name>` base class on the element for the whole scene (so it sits
   in the preset's hidden "before" state) and toggles `cls` to animate it in. The
   theme defines the `.fx-<name>` / `.fx-<name>.on` rules (see `theme.css`:
-  `fade`, `up`, `down`, `left`, `right`, `pop`). The STAGE-mode editor sets this
+  `fade`, `up`, `down`, `left`, `right`, `pop`). The SCENE-mode editor sets this
   from a dropdown, so you can pick an entrance animation without editing CSS.
 
 The engine never animates directly. It only flips classes. Put the motion in CSS
@@ -115,10 +115,10 @@ first line's id (and its takes) and drops the second.
 - Include `<div id="caption"></div>` if the scene uses captions.
 - `scene.html` / `scene.css` / `project.json` changes on disk auto-reload the
   app. `scene.json` timing edits flow the other way (UI to disk, debounced ~0.5s).
-- STAGE mode can edit on-screen text — a leaf element's own text is patched into
+- SCENE mode can edit on-screen text — a leaf element's own text is patched into
   `scene.html` byte-faithfully; text nested inside an animated div is edited per
   text run (the element's inner HTML is rewritten, the rest of the file intact).
-- STAGE mode also writes per-element **visual overrides** (font size, colour,
+- SCENE mode also writes per-element **visual overrides** (font size, colour,
   position) into a generated region of `scene.css`, delimited by
   `/* studio:overrides … */ … /* studio:overrides:end */`, one `#id{}` rule each.
   Edit elsewhere in `scene.css` freely; the studio only rewrites that region.
