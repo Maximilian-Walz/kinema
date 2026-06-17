@@ -43,6 +43,12 @@ export class TuneView {
     private bodyEl!: HTMLElement;
     private lastLineId: string | null = null;
     private strips: TakeStrip[] = [];
+    /* refs + signature so a play/pause (which fires takes "change") can update
+       just the button glyphs instead of rebuilding the whole comparator — a full
+       rebuild re-creates every waveform strip and visibly reflows the row */
+    private transportPlayBtn: HTMLElement | null = null;
+    private playButtons: { file: string; btn: HTMLElement }[] = [];
+    private lastSig = "";
 
     /** the take the transport controls; defaults to the active line's pick */
     private selectedFile: string | null = null;
@@ -73,7 +79,7 @@ export class TuneView {
         player.events.on("scene", () => this.onLineMaybeChanged(true));
         player.events.on("timings", () => this.render());
         player.events.on("time", () => this.onLineMaybeChanged(false));
-        takes.events.on("change", () => this.render());
+        takes.events.on("change", () => this.onTakesChange());
         /* leaving TUNE stops any audition so it doesn't bleed into another mode */
         mode.events.on("change", (m) => {
             if (m !== "tune") this.takes.pauseAudition();
@@ -255,8 +261,50 @@ export class TuneView {
 
     /* ------------------------------- render ------------------------------- */
 
+    /** A signature of everything the comparator's STRUCTURE depends on. When it
+        is unchanged, a takes "change" (e.g. audition start/stop) only needs the
+        play-button glyphs refreshed, not a full rebuild. */
+    private structureSig(lineId: string | null): string {
+        const scene = this.player.scene;
+        const sect = lineId ? this.takes.section(scene.id, lineId) : undefined;
+        return [
+            scene.id,
+            lineId ?? "",
+            sect?.candidate ?? "",
+            sect?.inPoint ?? 0,
+            this.selectedFile ?? "",
+            this.wholeTake ? 1 : 0,
+            (sect?.takes ?? []).map((t) => t.file).join(","),
+        ].join("|");
+    }
+
+    private onTakesChange(): void {
+        const id = this.activeLineId();
+        if (id !== this.lastLineId) {
+            this.onLineMaybeChanged(true);
+            return;
+        }
+        if (this.structureSig(id) !== this.lastSig) this.render();
+        else this.updatePlayButtons();
+    }
+
+    /** Cheap in-place refresh of the play/pause affordances (no rebuild). */
+    private updatePlayButtons(): void {
+        const aud = this.takes.auditioning;
+        if (this.transportPlayBtn) {
+            const playing = this.selectedFile != null &&
+                aud === this.selectedFile;
+            this.transportPlayBtn.textContent = playing ? "⏸ pause" : "▶ play";
+        }
+        for (const { file, btn } of this.playButtons) {
+            btn.textContent = aud === file ? "⏸" : "▶";
+        }
+    }
+
     private render(): void {
         this.destroyStrips();
+        this.transportPlayBtn = null;
+        this.playButtons = [];
         this.navEl.replaceChildren();
         this.bodyEl.replaceChildren();
         const scene = this.player.scene;
@@ -308,6 +356,7 @@ export class TuneView {
                     text: "seek to a script line to compare its takes",
                 }),
             );
+            this.lastSig = this.structureSig(activeId);
             return;
         }
         const activeLine = scene.lines.find((ln) => ln.id === activeId) as
@@ -342,6 +391,7 @@ export class TuneView {
                         "no takes for this line yet — record in RECORD mode",
                 }),
             );
+            this.lastSig = this.structureSig(activeId);
             return;
         }
 
@@ -369,6 +419,7 @@ export class TuneView {
                 this.selectFile(tk.file);
                 this.togglePlay();
             };
+            this.playButtons.push({ file: tk.file, btn: play });
             const name = el("span", {
                 class: "tv-take-name",
                 text: `take ${ord}`,
@@ -442,6 +493,7 @@ export class TuneView {
             list.appendChild(row);
         });
         this.bodyEl.appendChild(list);
+        this.lastSig = this.structureSig(activeId);
     }
 
     /** play/pause + whole/window + reset transport row */
@@ -455,6 +507,7 @@ export class TuneView {
             title: "play / pause the selected take (space)",
         });
         play.onclick = () => this.togglePlay();
+        this.transportPlayBtn = play;
         const scope = el("button", {
             class: "tv-tp-scope" + (this.wholeTake ? "" : " on"),
             text: this.wholeTake ? "whole take" : "window",

@@ -191,10 +191,14 @@ export class TakeStrip {
                     : "body";
                 const grabDx = ev.clientX - box.left; // pointer offset within the box
                 const winEnd = this.inPoint + this.windowLen; // anchored for left-edge
+                const downX = ev.clientX;
+                let moved = false;
                 this.windowEl.style.cursor = dragMode === "body"
                     ? "grabbing"
                     : "ew-resize";
                 const move = (mv: PointerEvent): void => {
+                    if (!moved && Math.abs(mv.clientX - downX) <= 3) return;
+                    moved = true; // past the click threshold: it's a drag
                     const x = mv.clientX - r.left;
                     if (dragMode === "body") {
                         const usable = this.duration - this.windowLen;
@@ -226,6 +230,23 @@ export class TakeStrip {
                     window.removeEventListener("pointermove", move);
                     window.removeEventListener("pointerup", up);
                     this.windowEl.style.cursor = "grab";
+                    if (!moved) {
+                        /* a click on the box (no drag): treat it like scrubbing
+                           the waveform — park the playhead here, don't slip or
+                           play. Geometry was never mutated (move() gates on the
+                           drag threshold). */
+                        if (this.onScrub) {
+                            const t = clamp(
+                                (downX - r.left) * secPerPx,
+                                0,
+                                this.duration,
+                            );
+                            this.playheadAt = t;
+                            this.paintCursor(t);
+                            this.onScrub(t);
+                        }
+                        return;
+                    }
                     if (dragMode === "body") {
                         /* slip: persist the new in-point. The owner (TUNE)
                            re-renders and replays the window; without an owner we

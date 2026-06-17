@@ -769,9 +769,11 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
   padding:20px 8px}
 .tv-takes{display:flex;flex-direction:column;gap:8px}
 .tv-take{display:grid;grid-template-columns:32px 1fr auto auto auto 1fr;
-  align-items:center;gap:10px;padding:6px 10px;
+  align-items:center;gap:10px;padding:6px 10px;cursor:pointer;
   border:1px solid var(--st-line);border-radius:8px;background:var(--st-panel2);
   font-family:var(--st-mono);font-size:11.5px}
+/* the waveform strip keeps its own scrub/grab cursors */
+.tv-take .tv-strip{cursor:default}
 .tv-take.cand{border-color:rgba(163,113,247,.5);
   background:rgba(163,113,247,.06)}
 .tv-play{flex:none}
