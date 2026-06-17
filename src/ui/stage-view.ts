@@ -78,7 +78,13 @@ export class StageView {
 
   private pps = 40;
   private clips: Clip[] = [];
+  /* `sel` is the inspector target (the primary, single element being edited).
+     `selected` is the multi-selection set used for marquee / ctrl+click and
+     moving or deleting several clips at once. A plain single click keeps the two
+     in sync; selecting many leaves `sel` null and shows a multi summary. The set
+     holds the schedule-entry objects, which are stable across rebuilds. */
   private sel: Selection | null = null;
+  private selected = new Set<ScheduleEntry>();
   private dragging = false;
   private active = false;
 
@@ -262,8 +268,9 @@ export class StageView {
     this.script.onpointerdown = (e) => this.seekDrag(e);
     this.lanes.onpointerdown = (e) => {
       if ((e.target as HTMLElement).closest(".tl-clip, .tl-handle")) return;
-      this.select(null);
-      this.seekDrag(e);
+      /* empty lanes: a drag draws a marquee (multi-select), a plain click seeks
+         and clears the selection */
+      this.marqueeOrSeek(e);
     };
   }
 
@@ -354,14 +361,17 @@ export class StageView {
       lane = laneEnds.length;
       laneEnds.push(0);
     }
-    laneEnds[lane] = startPx + widthPx + 6;
+    /* pack to the clip's true right edge (no extra gap): when one element's
+       enter is snapped to another's exit they only touch, so they belong on the
+       same row — the +0.5 tolerance above lets a touching clip reuse the lane. */
+    laneEnds[lane] = startPx + widthPx;
 
     const clip = el("div", {
       class: "tl-clip tl-element" + (isSpan ? "" : " tl-marker") +
         (info.exists ? "" : " sv-missing") +
         /* keep the selection visible across rebuilds (a clip click ends in a
            rebuild via beginDrag's pointerup, which recreates these divs) */
-        (this.sel && this.sel.entry === entry ? " selected" : ""),
+        (this.selected.has(entry) ? " selected" : ""),
       title: `#${entry.id}` + (info.exists ? "" : " — no element in scene.html"),
     });
     clip.append(
@@ -396,33 +406,30 @@ export class StageView {
 
     clip.onpointerdown = (e) => {
       e.stopPropagation();
-      this.selectEntry(entry);
       const target = e.target as HTMLElement;
       if (target === hl) {
+        this.selectEntry(entry);
         const orig = entry.enter;
-        this.beginDrag(e, entry, [entry.enter], (delta) => {
+        this.beginDrag(e, new Set([entry]), [entry.enter], (delta) => {
           entry.enter = Math.min(
             (entry.exit ?? scene.len) - 0.1,
             Math.max(0, round(orig + delta)),
           );
         });
       } else if (target === hr) {
+        this.selectEntry(entry);
         /* a marker has no exit yet: spawn it where the mouse grabbed (the
            visual right edge), not back at `enter`, so it doesn't jump */
         const orig = entry.exit ?? this.localAt(e.clientX);
-        this.beginDrag(e, entry, [orig], (delta) => {
+        this.beginDrag(e, new Set([entry]), [orig], (delta) => {
           entry.exit = Math.max(
             entry.enter + 0.1,
             Math.min(scene.len, round(orig + delta)),
           );
         });
       } else {
-        const oEnter = entry.enter, oExit = entry.exit;
-        this.beginDrag(e, entry, clipRec.edges(), (delta) => {
-          const d = Math.max(-oEnter, delta);
-          entry.enter = round(oEnter + d);
-          if (oExit !== undefined) entry.exit = Math.min(scene.len, round(oExit + d));
-        });
+        /* body: (ctrl+)click selection, then drag the whole selection together */
+        this.clipPointerDown(e, entry, clipRec);
       }
     };
 
@@ -452,9 +459,11 @@ export class StageView {
 
   /* ------------------------------- drag (clips) ------------------------- */
 
+  /** drag one or more clips' edges/positions. `exclude` is the set of entries
+      being moved (kept out of the snap targets so a clip never snaps to itself). */
   private beginDrag(
     e: PointerEvent,
-    entry: ScheduleEntry,
+    exclude: Set<ScheduleEntry>,
     edges: number[],
     apply: (delta: number) => void,
   ): void {
@@ -462,7 +471,7 @@ export class StageView {
     this.dragging = true;
     const startX = e.clientX;
     const before = this.history.snapshot(scene);
-    const targets = this.snapTargets(entry);
+    const targets = this.snapTargets(exclude);
     const target = e.target as HTMLElement;
     target.setPointerCapture(e.pointerId);
     let moved = false;
@@ -491,15 +500,39 @@ export class StageView {
     target.addEventListener("pointercancel", up);
   }
 
-  private snapTargets(exclude: ScheduleEntry): number[] {
+  private snapTargets(exclude: Set<ScheduleEntry>): number[] {
     const scene = this.player.scene;
     const targets = [0, scene.len, this.player.localTime];
     for (const ev of scene.schedule) {
-      if (ev === exclude) continue;
+      if (exclude.has(ev)) continue;
       targets.push(ev.enter);
       if (ev.exit !== undefined) targets.push(ev.exit);
     }
     return targets;
+  }
+
+  /** Move every entry in `entries` by the same (snapped) delta, clamped so the
+      whole group stays within [0, scene.len]. The grabbed clip supplies the snap
+      edges, so the group snaps off whichever clip the user is actually dragging. */
+  private beginMultiDrag(
+    e: PointerEvent,
+    grabbed: ScheduleEntry,
+    entries: ScheduleEntry[],
+  ): void {
+    const scene = this.player.scene;
+    const orig = entries.map((en) => ({ en, enter: en.enter, exit: en.exit }));
+    const minEnter = Math.min(...orig.map((o) => o.enter));
+    const maxExit = Math.max(...orig.map((o) => o.exit ?? o.enter));
+    const edges = grabbed.exit === undefined
+      ? [grabbed.enter]
+      : [grabbed.enter, grabbed.exit];
+    this.beginDrag(e, new Set(entries), edges, (delta) => {
+      const d = Math.max(-minEnter, Math.min(scene.len - maxExit, delta));
+      for (const o of orig) {
+        o.en.enter = round(o.enter + d);
+        if (o.exit !== undefined) o.en.exit = round(o.exit + d);
+      }
+    });
   }
 
   private snapDelta(raw: number, edges: number[], targets: number[], free: boolean): number {
@@ -536,13 +569,124 @@ export class StageView {
     this.select({ id, entry });
   }
 
+  /** single-select: replaces the whole multi-selection with just this element
+      (or clears it). The inspector follows `sel`. */
   private select(sel: Selection | null): void {
     this.sel = sel;
-    for (const c of this.clips) {
-      c.div.classList.toggle("selected", !!sel && c.entry === sel.entry);
-    }
+    this.selected = sel?.entry ? new Set([sel.entry]) : new Set();
+    this.paintSelected();
     this.highlight(sel?.id ?? null);
     this.renderInspector();
+  }
+
+  /** paint the `.selected` ring on every clip whose entry is in the set */
+  private paintSelected(): void {
+    for (const c of this.clips) {
+      c.div.classList.toggle("selected", this.selected.has(c.entry));
+    }
+  }
+
+  /** set the multi-selection to exactly `entries`. The inspector edits the sole
+      member when there's one; with several it shows a multi summary instead. */
+  private setSelectionSet(entries: Set<ScheduleEntry>): void {
+    this.selected = entries;
+    const only = entries.size === 1 ? [...entries][0] : null;
+    this.sel = only ? { id: only.id, entry: only } : null;
+    this.paintSelected();
+    this.highlight(this.sel?.id ?? null);
+    this.renderInspector();
+  }
+
+  private addToSelection(entry: ScheduleEntry): void {
+    const next = new Set(this.selected);
+    next.add(entry);
+    this.setSelectionSet(next);
+  }
+
+  private removeFromSelection(entry: ScheduleEntry): void {
+    const next = new Set(this.selected);
+    next.delete(entry);
+    this.setSelectionSet(next);
+  }
+
+  /** pointerdown on a clip body: ctrl/cmd toggles it in the selection, a plain
+      click on an unselected clip replaces the selection, and a click on an
+      already-selected clip keeps the (possibly multi) selection — then the drag
+      moves everything selected together. */
+  private clipPointerDown(e: PointerEvent, entry: ScheduleEntry, rec: Clip): void {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl) {
+      if (this.selected.has(entry)) {
+        this.removeFromSelection(entry);
+        return; // toggled off — nothing to drag
+      }
+      this.addToSelection(entry);
+    } else if (!this.selected.has(entry)) {
+      this.select({ id: entry.id, entry });
+    }
+    const entries = this.clips
+      .filter((c) => this.selected.has(c.entry))
+      .map((c) => c.entry);
+    if (entries.length <= 1) {
+      /* single clip: keep the original per-edge clamp against the scene end */
+      const scene = this.player.scene;
+      const oEnter = entry.enter, oExit = entry.exit;
+      this.beginDrag(e, new Set([entry]), rec.edges(), (delta) => {
+        const d = Math.max(-oEnter, delta);
+        entry.enter = round(oEnter + d);
+        if (oExit !== undefined) entry.exit = Math.min(scene.len, round(oExit + d));
+      });
+    } else {
+      this.beginMultiDrag(e, entry, entries);
+    }
+  }
+
+  /** empty-lanes pointer: drag = marquee select (ctrl adds to the current set),
+      plain click = seek the playhead and clear the selection. */
+  private marqueeOrSeek(e: PointerEvent): void {
+    const startX = e.clientX, startY = e.clientY;
+    const additive = e.ctrlKey || e.metaKey;
+    const base = additive ? new Set(this.selected) : new Set<ScheduleEntry>();
+    const target = e.target as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    let marquee: HTMLElement | null = null;
+    const move = (ev: PointerEvent): void => {
+      if (!marquee && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+      if (!marquee) {
+        marquee = el("div", { class: "tl-marquee" });
+        this.lanes.appendChild(marquee);
+      }
+      const lr = this.lanes.getBoundingClientRect();
+      const x1 = Math.min(startX, ev.clientX), x2 = Math.max(startX, ev.clientX);
+      const y1 = Math.min(startY, ev.clientY), y2 = Math.max(startY, ev.clientY);
+      Object.assign(marquee.style, {
+        left: x1 - lr.left + "px",
+        top: y1 - lr.top + "px",
+        width: x2 - x1 + "px",
+        height: y2 - y1 + "px",
+      });
+      const next = new Set(base);
+      for (const c of this.clips) {
+        const r = c.div.getBoundingClientRect();
+        if (r.left < x2 && r.right > x1 && r.top < y2 && r.bottom > y1) next.add(c.entry);
+      }
+      this.setSelectionSet(next);
+    };
+    const up = (): void => {
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", up);
+      target.removeEventListener("pointercancel", up);
+      if (marquee) {
+        marquee.remove();
+      } else {
+        /* a plain click on empty space: seek + deselect */
+        this.player.seek(this.player.offsets[this.player.sceneIndex] + this.localAt(startX));
+        this.select(null);
+      }
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+    target.addEventListener("pointercancel", up);
   }
 
   /** draw the selection box over the element with this id (null = hide it).
@@ -723,13 +867,21 @@ export class StageView {
 
   deleteSelection(): void {
     const scene = this.player.scene;
-    const entry = this.sel?.entry;
-    const at = entry ? scene.schedule.indexOf(entry) : -1;
-    if (at < 0) return;
+    /* remove every selected entry (falls back to the inspector target if the
+       set is somehow empty but one is being edited) */
+    const entries = this.selected.size
+      ? [...this.selected]
+      : (this.sel?.entry ? [this.sel.entry] : []);
+    const present = entries.filter((en) => scene.schedule.includes(en));
+    if (!present.length) return;
     const before = this.history.snapshot(scene);
-    scene.schedule.splice(at, 1);
+    for (const en of present) {
+      const at = scene.schedule.indexOf(en);
+      if (at >= 0) scene.schedule.splice(at, 1);
+    }
     this.history.commit(scene, before);
     this.sync.changed(scene);
+    this.selected = new Set();
     this.sel = this.sel ? { id: this.sel.id, entry: null } : null;
     this.rebuild();
   }
@@ -781,7 +933,9 @@ export class StageView {
     if (!content) return null;
     let fallback: HTMLElement | null = null;
     for (const n of document.elementsFromPoint(clientX, clientY)) {
-      if (!(n instanceof HTMLElement) || !content.contains(n)) continue;
+      /* accept SVG nodes too (an <svg>/<g>/<path> is an Element, not an
+         HTMLElement) — a chart diagram is otherwise unselectable in the preview */
+      if (!(n instanceof Element) || !content.contains(n)) continue;
       const idEl = n.closest<HTMLElement>("[id]");
       if (!idEl || idEl.id === "scenecontent" || idEl.id === "caption") continue;
       if (!/^[\w.-]+$/.test(idEl.id)) continue;
@@ -791,7 +945,7 @@ export class StageView {
     return fallback;
   }
 
-  private isVisible(el: HTMLElement): boolean {
+  private isVisible(el: Element): boolean {
     const s = getComputedStyle(el);
     return s.visibility !== "hidden" && s.display !== "none" &&
       parseFloat(s.opacity || "1") > 0.05;
@@ -968,6 +1122,25 @@ export class StageView {
     host.innerHTML = "";
     const scene = this.player.scene;
     const sel = this.sel;
+
+    /* several clips selected (marquee / ctrl+click): no single element to edit,
+       so show a count + bulk actions instead of the per-element groups */
+    if (this.selected.size > 1) {
+      const n = this.selected.size;
+      host.appendChild(el("div", { class: "sv-insp-head" },
+        el("span", { class: "sv-insp-name", text: `${n} elements selected` })));
+      host.appendChild(el("div", {
+        class: "sv-insp-note",
+        text: "Drag any selected clip to move them together. Delete removes them all from the schedule.",
+      }));
+      const del = el("button", {
+        class: "sv-del", text: `✕ remove ${n} from schedule`,
+        title: "remove the selected elements from the scene's schedule (del)",
+      });
+      del.onclick = () => this.deleteSelection();
+      host.appendChild(del);
+      return;
+    }
 
     if (!sel) {
       host.appendChild(el("div", {
@@ -1281,8 +1454,12 @@ export class StageView {
           const text = (child.nodeValue ?? "").trim();
           if (text) {
             const pe = child.parentElement;
+            /* className is an SVGAnimatedString (not a string) on SVG nodes, so
+               read the class via getAttribute — a #id slide can wrap an <svg>
+               diagram whose <text> runs we'd otherwise crash on. */
+            const peClass = (pe?.getAttribute("class") ?? "").trim().split(/\s+/)[0];
             const label = pe && pe !== root
-              ? "." + (pe.className.split(/\s+/)[0] || pe.tagName.toLowerCase())
+              ? "." + (peClass || pe.tagName.toLowerCase())
               : "content";
             out.push({ node: child, path: [...path, i], text, label });
           }

@@ -23,6 +23,14 @@ html,body{height:100%;margin:0;background:var(--st-bg);color:var(--st-text);
   grid-template-rows:1fr auto var(--dock-h);
   grid-template-areas:"stage side" "transport transport" "bottom bottom"}
 
+/* The studio chrome is a drag surface (scrub the playhead, drag a marquee, drag
+   clips). A drag that incidentally lands on clip-label or ruler text must never
+   become a native text selection — it leaves blue highlight smeared across the
+   UI and swallows the next click. Suppress selection everywhere, then opt the
+   real text-entry surfaces (inputs, the in-place SCENE text editor) back in. */
+#app{user-select:none;-webkit-user-select:none}
+input,textarea,[contenteditable]{user-select:text;-webkit-user-select:text}
+
 /* The bottom dock is shared between TIME (timeline), RECORD (prompter), and
    TUNE (take comparator). All three elements live in the same grid area; CSS
    picks which is visible per mode. */
@@ -493,6 +501,11 @@ body.mode-tune .t-restart .t-kbd{display:none}
    any scene-set pointer-events:none, hint on hover, and outline the selection */
 body.mode-stage #scenecontent,body.mode-stage #scenecontent *{pointer-events:auto!important}
 body.mode-stage #scenecontent [id]{cursor:pointer}
+/* An <svg> hit-tests only on its painted strokes/fills, so the empty gaps in a
+   diagram (e.g. between a chart's axis and curve) fall through to whatever sits
+   behind it — making the diagram almost impossible to grab. In edit mode, let
+   the whole SVG box catch the pointer so it can be selected and dragged. */
+body.mode-stage #scenecontent svg{pointer-events:bounding-box!important}
 /* highlight boxes drawn in #stagearea chrome (see StageView.positionBox) — they
    sit over the element's rect so they show even when it's opacity:0 / clipped */
 .sv-ovl-box{position:absolute;pointer-events:none;z-index:60;border-radius:3px}
