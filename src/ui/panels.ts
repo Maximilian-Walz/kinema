@@ -903,8 +903,14 @@ export class SidePanel {
   private lastRecordLineId: string | null = null;
 
   /** id of the script line under the cursor, or null if the cursor sits in
-      a gap (no line covers `local`). */
+      a gap (no line covers `local`). While focus-recording the active line is
+      frozen on the line being recorded: an overrun rolls the playhead past the
+      slot, but the panel must stay on that line (same freeze RecordView applies
+      to the prompter) — chain mode advances on purpose, so it is exempt. */
   private activeLineId(): string | null {
+    if (this.takes.recording && this.takes.recordingLine && !this.takes.chainMode) {
+      return this.takes.recordingLine;
+    }
     const local = this.player.localTime;
     for (const ln of this.player.scene.lines) {
       if (local >= ln.from && local < ln.to) return ln.id ?? null;
