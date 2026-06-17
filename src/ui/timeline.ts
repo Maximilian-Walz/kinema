@@ -474,7 +474,9 @@ export class Timeline {
         void getPeaks(takeUrl(scene.id, lineId, file)).then(
           ({ peaks, duration }) => {
             if (cv.isConnected) {
-              drawWaveform(cv, peaks, duration, span, "#7ee787");
+              /* show only the picked sub-take window: start at the line's
+                 in-point so the lane matches what preview/export actually play */
+              drawWaveform(cv, peaks, duration, span, "#7ee787", sect.inPoint || 0);
             }
           },
         );

@@ -32,23 +32,30 @@ async function decode(url: string): Promise<{ peaks: Float32Array; duration: num
   return { peaks, duration: audio.duration };
 }
 
-/** draw peaks into a canvas; audioLen seconds mapped onto clipLen seconds of width */
+/** draw peaks into a canvas; the canvas width represents clipLen seconds.
+    Renders the slice of the take starting at startSec (the sub-take in-point,
+    0 for a whole take), so a picked sub-window shows only its own audio rather
+    than the entire recording squeezed to fit. */
 export function drawWaveform(
   canvas: HTMLCanvasElement,
   peaks: Float32Array,
   audioLen: number,
   clipLen: number,
   color: string,
+  startSec = 0,
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const { width: w, height: h } = canvas;
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = color;
-  const visible = Math.min(1, audioLen / clipLen); // fraction of width with audio
-  const cols = Math.floor(w * visible);
+  if (clipLen <= 0 || audioLen <= 0) return;
+  // fraction of width backed by audio (the slice may be shorter than the clip)
+  const audible = Math.max(0, Math.min(audioLen - startSec, clipLen));
+  const cols = Math.floor(w * (audible / clipLen));
   for (let x = 0; x < cols; x++) {
-    const i = Math.floor((x / cols) * peaks.length);
+    const sec = startSec + (x / w) * clipLen; // take-time at this column
+    const i = Math.min(peaks.length - 1, Math.floor((sec / audioLen) * peaks.length));
     const v = Math.max(0.04, peaks[i]);
     const bh = Math.max(1, v * (h - 2));
     ctx.fillRect(x, (h - bh) / 2, 1, bh);
