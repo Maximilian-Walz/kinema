@@ -243,9 +243,13 @@ body.clean #frame{outline:none}
   letter-spacing:.04em;vertical-align:1px}
 button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
 .t-rec.live .t-kbd,.t-rec.counting .t-kbd{display:none}
-/* in TUNE, SPACE drives the take transport (not the global timeline), so the
-   global play button's SPACE chip moves to the TUNE transport's play button */
-body.mode-tune .t-play .t-kbd{display:none}
+/* RECORD/TUNE repurpose SPACE (and ⇧R in TUNE) to the take transport, so the
+   global play / restart chips are hidden there. Use visibility:hidden, NOT
+   display:none, so the buttons keep their width and the prev/next nav cluster to
+   their right never shifts when the chips come and go. */
+body.mode-record .t-play .t-kbd,
+body.mode-tune .t-play .t-kbd{visibility:hidden}
+body.mode-tune .t-restart .t-kbd{visibility:hidden}
 /* Nav-arrow chevrons drop the key chip when the bar is narrow so they stay
    visually balanced around the title; the keys are still bound. The "next"
    button puts the kbd chip BEFORE the chevron (so the chevron points
@@ -805,9 +809,9 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
   display:inline-flex;align-items:center;justify-content:flex-start}
 .tv-transport .tv-tp-label{white-space:nowrap}
 .tv-transport .t-kbd{margin-left:auto}
-.tv-tp-play{width:108px}
+.tv-tp-play{width:64px}
 .tv-tp-scope{width:106px}
-.tv-tp-reset{width:98px}
+.tv-tp-restart{width:62px}
 .tv-tp-scope.on{color:#7ee787;border-color:rgba(126,231,135,.6);
   background:rgba(126,231,135,.08)}
 /* the selected take (what the transport controls) — distinct from the purple

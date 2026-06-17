@@ -164,7 +164,7 @@ async function bootStudio(): Promise<void> {
      and initialise active state for a boot straight into SCENE */
   stageView.onModeChange(mode.mode === "stage");
   sidePanel.setStageInspector((host) => stageView.mountInspector(host));
-  new RecordView(recordview, player, takes, micMonitor);
+  const recordView = new RecordView(recordview, player, takes, micMonitor);
   const tuneView = new TuneView(tuneview, player, takes, sync, history, mode);
   new DockResize();
   new RecBar(takes, micMonitor, player);
@@ -232,16 +232,15 @@ async function bootStudio(): Promise<void> {
       if (scene) restoreScene(scene);
     } else if (e.code === "Space") {
       e.preventDefault();
-      /* TUNE is take-centric: Space drives the selected-take audition transport,
-         not the global timeline. Every other mode plays the timeline. */
+      /* Modes without the global timeline are take-centric: Space auditions the
+         selected/picked take, not the whole project. Only TIME and SCENE (where
+         the timeline / full stage are in view) play the global clock. */
       if (mode.mode === "tune") tuneView.togglePlay();
+      else if (mode.mode === "record") recordView.togglePlay();
       else player.toggle();
     } else if (mode.mode === "tune" && (e.key === "w" || e.key === "W")) {
       e.preventDefault();
       tuneView.setWhole(!tuneView.whole);
-    } else if (mode.mode === "tune" && e.key === "Home") {
-      e.preventDefault();
-      tuneView.resetPlayhead();
     } else if (e.key === "r" && !e.shiftKey) {
       e.preventDefault();
       if (takes.recording || takes.counting) {
@@ -254,7 +253,12 @@ async function bootStudio(): Promise<void> {
         mode.set("record");
         void takes.startRecordingWithCountIn();
       }
-    } else if (e.key === "R" && e.shiftKey) player.restartScene();
+    } else if (e.key === "R" && e.shiftKey) {
+      /* ⇧R restarts from the start: the take's window in TUNE, the scene
+         otherwise. The global restart button hides its ⇧R chip in TUNE. */
+      if (mode.mode === "tune") tuneView.restart();
+      else player.restartScene();
+    }
     else if (e.key === "c" || e.key === "C") {
       document.body.classList.toggle("clean");
       rescale();

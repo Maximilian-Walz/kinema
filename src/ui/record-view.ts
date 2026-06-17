@@ -376,6 +376,36 @@ export class RecordView {
         return this.lineEls[i].line.id ?? null;
     }
 
+    /** Space in RECORD auditions the current line's picked take (windowed),
+        rather than playing the whole timeline — the timeline isn't visible here,
+        so previewing the line you're on is the useful action. While recording or
+        counting in, Space stops instead. Mirrors TUNE's take-centric transport. */
+    togglePlay(): void {
+        if (this.takes.recording || this.takes.counting) {
+            this.takes.stopRecording();
+            return;
+        }
+        const lineId = this.currentLineId();
+        if (!lineId) return;
+        const scene = this.player.scene;
+        const file = this.takes.candidate(scene.id, lineId);
+        if (!file) return;
+        if (this.takes.auditioning === file) {
+            this.takes.pauseAudition();
+            return;
+        }
+        const line = scene.lines.find((l) => l.id === lineId);
+        if (!line) return;
+        const start = this.takes.inPoint(scene.id, lineId);
+        this.takes.scrubAudition(
+            scene.id,
+            lineId,
+            file,
+            start,
+            start + (line.to - line.from),
+        );
+    }
+
     /** progress bar shown under the line currently being recorded */
     private lineProgress: HTMLElement | null = null;
 

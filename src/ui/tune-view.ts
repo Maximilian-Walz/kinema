@@ -167,7 +167,16 @@ export class TuneView {
         );
     }
 
-    /** Reset the sticky playhead to the window start (Home / double-click). */
+    /** Restart the selected take from the window start (⇧R / restart button):
+        park the playhead at the start and play. */
+    restart(): void {
+        const id = this.activeLineId();
+        this.startAt = this.defaultStartAt(id, this.selectedFile);
+        if (this.selectedFile) this.play();
+        else this.render();
+    }
+
+    /** Reset the sticky playhead to the window start (double-click the wave). */
     resetPlayhead(): void {
         const id = this.activeLineId();
         this.startAt = this.defaultStartAt(id, this.selectedFile);
@@ -295,7 +304,7 @@ export class TuneView {
         if (this.transportPlayLabel) {
             const playing = this.selectedFile != null &&
                 aud === this.selectedFile;
-            this.transportPlayLabel.textContent = playing ? "⏸ pause" : "▶ play";
+            this.transportPlayLabel.textContent = playing ? "⏸" : "▶";
         }
         for (const { file, btn } of this.playButtons) {
             btn.textContent = aud === file ? "⏸" : "▶";
@@ -521,7 +530,7 @@ export class TuneView {
             this.takes.auditioning === this.selectedFile;
         const play = mk(
             "tv-tp-play",
-            playing ? "⏸ pause" : "▶ play",
+            playing ? "⏸" : "▶",
             "SPACE",
             "play / pause the selected take",
             () => this.togglePlay(),
@@ -535,11 +544,11 @@ export class TuneView {
             () => this.setWhole(!this.wholeTake),
         );
         mk(
-            "tv-tp-reset",
-            "↺ start",
-            "HOME",
-            "reset the playhead to the window start",
-            () => this.resetPlayhead(),
+            "tv-tp-restart",
+            "⟲",
+            "⇧R",
+            "restart the take from the window start",
+            () => this.restart(),
         );
         return wrap;
     }

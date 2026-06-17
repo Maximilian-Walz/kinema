@@ -53,7 +53,7 @@ export class Transport {
     addKbd(this.playBtn, "SPACE");
     this.playBtn.onclick = () => player.toggle();
 
-    const restart = el("button", { title: "restart scene" });
+    const restart = el("button", { class: "t-restart", title: "restart scene" });
     restart.appendChild(document.createTextNode("\u27f2"));
     addKbd(restart, "\u21e7R");
     restart.onclick = () => player.restartScene();
