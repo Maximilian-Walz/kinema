@@ -77,7 +77,9 @@ they land. Commit completed+verified work to `main` (solo workflow).
   (was a separate `overrun` flag). A per-line **progress
   bar** (RecBar + the current prompter line, [recbar.ts](../src/ui/recbar.ts) /
   `RecordView.updateLineProgress`) fills across the line's duration and pulses
-  red on overrun.
+  red on overrun. On **stop**, FREE mode clamps the playhead back inside the
+  recorded line (`Takes.onstop` seeks to `lineTo - ε` when it overran), so an
+  overtime stop ends on the same line as an in-time stop — no phantom advance.
 - **Line recording — sub-take picker.** Capture a longer take, then drag a
   fixed-length window (= the line's duration) over the take waveform to pick
   which slice plays. Per-file `inPoint` persists in `takes.json` (`inPoints`

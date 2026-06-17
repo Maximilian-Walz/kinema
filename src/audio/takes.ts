@@ -392,6 +392,8 @@ export class Takes {
       : this.player.offsets[sceneIndex] + scene.len - 1e-3;
     const sceneId = scene.id;
     const lid = line.id;
+    const lineFrom = line.from;
+    const lineTo = line.to;
     rec.ondataavailable = (e) => {
       if (e.data.size) chunks.push(e.data);
     };
@@ -403,6 +405,15 @@ export class Takes {
       this.recordingLine = null;
       this.recStopAt = Infinity;
       this.player.maxTime = null;
+      /* FREE mode never advances. An overrun rolls the playhead past the
+         recorded line (up to the scene-end pin), so an overtime stop would
+         otherwise leave the playhead — and the prompter — on a later line,
+         while an in-time stop stays put. Clamp the playhead back inside the
+         recorded line so both stops end identically. CHAIN handles advancing
+         below via startRecordingWithCountIn. */
+      if (!this.chainMode && this.player.localTime >= lineTo) {
+        this.player.seekScene(sceneIndex, Math.max(lineFrom, lineTo - 1e-3));
+      }
       const wasNatural = this.naturalStop;
       this.naturalStop = false;
       this.events.emit("recording", false);
