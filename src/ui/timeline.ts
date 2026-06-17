@@ -167,16 +167,23 @@ export class Timeline {
     }, { passive: false });
   }
 
+  /** smallest pps that still fits the whole project on screen — the max
+      zoom-out. (clientWidth is 0 while the timeline is hidden in RECORD/TUNE; a
+      tiny floor keeps it positive so an early call can't invert the clamp.) */
+  private fitPps(): number {
+    /* subtract the same 60px the canvas adds in rebuild() (trailing-tick slack)
+       so the whole project fits with no horizontal scrollbar at max zoom-out */
+    return Math.max(0.05, (this.scroll.clientWidth - 60) / Math.max(1, this.player.total));
+  }
+
   private zoom(factor: number): void {
-    this.pps = Math.max(1.5, Math.min(300, this.pps * factor));
+    /* never zoom out past the whole project filling the viewport */
+    this.pps = Math.max(this.fitPps(), Math.min(300, this.pps * factor));
     this.rebuild();
   }
 
   private fit(): void {
-    this.pps = Math.max(
-      1.5,
-      (this.scroll.clientWidth - 40) / Math.max(1, this.player.total),
-    );
+    this.pps = this.fitPps();
     this.rebuild();
   }
 
