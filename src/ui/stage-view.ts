@@ -1512,13 +1512,16 @@ export class StageView {
     return out;
   }
 
-  /** deepest last text node under `root` in document order (the end of the
-      visible text) — used to drop the edit caret onto a real text node */
+  /** deepest last text node under `root` in document order that holds visible
+      text — used to drop the edit caret onto real text. Whitespace-only nodes
+      (the newline + indentation between block children and a closing tag) are
+      skipped: landing the caret on one parks it bottom-left of the container,
+      not after the last character. */
   private lastTextNode(root: Node): Text | null {
     let last: Text | null = null;
     const walk = (n: Node): void => {
       for (const c of Array.from(n.childNodes)) {
-        if (c.nodeType === Node.TEXT_NODE && (c.nodeValue ?? "").length) {
+        if (c.nodeType === Node.TEXT_NODE && (c.nodeValue ?? "").trim().length) {
           last = c as Text;
         } else if (c.nodeType === Node.ELEMENT_NODE) {
           walk(c);
