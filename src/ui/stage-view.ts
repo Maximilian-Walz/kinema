@@ -310,8 +310,14 @@ export class StageView {
     this.buildRuler(scene);
     this.buildScriptLane(scene);
 
+    /* lane packing is first-fit interval partitioning, which only packs tightly
+       when clips are visited in start-time order — the schedule itself is in
+       authoring order, so a clip ending where a later-starting one begins would
+       otherwise land on a separate row. Sort a copy by enter for the lane pass
+       (the model and selection are untouched; clip order is purely visual). */
     const laneEnds: number[] = [];
-    for (const entry of scene.schedule) this.addClip(scene, entry, laneEnds);
+    const ordered = [...scene.schedule].sort((a, b) => a.enter - b.enter);
+    for (const entry of ordered) this.addClip(scene, entry, laneEnds);
     this.lanes.style.height = Math.max(1, laneEnds.length) * 24 + 8 + "px";
 
     this.onTime();
@@ -865,6 +871,16 @@ export class StageView {
     this.settleRaf = requestAnimationFrame(tick);
   }
 
+  /** is anything selected (a single element or a multi-set)? */
+  hasSelection(): boolean {
+    return this.selected.size > 0 || !!this.sel;
+  }
+
+  /** clear the selection (Escape) */
+  clearSelection(): void {
+    this.select(null);
+  }
+
   deleteSelection(): void {
     const scene = this.player.scene;
     /* remove every selected entry (falls back to the inspector target if the
@@ -926,12 +942,12 @@ export class StageView {
   /** topmost VISIBLE id-bearing element under a point. Native hit-testing returns
       the literal topmost element, but a transparent full-stage overlay (opacity:0
       inactive .ovl) sits on top and would swallow it — so walk the hit stack and
-      take the first visible id-element, falling back to the first id-element if
-      none are visible (e.g. before anything has entered). */
+      take the first visible id-element. Returns null when nothing under the
+      cursor is actually on-screen: an element that hasn't entered yet (or has
+      exited) must not be selectable in the preview — use its timeline clip. */
   private pickAt(clientX: number, clientY: number): HTMLElement | null {
     const content = document.getElementById("scenecontent");
     if (!content) return null;
-    let fallback: HTMLElement | null = null;
     for (const n of document.elementsFromPoint(clientX, clientY)) {
       /* accept SVG nodes too (an <svg>/<g>/<path> is an Element, not an
          HTMLElement) — a chart diagram is otherwise unselectable in the preview */
@@ -939,10 +955,9 @@ export class StageView {
       const idEl = n.closest<HTMLElement>("[id]");
       if (!idEl || idEl.id === "scenecontent" || idEl.id === "caption") continue;
       if (!/^[\w.-]+$/.test(idEl.id)) continue;
-      if (!fallback) fallback = idEl;
       if (this.isVisible(idEl)) return idEl;
     }
-    return fallback;
+    return null;
   }
 
   private isVisible(el: Element): boolean {
@@ -995,6 +1010,11 @@ export class StageView {
     if (this.editing) return;
     const scene = this.player.scene;
     const orig = node.textContent ?? "";
+    /* the exact markup before editing — restoring textContent on cancel would
+       flatten any child formatting (e.g. a styled <span>) into a bare text node,
+       and the commit's no-change guard would then never re-render it from the
+       model. Restore the innerHTML instead. */
+    const origHtml = node.innerHTML;
     this.editing = true;
     this.editingNode = node;
     this.ensureOverlays(); // make sure the custom caret element exists
@@ -1042,7 +1062,7 @@ export class StageView {
         this.rebuild();
       };
       const fail = (err: unknown): void => {
-        node.textContent = orig;
+        node.innerHTML = origHtml;
         console.warn("[stage] text edit failed:", err);
       };
       if (node === root && root.children.length === 0) {
@@ -1054,7 +1074,7 @@ export class StageView {
     const onKey = (ev: KeyboardEvent): void => {
       ev.stopPropagation(); // don't let global hotkeys (space=play, del) fire
       if (ev.key === "Enter") { ev.preventDefault(); node.blur(); }
-      else if (ev.key === "Escape") { ev.preventDefault(); node.textContent = orig; node.blur(); }
+      else if (ev.key === "Escape") { ev.preventDefault(); node.innerHTML = origHtml; node.blur(); }
     };
     const onBlur = (): void => commit();
     node.addEventListener("keydown", onKey, true);

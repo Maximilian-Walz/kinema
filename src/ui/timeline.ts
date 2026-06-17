@@ -494,6 +494,16 @@ export class Timeline {
     }
   }
 
+  /** is anything selected? (Escape clears it) */
+  hasSelection(): boolean {
+    return this.selection.size > 0;
+  }
+
+  /** clear the selection without touching the model */
+  clearSelection(): void {
+    this.setSelection([]);
+  }
+
   deleteSelection(): void {
     const records = this.clips.filter((c) =>
       c.key && this.selection.has(c.key) && c.remove

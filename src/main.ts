@@ -300,8 +300,17 @@ async function bootStudio(): Promise<void> {
     else if (e.key >= "1" && e.key <= "9") {
       player.seekScene(parseInt(e.key, 10) - 1);
     } else if (e.key === "Escape") {
-      if (takes.recording || takes.counting) takes.stopRecording();
-      else if (player.loop) player.setLoop(null);
+      /* escalating cancel: stop a recording, else clear the active mode's
+         clip/element selection, else clear the loop region. */
+      if (takes.recording || takes.counting) {
+        takes.stopRecording();
+      } else if (mode.mode === "stage" && stageView.hasSelection()) {
+        stageView.clearSelection();
+      } else if (mode.mode === "time" && tl.hasSelection()) {
+        tl.clearSelection();
+      } else if (player.loop) {
+        player.setLoop(null);
+      }
     }
   });
 
