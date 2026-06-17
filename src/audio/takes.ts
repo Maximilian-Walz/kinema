@@ -177,7 +177,7 @@ export class Takes {
   private recStopAt = Infinity;
   /** True iff the most recent stopRecording() call happened while the playhead
       had already passed the line's end (the take covers at least the full
-      slot). Used by chain mode to decide whether to auto-advance. In FREE mode
+      slot). Used by chain mode to decide whether to auto-advance. In FOCUS mode
       there is no slot-end auto-stop, so this is computed at manual-stop time. */
   private naturalStop = false;
   /** Set true on the stop following a recording whose captured length exceeded
@@ -240,7 +240,7 @@ export class Takes {
     this.player = player;
     player.events.on("time", () => {
       /* CHAIN mode auto-stops a take at the line end (then auto-advances to the
-         next line). FREE mode never auto-stops at the slot — recording rolls on
+         next line). FOCUS mode never auto-stops at the slot — recording rolls on
          past the line so you can read long and pick/extend the take afterwards;
          only a manual stop, a pause, or a scene boundary ends it. */
       if (
@@ -383,7 +383,7 @@ export class Takes {
     const chunks: Blob[] = [];
     this.recSceneIndex = sceneIndex;
     this.recStopAt = line.to;
-    /* FREE mode: pin the playhead inside this scene while recording so an
+    /* FOCUS mode: pin the playhead inside this scene while recording so an
        overrun (especially on the last line) doesn't roll into the next scene —
        which would stop the take via the scene hook and advance the prompter.
        CHAIN mode advances line-to-line, so it sets no ceiling. Cleared on stop. */
@@ -405,7 +405,7 @@ export class Takes {
       this.recordingLine = null;
       this.recStopAt = Infinity;
       this.player.maxTime = null;
-      /* FREE mode never advances. An overrun rolls the playhead past the
+      /* FOCUS mode never advances. An overrun rolls the playhead past the
          recorded line (up to the scene-end pin), so an overtime stop would
          otherwise leave the playhead — and the prompter — on a later line,
          while an in-time stop stays put. Clamp the playhead back inside the
@@ -446,7 +446,7 @@ export class Takes {
   stopRecording(): void {
     this.cancelCountIn();
     if (this.recorder && this.recorder.state === "recording") {
-      /* In FREE mode there is no slot-end auto-stop, so decide here whether this
+      /* In FOCUS mode there is no slot-end auto-stop, so decide here whether this
          stop is "natural" for chain mode: natural iff the playhead already
          passed the line's end (the take covers at least the full slot). (In
          CHAIN mode naturalStop was set by the time listener at recStopAt, so we

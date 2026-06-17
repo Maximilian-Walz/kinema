@@ -299,10 +299,10 @@ export class RecordView {
 
     private paintChainBtn(btn: HTMLButtonElement, on: boolean): void {
         btn.classList.toggle("on", on);
-        btn.textContent = on ? "\u21a6 chain" : "\u221e free";
+        btn.textContent = on ? "\u21a6 chain" : "\u25ce focus";
         btn.title = on
-            ? "chain: auto-record the next line when this one ends (click for free)"
-            : "free: stay on this line, record as long as you like, then pick or extend the take (click for chain)";
+            ? "chain: auto-record the next line when this one ends (click for focus)"
+            : "focus: stay on this line, record as long as you like, then pick or extend the take (click for chain)";
     }
 
     private buildChainToggle(): HTMLElement {
@@ -384,7 +384,7 @@ export class RecordView {
         if (!this.lineEls.length) return;
         const local = this.player.localTime;
         let curIdx = this.currentLineIndex();
-        /* FREE-mode recording freezes the prompter on the line being recorded:
+        /* FOCUS-mode recording freezes the prompter on the line being recorded:
            the playhead rolls on (so you can overrun), but we don't promote the
            next line -- that auto-advance belongs to chain mode. */
         const recId = this.takes.recording ? this.takes.recordingLine : null;
@@ -420,7 +420,7 @@ export class RecordView {
 
     /** Draw a thin progress bar under the line being recorded: it fills across
         the line's intended duration, then flips to a pulsing "over" colour once
-        the take overruns the slot (FREE mode). Hidden when not recording. */
+        the take overruns the slot (FOCUS mode). Hidden when not recording. */
     private updateLineProgress(recId: string | null, local: number): void {
         const le = recId ? this.lineEls.find((l) => l.line.id === recId) : null;
         if (!le) {

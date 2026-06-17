@@ -30,7 +30,7 @@ export class Player {
   playing = false;
   loop: { start: number; end: number } | null = null;
   /* optional playback ceiling: while set, the rAF advance pins the clock here
-     instead of rolling on (used to keep a FREE-mode take on its scene so an
+     instead of rolling on (used to keep a FOCUS-mode take on its scene so an
      overrun doesn't cross into the next scene). Manual seeks ignore it. */
   maxTime: number | null = null;
   private mounted = -1;

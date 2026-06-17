@@ -134,7 +134,7 @@ export class RecBar {
             this.timeEl.textContent = `${m}:${s.toFixed(1).padStart(4, "0")}`;
             /* progress across the line's intended duration; once the take runs
                long the bar flips to a pulsing "over" colour and we append the
-               overshoot to the clock (FREE mode reads long on purpose). */
+               overshoot to the clock (FOCUS mode reads long on purpose). */
             if (this.lineDur > 0) {
                 const prog = elapsed / this.lineDur;
                 this.barFill.style.width = Math.min(1, prog) * 100 + "%";
