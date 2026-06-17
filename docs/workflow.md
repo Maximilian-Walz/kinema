@@ -47,8 +47,12 @@ you need for the job are on screen:
     animated divs) — saved into `scene.html`;
   - **drag** to reposition, or grab the **corner handle** to resize the font —
     stored as a generated `#id{}` rule in `scene.css`;
-  - the inspector's cards cover **text**, **look** (size / colour / position) and
-    **timing** (enter / exit, entrance **animation** preset, toggle class).
+  - the inspector's **TEXT | LOOK | TIMING** tabs cover text, look (size / colour
+    / position) and timing (enter / exit, entrance **animation** preset, toggle
+    class).
+  - **multi-select** with a marquee drag on the empty lanes or `ctrl`/`cmd`-click;
+    drag any selected clip to move them all, `Delete` removes them. `Esc` clears
+    the selection.
 
   Unscheduled elements get a "+ add to schedule" button; `+ by id` schedules
   elements you can't easily click. Elements are auto-named from their
@@ -66,8 +70,10 @@ one global clock across all scenes:
 - Drag clips to move them, drag edges to retime, drag a scene block's right
   edge to change its length. Drags snap to the playhead, scene bounds, loop
   edges, and other clips.
-- Double-click a script or caption clip to edit its text; `+ line / + caption
-  / + element` insert at the playhead.
+- Double-click a script or caption clip to edit its text; `+ line / + caption`
+  insert at the playhead. Multi-select with a marquee or `ctrl`/`cmd`-click;
+  `Esc` clears it. `ctrl`+wheel (or the zoom buttons) zooms; "fit" / max
+  zoom-out shows the whole project.
 - Set a loop region with `I` / `O` to iterate on one stretch.
 
 Every edit is undoable and written straight back into the scene's `scene.json`

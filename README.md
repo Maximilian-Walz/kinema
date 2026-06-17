@@ -38,4 +38,9 @@ the UI hint bar and button tooltips, so just start playing and dragging.
 npm run typecheck
 npm run validate            # validate the default project's scene files
 node scripts/smoke.mjs      # boot the studio + render mode in headless Chrome (dev server up)
+node scripts/stage-check.mjs http://127.0.0.1:<port>   # SCENE-mode checks (dev server up)
 ```
+
+Working on the studio code? [CLAUDE.md](CLAUDE.md) maps the architecture (modes,
+where edits persist, the server, the verify loop); open ideas are in
+[docs/backlog.md](docs/backlog.md).
