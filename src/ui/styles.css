@@ -243,6 +243,9 @@ body.clean #frame{outline:none}
   letter-spacing:.04em;vertical-align:1px}
 button:hover .t-kbd{color:var(--st-dim);border-color:var(--st-dim)}
 .t-rec.live .t-kbd,.t-rec.counting .t-kbd{display:none}
+/* in TUNE, SPACE drives the take transport (not the global timeline), so the
+   global play button's SPACE chip moves to the TUNE transport's play button */
+body.mode-tune .t-play .t-kbd{display:none}
 /* Nav-arrow chevrons drop the key chip when the bar is narrow so they stay
    visually balanced around the title; the keys are still bound. The "next"
    button puts the kbd chip BEFORE the chevron (so the chevron points
@@ -792,11 +795,19 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
    Buttons have fixed widths so the play/pause and window/whole label swaps
    never change their size or reflow the header row. */
 .tv-transport{flex:none;display:flex;gap:6px;align-items:center}
-.tv-transport button{font-family:var(--st-mono);font-size:11px;padding:3px 0;
-  text-align:center}
-.tv-tp-play{width:76px}
-.tv-tp-scope{width:90px}
-.tv-tp-reset{width:62px}
+/* fixed box (width AND height) so the ▶/⏸ and window/whole label swaps never
+   resize the button or nudge the header row. The glyphs render at different
+   intrinsic heights (emoji vs text metrics), so height must be pinned, not just
+   width. The label leads and the keybind chip is pinned right (margin-left:auto)
+   so a label-width change never shifts the chip. */
+.tv-transport button{font-family:var(--st-mono);font-size:11px;padding:0 8px;
+  height:24px;line-height:1;box-sizing:border-box;
+  display:inline-flex;align-items:center;justify-content:flex-start}
+.tv-transport .tv-tp-label{white-space:nowrap}
+.tv-transport .t-kbd{margin-left:auto}
+.tv-tp-play{width:108px}
+.tv-tp-scope{width:106px}
+.tv-tp-reset{width:98px}
 .tv-tp-scope.on{color:#7ee787;border-color:rgba(126,231,135,.6);
   background:rgba(126,231,135,.08)}
 /* the selected take (what the transport controls) — distinct from the purple

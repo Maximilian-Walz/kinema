@@ -46,7 +46,7 @@ export class TuneView {
     /* refs + signature so a play/pause (which fires takes "change") can update
        just the button glyphs instead of rebuilding the whole comparator — a full
        rebuild re-creates every waveform strip and visibly reflows the row */
-    private transportPlayBtn: HTMLElement | null = null;
+    private transportPlayLabel: HTMLElement | null = null;
     private playButtons: { file: string; btn: HTMLElement }[] = [];
     private lastSig = "";
 
@@ -288,13 +288,14 @@ export class TuneView {
         else this.updatePlayButtons();
     }
 
-    /** Cheap in-place refresh of the play/pause affordances (no rebuild). */
+    /** Cheap in-place refresh of the play/pause affordances (no rebuild). Only
+        the label text changes — the keybind chip is a separate child. */
     private updatePlayButtons(): void {
         const aud = this.takes.auditioning;
-        if (this.transportPlayBtn) {
+        if (this.transportPlayLabel) {
             const playing = this.selectedFile != null &&
                 aud === this.selectedFile;
-            this.transportPlayBtn.textContent = playing ? "⏸ pause" : "▶ play";
+            this.transportPlayLabel.textContent = playing ? "⏸ pause" : "▶ play";
         }
         for (const { file, btn } of this.playButtons) {
             btn.textContent = aud === file ? "⏸" : "▶";
@@ -303,7 +304,7 @@ export class TuneView {
 
     private render(): void {
         this.destroyStrips();
-        this.transportPlayBtn = null;
+        this.transportPlayLabel = null;
         this.playButtons = [];
         this.navEl.replaceChildren();
         this.bodyEl.replaceChildren();
@@ -496,32 +497,50 @@ export class TuneView {
         this.lastSig = this.structureSig(activeId);
     }
 
-    /** play/pause + whole/window + reset transport row */
+    /** play/pause + whole/window + reset transport row. Each button leads with a
+        label and trails with its keybind chip (same `.t-kbd` convention as the
+        global transport / rec button). */
     private buildTransport(): HTMLElement {
         const wrap = el("div", { class: "tv-transport" });
+        const mk = (
+            cls: string,
+            label: string,
+            key: string,
+            title: string,
+            onclick: () => void,
+        ): { btn: HTMLElement; label: HTMLElement } => {
+            const btn = el("button", { class: cls, title });
+            const lab = el("span", { class: "tv-tp-label", text: label });
+            btn.append(lab, el("span", { class: "t-kbd", text: key }));
+            btn.onclick = onclick;
+            wrap.appendChild(btn);
+            return { btn, label: lab };
+        };
+
         const playing = this.selectedFile != null &&
             this.takes.auditioning === this.selectedFile;
-        const play = el("button", {
-            class: "tv-tp-play",
-            text: playing ? "⏸ pause" : "▶ play",
-            title: "play / pause the selected take (space)",
-        });
-        play.onclick = () => this.togglePlay();
-        this.transportPlayBtn = play;
-        const scope = el("button", {
-            class: "tv-tp-scope" + (this.wholeTake ? "" : " on"),
-            text: this.wholeTake ? "whole take" : "window",
-            title:
-                "play only the picked sub-take window, or the whole recording (w)",
-        });
-        scope.onclick = () => this.setWhole(!this.wholeTake);
-        const reset = el("button", {
-            class: "tv-tp-reset",
-            text: "↺ start",
-            title: "reset the playhead to the window start (home)",
-        });
-        reset.onclick = () => this.resetPlayhead();
-        wrap.append(play, scope, reset);
+        const play = mk(
+            "tv-tp-play",
+            playing ? "⏸ pause" : "▶ play",
+            "SPACE",
+            "play / pause the selected take",
+            () => this.togglePlay(),
+        );
+        this.transportPlayLabel = play.label;
+        mk(
+            "tv-tp-scope" + (this.wholeTake ? "" : " on"),
+            this.wholeTake ? "whole take" : "window",
+            "W",
+            "play only the picked sub-take window, or the whole recording",
+            () => this.setWhole(!this.wholeTake),
+        );
+        mk(
+            "tv-tp-reset",
+            "↺ start",
+            "HOME",
+            "reset the playhead to the window start",
+            () => this.resetPlayhead(),
+        );
         return wrap;
     }
 
