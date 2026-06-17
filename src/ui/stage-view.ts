@@ -330,17 +330,25 @@ export class StageView {
      Click to seek; not draggable (lines are retimed in TIME). */
   private buildScriptLane(scene: SceneData): void {
     this.script.innerHTML = "";
-    for (const ln of scene.lines) {
+    scene.lines.forEach((ln, i) => {
       const clip = el("div", { class: "sv-script-clip", title: ln.text },
         el("span", { class: "tl-cliptext", text: ln.text }));
-      clip.style.left = ln.from * this.pps + "px";
-      clip.style.width = Math.max(8, (ln.to - ln.from) * this.pps - 1) + "px";
+      const left = ln.from * this.pps;
+      clip.style.left = left + "px";
+      /* min width keeps a tiny clip clickable, but never let it spill past the
+         next line's start — when zoomed out, the minimum would otherwise make
+         neighbouring clips visually overlap even though their times don't. */
+      const next = scene.lines[i + 1];
+      const capPx = next ? next.from * this.pps - left - 1 : Infinity;
+      const w = Math.max(2, Math.min(Math.max(8, (ln.to - ln.from) * this.pps - 1), capPx));
+      clip.style.width = w + "px";
+      clip.classList.toggle("tl-narrow", w < 14); // below the 2×7px padding floor
       clip.onpointerdown = (e) => {
         e.stopPropagation();
         this.player.seek(this.player.offsets[this.player.sceneIndex] + ln.from + 0.001);
       };
       this.script.appendChild(clip);
-    }
+    });
   }
 
   private buildRuler(scene: SceneData): void {
@@ -1025,7 +1033,19 @@ export class StageView {
     this.positionBox(this.selBox, null);
     node.focus();
     const range = document.createRange();
-    range.selectNodeContents(node);
+    /* Put the caret at the END of the text, inside the trailing text node.
+       selectNodeContents left the selection's focus on the element boundary
+       (not a text node), so the custom caret's first paint landed in the wrong
+       place — typically the element's left edge under centred text — and only
+       snapped right once an arrow key moved focus into a text node. */
+    const last = this.lastTextNode(node);
+    if (last) {
+      range.setStart(last, (last.nodeValue ?? "").length);
+      range.collapse(true);
+    } else {
+      range.selectNodeContents(node);
+      range.collapse(false);
+    }
     const selc = window.getSelection();
     selc?.removeAllRanges();
     selc?.addRange(range);
@@ -1490,6 +1510,23 @@ export class StageView {
     };
     walk(root, []);
     return out;
+  }
+
+  /** deepest last text node under `root` in document order (the end of the
+      visible text) — used to drop the edit caret onto a real text node */
+  private lastTextNode(root: Node): Text | null {
+    let last: Text | null = null;
+    const walk = (n: Node): void => {
+      for (const c of Array.from(n.childNodes)) {
+        if (c.nodeType === Node.TEXT_NODE && (c.nodeValue ?? "").length) {
+          last = c as Text;
+        } else if (c.nodeType === Node.ELEMENT_NODE) {
+          walk(c);
+        }
+      }
+    };
+    walk(root);
+    return last;
   }
 
   private walkPath(root: HTMLElement, path: number[]): ChildNode | null {

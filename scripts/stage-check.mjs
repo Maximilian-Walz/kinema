@@ -51,18 +51,30 @@ try {
   const clipInfo = await page.evaluate(() => {
     const clips = [...document.querySelectorAll(".sv-lanes .tl-element")];
     const sched = window.__studio.player.project.scenes[0].schedule;
+    /* the first scheduled element's live text — the label should read this, not
+       the raw id (project-agnostic, so it survives the intro being redrawn) */
+    const firstEl = document.querySelector("#" + (window.CSS?.escape(sched[0].id) ?? sched[0].id));
+    const firstText = (firstEl?.textContent ?? "").replace(/\s+/g, " ").trim();
     return {
       count: clips.length,
       schedLen: sched.length,
+      firstId: sched[0].id,
+      firstText,
       labels: clips.map((c) => c.querySelector(".tl-cliptext")?.textContent),
       tags: clips.map((c) => c.querySelector(".sv-tag")?.textContent),
     };
   });
   ok(clipInfo.count === clipInfo.schedLen, `element clips match schedule (${clipInfo.count}/${clipInfo.schedLen})`);
 
-  /* --- T15: labels are readable, not raw ids; tag chips present --- */
-  const titleClip = clipInfo.labels.find((l) => /video.?studio/i.test(l || ""));
-  ok(!!titleClip, `auto-label reads element text (got "${clipInfo.labels[0]}", tag "${clipInfo.tags[0]}")`);
+  /* --- T15: labels are readable element text, not raw ids; tag chips present.
+     The first clip's label should match the element's text (when it has any)
+     and not be the bare id. */
+  const lbl = clipInfo.labels[0] || "";
+  const expected = clipInfo.firstText.slice(0, 36);
+  const readsText = clipInfo.firstText
+    ? (lbl.startsWith(expected) || expected.startsWith(lbl)) && lbl !== clipInfo.firstId
+    : !!lbl;
+  ok(readsText, `auto-label reads element text (got "${lbl}", text "${clipInfo.firstText}", tag "${clipInfo.tags[0]}")`);
 
   /* --- T14: clicking a clip opens the inspector --- */
   await page.click(".sv-lanes .tl-element");

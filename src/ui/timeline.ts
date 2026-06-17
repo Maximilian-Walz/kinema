@@ -329,6 +329,13 @@ export class Timeline {
   ): HTMLElement {
     const kind = cls === "tl-script" ? "line" : "caption";
     const track = el("div", { class: `tl-track ${cls}` }, this.label(name));
+    /* all clip start times on this (single-row) track in absolute seconds,
+       sorted — so a clip's min width can be capped at the next clip's start
+       regardless of authoring order or scene boundaries (the whole track shares
+       one row, so neighbours that overlap visually when zoomed out look wrong) */
+    const starts = this.player.project.scenes
+      .flatMap((s, i) => pick(s).map((it) => this.player.offsets[i] + it.from))
+      .sort((a, b) => a - b);
     this.player.project.scenes.forEach((scene, si) => {
       pick(scene).forEach((item, idx) => {
         const key = `${scene.id}|${kind}|${idx}`;
@@ -342,10 +349,17 @@ export class Timeline {
         clip.append(hl, hr);
 
         const place = (): void => {
-          clip.style.left = (this.player.offsets[si] + item.from) * this.pps +
-            "px";
-          clip.style.width = Math.max(6, (item.to - item.from) * this.pps - 1) +
-            "px";
+          const absFrom = this.player.offsets[si] + item.from;
+          const left = absFrom * this.pps;
+          clip.style.left = left + "px";
+          /* min width keeps a tiny clip clickable, but cap it at the next clip's
+             start (across all scenes) so zooming out doesn't make neighbours
+             visually overlap when their times don't */
+          const nextStart = starts.find((s) => s > absFrom + 1e-6);
+          const capPx = nextStart != null ? nextStart * this.pps - left - 1 : Infinity;
+          const w = Math.max(2, Math.min(Math.max(6, (item.to - item.from) * this.pps - 1), capPx));
+          clip.style.width = w + "px";
+          clip.classList.toggle("tl-narrow", w < 16); // below the 2×8px padding floor
         };
         const record: ClipRecord = {
           div: clip,

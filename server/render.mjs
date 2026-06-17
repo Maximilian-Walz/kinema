@@ -19,6 +19,14 @@ import puppeteer from 'puppeteer-core';
 
 const require = createRequire(import.meta.url);
 
+/* Best-effort delete of a temp file. fs.rmSync's `force` swallows ENOENT but
+   NOT EPERM/EACCES/EBUSY — on Windows a virus scanner or a media player holding
+   the just-written file briefly locks it, and a throw here would fail an export
+   whose output MP4 was already produced. The OS reaps tmpdir anyway. */
+function safeUnlink(file) {
+  try { fs.rmSync(file, { force: true }); } catch { /* leave it for the OS */ }
+}
+
 /* ----------------------------- ffmpeg ---------------------------------- */
 export function ffmpegPath() {
   try {
@@ -288,11 +296,11 @@ export async function exportVideo(opts) {
         '-t', String(duration), outFile);
       await runFfmpeg(args);
     }
-    fs.rmSync(tmpVideo, { force: true });
+    safeUnlink(tmpVideo);
     progress({ state: 'rendering', phase: 'finished', frame: totalFrames, totalFrames });
   } catch (err) {
     await browser.close().catch(() => {});
-    fs.rmSync(tmpVideo, { force: true });
+    safeUnlink(tmpVideo);
     throw err;
   }
 }

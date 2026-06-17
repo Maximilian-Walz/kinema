@@ -382,6 +382,11 @@ body.mode-tune .t-restart .t-kbd{display:none}
   color:#e3b341;padding:1px 8px}
 .tl-text.current{background:rgba(63,185,80,.42);color:#d6ffdc}
 .tl-captions .tl-text.current{background:rgba(210,153,34,.42);color:#ffe9b8}
+/* a clip narrower than its own horizontal padding can't shrink — border-box
+   floors the box width at the padding. Drop the padding when tiny so a
+   zoomed-out clip renders as a thin sliver instead of overlapping its
+   neighbour (the text is clipped by overflow:hidden anyway). */
+.tl-text.tl-narrow,.sv-script-clip.tl-narrow{padding-left:0;padding-right:0}
 
 .tl-element{height:17px;background:rgba(88,166,255,.22);
   color:#bcd8ff;font-size:10px;padding:1px 6px}
