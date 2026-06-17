@@ -517,9 +517,15 @@ export class TuneView {
             key: string,
             title: string,
             onclick: () => void,
+            icon = false,
         ): { btn: HTMLElement; label: HTMLElement } => {
             const btn = el("button", { class: cls, title });
-            const lab = el("span", { class: "tv-tp-label", text: label });
+            /* icon buttons get the shared fixed-width centred glyph span so a
+               ▶/⏸ swap never moves the chip; text buttons keep a plain label */
+            const lab = el("span", {
+                class: icon ? "t-btn-icon" : "tv-tp-label",
+                text: label,
+            });
             btn.append(lab, el("span", { class: "t-kbd", text: key }));
             btn.onclick = onclick;
             wrap.appendChild(btn);
@@ -534,6 +540,7 @@ export class TuneView {
             "SPACE",
             "play / pause the selected take",
             () => this.togglePlay(),
+            true,
         );
         this.transportPlayLabel = play.label;
         mk(
@@ -549,6 +556,7 @@ export class TuneView {
             "⇧R",
             "restart the take from the window start",
             () => this.restart(),
+            true,
         );
         return wrap;
     }

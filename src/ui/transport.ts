@@ -48,13 +48,17 @@ export class Transport {
       class: "t-play",
       title: "play / pause",
     }) as HTMLButtonElement;
+    /* the glyph lives in a fixed-width centred icon span so the \u25b6/\u275a\u275a swap never
+       resizes the button or shifts the keybind chip */
     this.playLabel = document.createTextNode("\u25b6");
-    this.playBtn.appendChild(this.playLabel);
+    const playIcon = el("span", { class: "t-btn-icon" });
+    playIcon.appendChild(this.playLabel);
+    this.playBtn.appendChild(playIcon);
     addKbd(this.playBtn, "SPACE");
     this.playBtn.onclick = () => player.toggle();
 
     const restart = el("button", { class: "t-restart", title: "restart scene" });
-    restart.appendChild(document.createTextNode("\u27f2"));
+    restart.appendChild(el("span", { class: "t-btn-icon", text: "\u27f2" }));
     addKbd(restart, "\u21e7R");
     restart.onclick = () => player.restartScene();
 

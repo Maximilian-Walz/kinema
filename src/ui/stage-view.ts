@@ -82,6 +82,13 @@ export class StageView {
   private dragging = false;
   private active = false;
 
+  /* SCENE playback: loop the current scene vs play through to the next. When on
+     and SCENE is active, the player loop is pinned to the current scene's bounds
+     so playback wraps at its end; persisted per the UI. */
+  private loopScene = false;
+  private loopBtn!: HTMLButtonElement;
+  private static readonly LOOP_KEY = "sv.loopScene";
+
   /* highlight overlay boxes drawn in #stagearea chrome (not on the element
      itself, so they show even when the element is opacity:0 before its entrance
      and aren't clipped by scene overflow). One for the selection, one for hover. */
@@ -128,6 +135,7 @@ export class StageView {
 
     player.events.on("scene", () => {
       if (!this.dragging) this.rebuild();
+      this.syncSceneLoop(); // follow the loop to the newly-mounted scene
     });
     player.events.on("timings", () => {
       if (!this.dragging) this.rebuild();
@@ -158,6 +166,7 @@ export class StageView {
       content?.addEventListener("dblclick", this.onPreviewDblClick, true);
       this.rebuild();
       this.applyHighlight();
+      this.syncSceneLoop(); // engage the scene loop if it's on
     } else {
       content?.removeEventListener("pointerdown", this.onPreviewPointerDown, true);
       content?.removeEventListener("pointermove", this.onPreviewPointerMove);
@@ -166,7 +175,37 @@ export class StageView {
       this.hoverEl = null;
       this.highlight(null);
       this.positionBox(this.hoverBox, null);
+      /* don't let a scene loop leak into TIME; only clear if we set one */
+      if (this.loopScene) this.player.setLoop(null);
     }
+  }
+
+  /* --------------------------- scene loop toggle ------------------------- */
+
+  private paintLoopBtn(): void {
+    this.loopBtn.textContent = this.loopScene ? "⟳ loop scene" : "→ play through";
+    this.loopBtn.classList.toggle("on", this.loopScene);
+    this.loopBtn.title = this.loopScene
+      ? "looping this scene during playback (click to play through to the next)"
+      : "playing through to the next scene (click to loop this scene)";
+  }
+
+  private toggleLoop(): void {
+    this.loopScene = !this.loopScene;
+    localStorage.setItem(StageView.LOOP_KEY, this.loopScene ? "1" : "0");
+    this.paintLoopBtn();
+    if (this.loopScene) this.syncSceneLoop();
+    else this.player.setLoop(null);
+  }
+
+  /** Pin the player loop to the current scene's bounds while SCENE is active and
+      looping is on. The frame loop wraps at loop.end, so playback loops the
+      scene; play-through mode leaves the loop clear. */
+  private syncSceneLoop(): void {
+    if (!this.active || !this.loopScene) return;
+    const i = this.player.sceneIndex;
+    const start = this.player.offsets[i];
+    this.player.setLoop({ start, end: start + this.player.scene.len });
   }
 
   /* ------------------------------- shell -------------------------------- */
@@ -182,12 +221,18 @@ export class StageView {
     });
     byId.onclick = () => this.addById();
 
+    this.loopScene = localStorage.getItem(StageView.LOOP_KEY) === "1";
+    this.loopBtn = el("button", { class: "sv-loop" }) as HTMLButtonElement;
+    this.loopBtn.onclick = () => this.toggleLoop();
+    this.paintLoopBtn();
+
     const toolbar = el(
       "div",
       { class: "sv-toolbar" },
       this.titleEl,
       el("span", { class: "tl-sep" }),
       byId,
+      this.loopBtn,
       el("span", {
         class: "sv-hint",
         text:
