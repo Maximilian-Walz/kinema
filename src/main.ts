@@ -9,6 +9,7 @@ import type { SceneData } from "./types";
 import { DockResize } from "./ui/dock-resize";
 import { el } from "./ui/dom";
 import { ExportDialog } from "./ui/export-dialog";
+import { GlobalProgress } from "./ui/global-progress";
 import { SidePanel } from "./ui/panels";
 import { showPicker } from "./ui/picker";
 import { RecBar } from "./ui/recbar";
@@ -149,6 +150,9 @@ async function bootStudio(): Promise<void> {
   const exportDialog = new ExportDialog(player);
 
   new Transport(transport, player, takes, sync, mode, exportDialog);
+  /* slim global seek bar pinned to the transport's bottom edge; CSS shows it
+     only in RECORD/TUNE (the modes without a timeline) */
+  transport.appendChild(new GlobalProgress(player).element);
   const sidePanel = new SidePanel(
     side,
     player,

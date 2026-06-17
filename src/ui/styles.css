@@ -188,9 +188,21 @@ body.clean #frame{outline:none}
    Discoverable keyboard shortcuts are painted onto their owning buttons via
    the .t-kbd chip, so there is no separate cheatsheet bar. */
 #transport{grid-area:transport;display:flex;align-items:center;gap:10px;
-  padding:8px 14px;background:var(--st-panel);
+  padding:8px 14px;background:var(--st-panel);position:relative;
   border-top:1px solid var(--st-line);font-family:var(--st-mono);
   font-size:12.5px;color:var(--st-dim);min-width:0;overflow:hidden}
+/* slim global seek bar (GlobalProgress): pinned to the transport's TOP edge,
+   shown only in the modes without a timeline so the global play button has
+   positional context. (The bottom edge is covered by the #dock-resize handle,
+   which would steal the clicks.) The fill marks elapsed project time; seeks on
+   click/drag. */
+#transport > .t-progress{position:absolute;left:0;right:0;top:0;height:5px;
+  flex:none;background:rgba(255,255,255,.07);cursor:pointer;display:none;z-index:1}
+body.mode-record #transport > .t-progress,
+body.mode-tune #transport > .t-progress{display:block}
+.t-progress:hover{height:7px}
+.t-progress-fill{height:100%;width:0;background:var(--st-accent);
+  pointer-events:none}
 /* By default every transport child is a fixed-size chip. The flexible
    items (scene title, time, spacer) override below. Selectors are scoped to
    `#transport >` so they beat the universal-selector rule; bare class
