@@ -92,30 +92,29 @@ they land. Commit completed+verified work to `main` (solo workflow).
   persist on release). It lives in **TUNE** and should stay there — reviewing
   recordings inside record mode felt wrong. Needs a manual ear/export check too.
 
-### Shelved: edge-drag re-length + ripple (revisit in TUNE)
-A first cut (a post-take review panel in **record view** with edge-drag
-re-length) was built then **reverted** — reviewing/tuning recordings in record
-mode felt wrong. When we pick this up, build it into **TUNE** (where the sub-take
-picker already lives), not record view. The design below still stands; the
-reverted implementation is in git history for reference.
-
-Persistence is simpler than expected: `TimingSync.changed(scene)` →
-`player.refreshTimings()` + debounced `api.putTimings(scene)` writes
-`len/schedule/captions/lines` for the one scene; growing `scene.len` shifts later
-scenes automatically (global offsets are cumulative); `History.snapshot` already
-covers those fields, so re-length is undoable. So the **ripple is a pure
-in-memory transform of one `SceneData`** then `sync.changed(scene)` + a history
-commit — no new endpoint, no cross-scene writes.
-
-Transform (re-length line L by Δ, anchor = old `L.to`): `L.to += Δ`; every later
-line `from/to += Δ`; `scene.len += Δ`; each schedule entry `enter/exit += Δ` when
-`>= anchor`; each caption `from/to += Δ` when `>= anchor` (insert-time semantics:
-intervals straddling the anchor stretch). Clamp new length to
-`[~0.2s, takeDuration − inPoint]`. UI: a right-edge handle on the `TakeStrip`
-window (make `windowLen` mutable + `onWindowLenChange`), wired where the **TUNE**
-picker is mounted ([tune-view.ts](../src/ui/tune-view.ts)). Needs `TimingSync` +
-`History` available there (TUNE is currently constructed with just player +
-takes).
+- **TUNE = take-centric audition transport + re-length.** TUNE
+  ([tune-view.ts](../src/ui/tune-view.ts)) no longer plays the global timeline.
+  One take is **selected** (default = the pick); **Space** plays/pauses *that*
+  take (routed in [main.ts](../src/main.ts) when `mode === "tune"`, leaving the
+  player paused). A **sticky playhead** (`startAt`) is where playback begins and
+  replays from — clicking the waveform sets it (no auto-play), `Home` / dbl-click
+  resets it to the window start. Playback is **windowed** to the picked sub-take
+  slice by default; the **window/whole** toggle (button or `w`) hears the whole
+  recording. Audio: `Takes.scrubAudition(...,endSec)` bounds the buffer source to
+  the slice (`source.start(0, from, dur)`); `pauseAudition()` stops it; the strip
+  cursor follows `auditionPosition()` while playing and parks on `startAt` when
+  not. Selection click handling: row click selects; the `TakeStrip` stops its own
+  clicks bubbling so scrubbing doesn't reset the playhead.
+- **Re-length (landed).** Drag either edge of the picked take's `TakeStrip`
+  window to re-length the line; the body still slips the in-point (no ripple).
+  Transform (line L, Δ = newLen − oldLen, anchor = old `L.to`, **start pinned**):
+  `L.to += Δ`; every later line `from/to += Δ`; `scene.len += Δ`; each schedule
+  entry `enter/exit += Δ` when `>= anchor`; each caption `from/to += Δ` when
+  `>= anchor`. Pure in-memory mutation of one `SceneData` →
+  `history.snapshot`/commit + `sync.changed(scene)` (debounced `putTimings`); left
+  edge also persists the new `inPoint`. Undoable via the normal Ctrl+Z path.
+  `TuneView` now takes `sync` + `history` + `mode`. Clamp: `newLen ∈ [0.2s,
+  takeDuration]`. Still wants a manual ear/export check.
 
 ### Backlog
 - **Editable element labels** (`data-label`) via the HTML patch — names are

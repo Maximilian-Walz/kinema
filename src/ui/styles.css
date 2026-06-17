@@ -786,6 +786,29 @@ body.mode-stage #scenecontent [id]{cursor:pointer}
   .tv-take{grid-template-columns:34px 100px 90px auto 28px 1fr}
   .tv-strip{grid-column:6 / 7}
 }
+/* take-centric transport (Space plays the selected take, not the timeline).
+   Buttons have fixed widths so the play/pause and window/whole label swaps
+   never change their size or reflow the header row. */
+.tv-transport{flex:none;display:flex;gap:6px;align-items:center}
+.tv-transport button{font-family:var(--st-mono);font-size:11px;padding:3px 0;
+  text-align:center}
+.tv-tp-play{width:76px}
+.tv-tp-scope{width:90px}
+.tv-tp-reset{width:62px}
+.tv-tp-scope.on{color:#7ee787;border-color:rgba(126,231,135,.6);
+  background:rgba(126,231,135,.08)}
+/* the selected take (what the transport controls) — distinct from the purple
+   candidate ring; a take can be both */
+.tv-take-name{cursor:pointer}
+.tv-take.selected{border-color:rgba(126,231,135,.7);
+  box-shadow:inset 0 0 0 1px rgba(126,231,135,.5)}
+.tv-take.cand.selected{border-color:rgba(126,231,135,.9)}
+/* re-length affordance: highlight the picked take's window edges as grab zones */
+.tv-take .vs-take-window::before,.tv-take .vs-take-window::after{content:"";
+  position:absolute;top:0;bottom:0;width:5px;background:rgba(126,231,135,.6);
+  cursor:ew-resize}
+.tv-take .vs-take-window::before{left:0}
+.tv-take .vs-take-window::after{right:0}
 
 /* ============================== export dialog ============================ */
 .t-export{padding:6px 12px}

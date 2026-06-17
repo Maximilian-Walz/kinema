@@ -165,7 +165,7 @@ async function bootStudio(): Promise<void> {
   stageView.onModeChange(mode.mode === "stage");
   sidePanel.setStageInspector((host) => stageView.mountInspector(host));
   new RecordView(recordview, player, takes, micMonitor);
-  new TuneView(tuneview, player, takes);
+  const tuneView = new TuneView(tuneview, player, takes, sync, history, mode);
   new DockResize();
   new RecBar(takes, micMonitor, player);
   /* mode switches re-flow the grid; trigger a rescale so the stage fits */
@@ -232,7 +232,16 @@ async function bootStudio(): Promise<void> {
       if (scene) restoreScene(scene);
     } else if (e.code === "Space") {
       e.preventDefault();
-      player.toggle();
+      /* TUNE is take-centric: Space drives the selected-take audition transport,
+         not the global timeline. Every other mode plays the timeline. */
+      if (mode.mode === "tune") tuneView.togglePlay();
+      else player.toggle();
+    } else if (mode.mode === "tune" && (e.key === "w" || e.key === "W")) {
+      e.preventDefault();
+      tuneView.setWhole(!tuneView.whole);
+    } else if (mode.mode === "tune" && e.key === "Home") {
+      e.preventDefault();
+      tuneView.resetPlayhead();
     } else if (e.key === "r" && !e.shiftKey) {
       e.preventDefault();
       if (takes.recording || takes.counting) {

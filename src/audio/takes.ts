@@ -230,6 +230,9 @@ export class Takes {
   private auditionStartedAt = 0;
   /** seconds into the buffer the audition source started at (for scrubbing) */
   private auditionStartOffset = 0;
+  /** seconds into the buffer the audition is bounded to stop at (the sub-take
+      window end); Infinity = play to the natural buffer end */
+  private auditionEndOffset = Infinity;
   /** persistent master analyser: chainTail -> masterAnalyser -> destination.
       Created once with the AudioContext, never torn down; both startPreview and
       startAudition route through it so the playback meter always reads the
@@ -729,7 +732,13 @@ export class Takes {
 
   /* ----------------------- audition (list playback) --------------------- */
 
-  toggleAudition(sceneId: string, lineId: string, file: string): void {
+  toggleAudition(
+    sceneId: string,
+    lineId: string,
+    file: string,
+    fromSec = 0,
+    endSec = Infinity,
+  ): void {
     if (this.auditioning === file) {
       this.stopAudition();
       return;
@@ -743,19 +752,22 @@ export class Takes {
       file,
       sceneId,
       lineId,
-      0,
+      Math.max(0, fromSec),
+      endSec,
     );
   }
 
   /** Restart the audition for `file` from `fromSec` seconds into the buffer.
       Used by the scrubbable take strip; clicking the waveform calls this. If a
       different take is currently auditioning it is replaced. Re-uses the
-      decode cache so seeking is cheap. */
+      decode cache so seeking is cheap. `endSec` bounds playback to the sub-take
+      window end (Infinity = play to the natural buffer end). */
   scrubAudition(
     sceneId: string,
     lineId: string,
     file: string,
     fromSec: number,
+    endSec = Infinity,
   ): void {
     this.stopPreview();
     this.stopAudition();
@@ -767,15 +779,25 @@ export class Takes {
       sceneId,
       lineId,
       Math.max(0, fromSec),
+      endSec,
     );
   }
 
-  /** Current position within the auditioning buffer, in seconds. Returns -1
-      if no audition is playing. Cheap; safe to poll at RAF rate. */
+  /** Stop the current audition while leaving the TUNE transport free to replay
+      from its sticky playhead. (Same teardown as stopAudition; named for intent
+      at the call site.) */
+  pauseAudition(): void {
+    this.stopAudition();
+  }
+
+  /** Current position within the auditioning buffer, in seconds, clamped to the
+      window end. Returns -1 if no audition is playing. Cheap; safe to poll at
+      RAF rate. */
   auditionPosition(): number {
     if (!this.auditionNode || !this.ctx) return -1;
-    return this.auditionStartOffset +
+    const pos = this.auditionStartOffset +
       (this.ctx.currentTime - this.auditionStartedAt);
+    return Math.min(pos, this.auditionEndOffset);
   }
 
   private async startAudition(
@@ -784,6 +806,7 @@ export class Takes {
     sceneId: string,
     lineId: string,
     fromSec = 0,
+    endSec = Infinity,
   ): Promise<void> {
     const ctx = this.audioCtx();
     void ctx.resume();
@@ -810,11 +833,20 @@ export class Takes {
     };
     this.auditionNode = source;
     this.auditionStartOffset = fromSec;
+    this.auditionEndOffset = endSec;
     this.auditionStartedAt = ctx.currentTime;
-    source.start(0, fromSec);
+    /* bound playback to the sub-take window when one is given, so a windowed
+       audition stops at the slice end instead of rolling through the whole
+       recording. Web Audio stops on the audio clock for sample accuracy. */
+    if (isFinite(endSec) && endSec > fromSec) {
+      source.start(0, fromSec, endSec - fromSec);
+    } else {
+      source.start(0, fromSec);
+    }
   }
 
   private stopAudition(): void {
+    this.auditionEndOffset = Infinity;
     const source = this.auditionNode;
     if (source) {
       this.auditionNode = null;

@@ -38,12 +38,33 @@ export interface TakeStripOptions {
     /** Initial window start (seconds into the take). Default 0. Clamped to
         [0, duration - windowLen]. */
     inPoint?: number;
-    /** Called (debounced) with the new in-point as the window is dragged. */
+    /** Called with the new in-point after the window BODY is dragged (slip:
+        which slice plays, length unchanged). */
     onInPointChange?: (inPoint: number) => void;
+    /** Called with the new (inPoint, windowLen) after a window EDGE is dragged
+        (re-length). When provided, left/right edge grips are enabled on the
+        window box; omit to keep the box body-drag-only (slip). */
+    onResize?: (inPoint: number, windowLen: number) => void;
+    /** Initial sticky playhead (seconds into the take) drawn when not playing.
+        The owner (TUNE transport) sets this; clicking the canvas reports a new
+        one via onScrub. */
+    playheadAt?: number;
+    /** Called when the canvas is clicked/scrubbed (seconds into the take). When
+        provided, the strip does NOT start audition itself — the owner decides
+        what/how to play. Omitted = legacy behaviour (Takes.scrubAudition). */
+    onScrub?: (sec: number) => void;
+    /** Called on a canvas double-click (reset the sticky playhead). */
+    onResetPlayhead?: () => void;
 }
 
 const DEFAULT_COLOR = "#7ee787";
 const CURSOR_COLOR = "#ffffff";
+
+const clamp = (v: number, lo: number, hi: number): number =>
+    Math.max(lo, Math.min(hi, v));
+
+/** px from a window-box edge that counts as grabbing that edge (resize) */
+const EDGE_PX = 8;
 
 export class TakeStrip {
     readonly element: HTMLElement;
@@ -63,10 +84,18 @@ export class TakeStrip {
     private readonly onTakesChange: () => void;
     private readonly resizeObs: ResizeObserver;
     /* overrun sub-take picker (optional) */
-    private readonly windowLen: number;
+    private windowLen: number;
     private inPoint: number;
     private readonly onInPointChange?: (inPoint: number) => void;
+    private readonly onResize?: (inPoint: number, windowLen: number) => void;
+    private readonly onScrub?: (sec: number) => void;
+    private readonly onResetPlayhead?: () => void;
     private readonly windowEl: HTMLElement;
+    /** minimum window length when re-lengthing (seconds) */
+    private static readonly MIN_LEN = 0.2;
+    /** sticky playhead position (seconds into take) drawn while not auditioning;
+        null = hidden */
+    private playheadAt: number | null;
 
     constructor(
         takes: Takes,
@@ -86,6 +115,10 @@ export class TakeStrip {
         this.windowLen = opts.windowLen ?? 0;
         this.inPoint = Math.max(0, opts.inPoint ?? 0);
         this.onInPointChange = opts.onInPointChange;
+        this.onResize = opts.onResize;
+        this.onScrub = opts.onScrub;
+        this.onResetPlayhead = opts.onResetPlayhead;
+        this.playheadAt = opts.playheadAt ?? null;
 
         /* Canvas backing-store width is sized from the rendered CSS width
            (set up below by ResizeObserver) so the waveform stays crisp on
@@ -123,49 +156,115 @@ export class TakeStrip {
             "position:relative;display:block;width:100%;border-radius:4px;overflow:hidden;background:rgba(63,185,80,.06);";
         this.element.append(this.canvas, this.windowEl, this.playhead);
 
-        /* Drag the window box to choose the in-point. Window-level pointer
-           listeners (like StageView.beginFontResize) so the drag keeps tracking
-           even as the box moves under the cursor — element pointer-capture was
-           unreliable here and was the cause of the broken drag. Audition +
-           persist happen once on release, not on every move (no audio
-           machine-gunning, no mid-drag rebuild from the refresh). */
-        if (this.windowLen > 0 && this.onInPointChange) {
+        /* Window box interactions (candidate take only; the box appears once the
+           take is longer than the slot, or always when re-length is enabled):
+             - drag the BODY  -> slip: move inPoint, length unchanged (no ripple)
+             - drag an EDGE   -> re-length: change windowLen (+inPoint on the left
+               edge), which the owner ripples into later lines; the line's start
+               stays pinned.
+           Window-level pointer listeners (like StageView.beginFontResize) so the
+           drag keeps tracking even as the box moves under the cursor. Audition +
+           persist happen once on release, not on every move. */
+        if (this.windowLen > 0 && (this.onInPointChange || this.onResize)) {
+            /* hover cursor: hint the resize edges vs the slip body */
+            if (this.onResize) {
+                this.windowEl.addEventListener("pointermove", (ev) => {
+                    if (ev.buttons) return; // a drag is in progress; leave cursor as set
+                    const box = this.windowEl.getBoundingClientRect();
+                    const near = ev.clientX - box.left <= EDGE_PX ||
+                        box.right - ev.clientX <= EDGE_PX;
+                    this.windowEl.style.cursor = near ? "ew-resize" : "grab";
+                });
+            }
             this.windowEl.addEventListener("pointerdown", (ev) => {
-                if (this.windowEl.style.display === "none") return;
-                const usable = this.duration - this.windowLen;
-                if (usable <= 0) return;
+                if (this.windowEl.style.display === "none" || !this.duration) return;
                 ev.preventDefault();
                 ev.stopPropagation(); // don't let the canvas scrub-click fire
                 const r = this.element.getBoundingClientRect();
                 const box = this.windowEl.getBoundingClientRect();
+                const secPerPx = r.width > 0 ? this.duration / r.width : 0;
+                const nearLeft = ev.clientX - box.left <= EDGE_PX;
+                const nearRight = box.right - ev.clientX <= EDGE_PX;
+                const dragMode: "left" | "right" | "body" =
+                    this.onResize && nearRight ? "right"
+                    : this.onResize && nearLeft ? "left"
+                    : "body";
                 const grabDx = ev.clientX - box.left; // pointer offset within the box
-                this.windowEl.style.cursor = "grabbing";
+                const winEnd = this.inPoint + this.windowLen; // anchored for left-edge
+                this.windowEl.style.cursor = dragMode === "body"
+                    ? "grabbing"
+                    : "ew-resize";
                 const move = (mv: PointerEvent): void => {
-                    const leftPx = mv.clientX - r.left - grabDx;
-                    const frac = r.width > 0 ? leftPx / r.width : 0;
-                    this.inPoint = Math.max(0, Math.min(usable, frac * this.duration));
+                    const x = mv.clientX - r.left;
+                    if (dragMode === "body") {
+                        const usable = this.duration - this.windowLen;
+                        if (usable <= 0) return;
+                        this.inPoint = clamp(
+                            (mv.clientX - r.left - grabDx) * secPerPx,
+                            0,
+                            usable,
+                        );
+                    } else if (dragMode === "right") {
+                        const end = clamp(
+                            x * secPerPx,
+                            this.inPoint + TakeStrip.MIN_LEN,
+                            this.duration,
+                        );
+                        this.windowLen = end - this.inPoint;
+                    } else { // left edge: move inPoint, keep the end fixed in take-time
+                        const start = clamp(
+                            x * secPerPx,
+                            0,
+                            winEnd - TakeStrip.MIN_LEN,
+                        );
+                        this.inPoint = start;
+                        this.windowLen = winEnd - start;
+                    }
                     this.positionWindow();
                 };
                 const up = (): void => {
                     window.removeEventListener("pointermove", move);
                     window.removeEventListener("pointerup", up);
                     this.windowEl.style.cursor = "grab";
-                    this.takes.scrubAudition(this.sceneId, this.lineId, this.file, this.inPoint);
-                    this.onInPointChange?.(this.inPoint);
+                    if (dragMode === "body") {
+                        /* slip: persist the new in-point. The owner (TUNE)
+                           re-renders and replays the window; without an owner we
+                           fall back to a direct audition preview. */
+                        if (this.onInPointChange) {
+                            this.onInPointChange(this.inPoint);
+                        } else {
+                            this.takes.scrubAudition(
+                                this.sceneId,
+                                this.lineId,
+                                this.file,
+                                this.inPoint,
+                            );
+                        }
+                    } else {
+                        this.onResize?.(this.inPoint, this.windowLen);
+                    }
                 };
                 window.addEventListener("pointermove", move);
                 window.addEventListener("pointerup", up);
             });
         }
 
-        /* click/drag to scrub */
+        /* click/drag to scrub. With an owner (onScrub) the strip just reports the
+           position and lets the owner decide what/how to play (windowed); without
+           one it falls back to auditioning the take from that point. */
         const seekFromEvent = (ev: PointerEvent): void => {
             if (!this.duration) return;
             const r = this.canvas.getBoundingClientRect();
             const x = Math.max(0, Math.min(r.width, ev.clientX - r.left));
             const t = (x / r.width) * this.duration;
-            this.takes.scrubAudition(this.sceneId, this.lineId, this.file, t);
-            this.paintCursor(t);
+            if (this.onScrub) {
+                this.playheadAt = t;
+                this.paintCursor(t);
+                this.onScrub(t);
+            } else {
+                this.takes.scrubAudition(this.sceneId, this.lineId, this.file, t);
+                this.paintCursor(t);
+            }
         };
         this.canvas.addEventListener("pointerdown", (ev) => {
             seekFromEvent(ev);
@@ -178,6 +277,18 @@ export class TakeStrip {
             this.canvas.addEventListener("pointermove", onMove);
             this.canvas.addEventListener("pointerup", onUp);
         });
+        if (this.onResetPlayhead) {
+            this.canvas.addEventListener(
+                "dblclick",
+                () => this.onResetPlayhead!(),
+            );
+        }
+        /* when owned by TUNE, a click on the strip is a scrub/playhead action —
+           keep it from bubbling to the row's select-on-click handler (which would
+           reset the playhead we just set). */
+        if (this.onScrub) {
+            this.element.addEventListener("click", (e) => e.stopPropagation());
+        }
 
         /* re-render when audition state changes (start, stop, scrub to another) */
         this.onTakesChange = () => this.tickOnce();
@@ -268,35 +379,49 @@ export class TakeStrip {
     }
 
     /** Show and position the overrun window box (percent-based, so resize-safe).
-        Hidden when no windowLen is set or the take is not longer than the
-        window (nothing to pick). */
+        Hidden when no windowLen is set, or the take is not longer than the
+        window AND re-length isn't enabled (nothing to pick or trim). When
+        re-length is enabled the box is always shown so the line can be made
+        shorter even when the take only just fills the slot. */
     private positionWindow(): void {
-        if (this.windowLen <= 0 || !this.duration ||
-            this.duration <= this.windowLen) {
+        const show = this.windowLen > 0 && !!this.duration &&
+            (this.onResize != null || this.duration > this.windowLen);
+        if (!show) {
             this.windowEl.style.display = "none";
             return;
         }
         const leftFrac = Math.max(0, Math.min(1, this.inPoint / this.duration));
-        const widthFrac = Math.max(0, Math.min(1, this.windowLen / this.duration));
+        const widthFrac = Math.max(
+            0,
+            Math.min(1 - leftFrac, this.windowLen / this.duration),
+        );
         this.windowEl.style.display = "block";
         this.windowEl.style.left = `${(leftFrac * 100).toFixed(3)}%`;
         this.windowEl.style.width = `${(widthFrac * 100).toFixed(3)}%`;
     }
 
+    /** Set the sticky playhead (seconds into the take) drawn while not playing,
+        or null to hide it. The TUNE transport calls this; playback overrides it
+        with the live position. */
+    setPlayhead(sec: number | null): void {
+        this.playheadAt = sec;
+        this.tickOnce();
+    }
+
     /** read the current audition position and paint the cursor accordingly.
-      Hides the cursor when the take is not currently auditioning. */
+      While this take is auditioning the cursor follows the live position; while
+      paused/stopped it parks on the sticky playhead (or hides if unset). */
     private tickOnce(): void {
         if (this.destroyed) return;
-        if (this.takes.auditioning !== this.file) {
-            this.playhead.style.display = "none";
-            return;
+        if (this.takes.auditioning === this.file) {
+            const t = this.takes.auditionPosition();
+            if (t >= 0) {
+                this.paintCursor(t);
+                return;
+            }
         }
-        const t = this.takes.auditionPosition();
-        if (t < 0) {
-            this.playhead.style.display = "none";
-            return;
-        }
-        this.paintCursor(t);
+        if (this.playheadAt != null) this.paintCursor(this.playheadAt);
+        else this.playhead.style.display = "none";
     }
 
     private startRaf(): void {

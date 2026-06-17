@@ -2,8 +2,11 @@ import * as api from "../api";
 import { TakeStrip } from "../audio/take-strip";
 import type { Takes } from "../audio/takes";
 import { fmt, type Player } from "../engine/player";
+import type { History } from "../history";
+import type { TimingSync } from "../timings";
 import type { TimedText } from "../types";
 import { el } from "./dom";
+import type { WorkspaceMode } from "./workspace-mode";
 
 /* ============================================================================
    TUNE mode bottom workspace.
@@ -12,41 +15,71 @@ import { el } from "./dom";
 
      +---------------------------+----------------------------------------+
      |  SECTION NAVIGATOR        |  TAKE COMPARATOR                      |
-     |  - line 1   [2 takes]     |  current line text                    |
+     |  - line 1   [2 takes]     |  current line text   [▶ play] [window]  |
      |  > line 2   [1 take]      |  --------------------------------     |
-     |  - line 3   [-]           |  take 1  [\u25b6] [\u2605] [\u2715]   ~~~waveform~~~  |
-     |  - line 4   [3 takes]     |  take 2  [\u25b6] [\u2605] [\u2715]   ~~~waveform~~~  |
-     |                           |  (click waveform to scrub)             |
+     |  - line 3   [-]           |  > take 1  [★] [✕]   ~~~waveform~~~  |
+     |  - line 4   [3 takes]     |    take 2  [★] [✕]   ~~~waveform~~~  |
      +---------------------------+----------------------------------------+
 
-   The "selected" section is whichever line the player cursor is on.
-   Clicking a section in the navigator seeks to that line's start, so the
-   side panel (post chain + playback meter) updates in lock-step.
+   The "active" section is whichever line the player cursor is on. TUNE is
+   take-centric: one take is *selected* (default = the picked one) and the
+   transport (Space) plays/pauses THAT take, not the global timeline. By default
+   only the picked sub-take window plays; a toggle hears the whole recording.
+   A sticky playhead (set by clicking the waveform) is where playback starts and
+   replays from until reset, so you can A/B one phrase while tuning the chain.
+
+   The picked (candidate) take also gets draggable window edges to re-length the
+   line: dragging an edge ripples later lines (the line's start stays pinned).
 ============================================================================ */
 
 export class TuneView {
     private readonly root: HTMLElement;
     private readonly player: Player;
     private readonly takes: Takes;
+    private readonly sync: TimingSync;
+    private readonly history: History;
 
     private navEl!: HTMLElement;
     private bodyEl!: HTMLElement;
     private lastLineId: string | null = null;
     private strips: TakeStrip[] = [];
 
-    constructor(root: HTMLElement, player: Player, takes: Takes) {
+    /** the take the transport controls; defaults to the active line's pick */
+    private selectedFile: string | null = null;
+    /** sticky playhead: seconds into the selected take that playback starts
+        (and replays) from, until reset to the window start */
+    private startAt = 0;
+    /** play the whole recording instead of just the picked sub-take window */
+    private wholeTake = false;
+    private static readonly WHOLE_KEY = "tv.whole";
+
+    constructor(
+        root: HTMLElement,
+        player: Player,
+        takes: Takes,
+        sync: TimingSync,
+        history: History,
+        mode: WorkspaceMode,
+    ) {
         this.root = root;
         this.player = player;
         this.takes = takes;
+        this.sync = sync;
+        this.history = history;
+        this.wholeTake = localStorage.getItem(TuneView.WHOLE_KEY) === "1";
 
         this.build();
 
-        player.events.on("scene", () => this.render());
+        player.events.on("scene", () => this.onLineMaybeChanged(true));
         player.events.on("timings", () => this.render());
-        player.events.on("time", () => this.maybeReRender());
+        player.events.on("time", () => this.onLineMaybeChanged(false));
         takes.events.on("change", () => this.render());
+        /* leaving TUNE stops any audition so it doesn't bleed into another mode */
+        mode.events.on("change", (m) => {
+            if (m !== "tune") this.takes.pauseAudition();
+        });
 
-        this.render();
+        this.onLineMaybeChanged(true);
     }
 
     private build(): void {
@@ -65,10 +98,162 @@ export class TuneView {
         return null;
     }
 
-    private maybeReRender(): void {
+    /** Re-render on a cursor move; when the active LINE changes, reset the
+        selection back to that line's pick and park the playhead at its window
+        start (`force` skips the change check, e.g. on scene switch). */
+    private onLineMaybeChanged(force: boolean): void {
         const id = this.activeLineId();
-        if (id !== this.lastLineId) this.render();
+        if (!force && id === this.lastLineId) return;
+        this.takes.pauseAudition();
+        this.selectedFile = id ? this.takes.candidate(this.player.scene.id, id) : null;
+        this.startAt = this.defaultStartAt(id, this.selectedFile);
+        this.render();
     }
+
+    /* --------------------------- window helpers --------------------------- */
+
+    /** The selected take's playback window in take-time: where it starts within
+        the recording (the candidate's in-point, else 0) and its length (the
+        line's slot duration). */
+    private windowOf(
+        lineId: string,
+        file: string,
+    ): { start: number; len: number } {
+        const scene = this.player.scene;
+        const line = scene.lines.find((l) => l.id === lineId);
+        const len = line ? line.to - line.from : 0;
+        const sect = this.takes.section(scene.id, lineId);
+        const start = sect?.candidate === file ? (sect.inPoint ?? 0) : 0;
+        return { start, len };
+    }
+
+    /** Where the playhead parks by default: the window start (or take head in
+        whole-take mode). */
+    private defaultStartAt(lineId: string | null, file: string | null): number {
+        if (this.wholeTake || !lineId || !file) return 0;
+        return this.windowOf(lineId, file).start;
+    }
+
+    /* ------------------------------ transport ----------------------------- */
+
+    /** Space in TUNE: play the selected take from the sticky playhead, or pause
+        if it's already playing. Leaves the global player untouched. */
+    togglePlay(): void {
+        if (!this.selectedFile) return;
+        if (this.takes.auditioning === this.selectedFile) {
+            this.takes.pauseAudition();
+        } else {
+            this.play();
+        }
+    }
+
+    private play(): void {
+        const lineId = this.activeLineId();
+        if (!lineId || !this.selectedFile) return;
+        const { start, len } = this.windowOf(lineId, this.selectedFile);
+        const end = this.wholeTake ? Infinity : start + len;
+        this.takes.scrubAudition(
+            this.player.scene.id,
+            lineId,
+            this.selectedFile,
+            this.startAt,
+            end,
+        );
+    }
+
+    /** Reset the sticky playhead to the window start (Home / double-click). */
+    resetPlayhead(): void {
+        const id = this.activeLineId();
+        this.startAt = this.defaultStartAt(id, this.selectedFile);
+        if (this.selectedFile && this.takes.auditioning === this.selectedFile) {
+            this.play();
+        } else this.render();
+    }
+
+    get whole(): boolean {
+        return this.wholeTake;
+    }
+
+    /** Toggle whole-recording vs picked-window playback (button / `W`). */
+    setWhole(on: boolean): void {
+        if (this.wholeTake === on) return;
+        this.wholeTake = on;
+        localStorage.setItem(TuneView.WHOLE_KEY, on ? "1" : "0");
+        const playing = this.selectedFile != null &&
+            this.takes.auditioning === this.selectedFile;
+        this.startAt = this.defaultStartAt(this.activeLineId(), this.selectedFile);
+        if (playing) this.play();
+        else this.render();
+    }
+
+    private selectFile(file: string): void {
+        if (this.selectedFile === file) return;
+        this.takes.pauseAudition();
+        this.selectedFile = file;
+        this.startAt = this.defaultStartAt(this.activeLineId(), file);
+        this.render();
+    }
+
+    /** Click on a take's waveform: select it and park the sticky playhead at the
+        clicked position. Does NOT start playback (Space does); but if this take
+        is already playing, re-anchor so you hear from the new spot. Re-render is
+        deferred so it doesn't tear down the canvas handling this very click. */
+    private scrubTo(file: string, sec: number): void {
+        const wasPlaying = this.takes.auditioning === file;
+        this.selectedFile = file;
+        this.startAt = sec;
+        if (wasPlaying) this.play();
+        else setTimeout(() => this.render(), 0);
+    }
+
+    /* ------------------------------ re-length ----------------------------- */
+
+    /** Apply a window-edge re-length: set the line's length to `newLen` (start
+        pinned), ripple every later line / schedule entry / caption by the delta,
+        and persist. Left-edge drags also move the in-point. Undoable. */
+    private async applyRelength(
+        lineId: string,
+        file: string,
+        inPoint: number,
+        newLen: number,
+    ): Promise<void> {
+        const scene = this.player.scene;
+        const line = scene.lines.find((l) => l.id === lineId);
+        if (!line) return;
+        const delta = newLen - (line.to - line.from);
+        if (Math.abs(delta) > 1e-4) {
+            const anchor = line.to; // old end; content at/after it shifts
+            const before = this.history.snapshot(scene);
+            line.to = line.from + newLen;
+            for (const ln of scene.lines) {
+                if (ln === line) continue;
+                if (ln.from >= anchor) {
+                    ln.from += delta;
+                    ln.to += delta;
+                }
+            }
+            for (const s of scene.schedule) {
+                if (s.enter >= anchor) s.enter += delta;
+                if (s.exit != null && s.exit >= anchor) s.exit += delta;
+            }
+            for (const c of scene.captions) {
+                if (c.from >= anchor) c.from += delta;
+                if (c.to >= anchor) c.to += delta;
+            }
+            scene.len += delta;
+            this.history.commit(scene, before);
+            this.sync.changed(scene); // refresh engine + debounced putTimings
+        }
+        const sect = this.takes.section(scene.id, lineId);
+        if (Math.abs((sect?.inPoint ?? 0) - inPoint) > 1e-4) {
+            await api.setTakeInPoint(scene.id, lineId, file, inPoint);
+            await this.takes.refresh();
+        } else {
+            this.render();
+        }
+    }
+
+    /* ------------------------------- render ------------------------------- */
 
     private render(): void {
         this.destroyStrips();
@@ -82,7 +267,7 @@ export class TuneView {
         this.navEl.appendChild(
             el("div", {
                 class: "tv-nav-title",
-                text: `${scene.title} \u00b7 ${scene.lines.length} lines`,
+                text: `${scene.title} · ${scene.lines.length} lines`,
             }),
         );
         scene.lines.forEach((ln, idx) => {
@@ -104,9 +289,7 @@ export class TuneView {
                 }),
                 el("span", {
                     class: "tv-nav-count",
-                    text: sect?.takes.length
-                        ? `${sect.takes.length}`
-                        : "\u2013",
+                    text: sect?.takes.length ? `${sect.takes.length}` : "–",
                 }),
             );
             btn.onclick = () =>
@@ -131,15 +314,23 @@ export class TuneView {
             | TimedText
             | undefined;
         const sect = this.takes.section(scene.id, activeId);
+
+        /* validate the selection against the current take list */
+        const files = (sect?.takes ?? []).map((t) => t.file);
+        if (!this.selectedFile || !files.includes(this.selectedFile)) {
+            this.selectedFile = sect?.candidate ?? files[files.length - 1] ?? null;
+        }
+
         const header = el("div", { class: "tv-body-head" });
         header.append(
             el("span", {
                 class: "tv-body-time",
                 text: activeLine
-                    ? `${fmt(activeLine.from)}\u2013${fmt(activeLine.to)}`
+                    ? `${fmt(activeLine.from)}–${fmt(activeLine.to)}`
                     : "",
             }),
             el("span", { class: "tv-body-text", text: activeLine?.text || "" }),
+            this.buildTransport(),
         );
         this.bodyEl.appendChild(header);
 
@@ -148,7 +339,7 @@ export class TuneView {
                 el("div", {
                     class: "tv-empty",
                     text:
-                        "no takes for this line yet \u2014 record in RECORD mode",
+                        "no takes for this line yet — record in RECORD mode",
                 }),
             );
             return;
@@ -159,30 +350,38 @@ export class TuneView {
         sect.takes.slice().reverse().forEach((tk, i) => {
             const total = sect.takes.length;
             const ord = total - i;
+            const isCandidate = tk.file === sect.candidate;
+            const isSelected = tk.file === this.selectedFile;
             const row = el("div", {
-                class: "tv-take" + (tk.file === sect.candidate ? " cand" : ""),
+                class: "tv-take" + (isCandidate ? " cand" : "") +
+                    (isSelected ? " selected" : ""),
             });
+            /* click anywhere on the row (padding included) selects the take; the
+               strip stops its own clicks from bubbling so scrubbing the waveform
+               doesn't reset the playhead via this handler. */
+            row.onclick = () => this.selectFile(tk.file);
             const play = el("button", {
                 class: "tv-play",
-                text: this.takes.auditioning === tk.file ? "\u23f8" : "\u25b6",
-                title: "audition this take from the start",
+                text: this.takes.auditioning === tk.file ? "⏸" : "▶",
+                title: "select + play this take (space)",
             });
-            play.onclick = () =>
-                this.takes.toggleAudition(scene.id, activeId, tk.file);
+            play.onclick = () => {
+                this.selectFile(tk.file);
+                this.togglePlay();
+            };
             const name = el("span", {
                 class: "tv-take-name",
                 text: `take ${ord}`,
                 title: tk.file,
             });
+            name.onclick = () => this.selectFile(tk.file);
             const meta = el("span", {
                 class: "tv-take-meta",
                 text: new Date(tk.created).toLocaleTimeString(),
             });
             const star = el("button", {
                 class: "tv-star",
-                text: tk.file === sect.candidate
-                    ? "\u2605 pick"
-                    : "\u2606 pick",
+                text: isCandidate ? "★ pick" : "☆ pick",
                 title: "set as the take used in preview and export",
             });
             star.onclick = async () => {
@@ -191,7 +390,7 @@ export class TuneView {
             };
             const del = el("button", {
                 class: "tv-del",
-                text: "\u2715",
+                text: "✕",
                 title: "move take to trash",
             });
             del.onclick = async () => {
@@ -200,34 +399,42 @@ export class TuneView {
                 await this.takes.refresh();
             };
             const stripHost = el("div", { class: "tv-strip" });
-            /* Overrun sub-take picker: only the picked (candidate) take exports/
-               previews, so only it gets the draggable window. windowLen is the
-               line's own duration; the strip hides the overlay when the take is
-               not longer than that. */
-            const isCandidate = tk.file === sect.candidate;
             const windowLen = activeLine ? activeLine.to - activeLine.from : 0;
-            const strip = new TakeStrip(
-                this.takes,
-                scene.id,
-                activeId,
-                tk.file,
-                isCandidate && windowLen > 0
-                    ? {
-                        height: 56,
-                        windowLen,
-                        inPoint: sect.inPoint,
-                        onInPointChange: async (inPoint: number) => {
-                            await api.setTakeInPoint(
-                                scene.id,
-                                activeId,
-                                tk.file,
-                                inPoint,
-                            );
-                            await this.takes.refresh();
-                        },
-                    }
-                    : { height: 56 },
-            );
+            const playheadAt = isSelected ? this.startAt : undefined;
+            /* Only the picked (candidate) take exports/previews, so only it gets
+               the editable window (slip body + re-length edges). Other takes are
+               audition-only: click to scrub, no window edits. */
+            const strip = isCandidate && windowLen > 0
+                ? new TakeStrip(this.takes, scene.id, activeId, tk.file, {
+                    height: 56,
+                    windowLen,
+                    inPoint: sect?.inPoint ?? 0,
+                    playheadAt,
+                    onInPointChange: async (inPoint: number) => {
+                        /* slip moved the window start; park the playhead there,
+                           persist, and replay the new slice */
+                        this.selectedFile = tk.file;
+                        this.startAt = inPoint;
+                        await api.setTakeInPoint(
+                            scene.id,
+                            activeId,
+                            tk.file,
+                            inPoint,
+                        );
+                        await this.takes.refresh();
+                        this.play();
+                    },
+                    onResize: (inPoint: number, len: number) =>
+                        void this.applyRelength(activeId, tk.file, inPoint, len),
+                    onScrub: (sec: number) => this.scrubTo(tk.file, sec),
+                    onResetPlayhead: () => this.resetPlayhead(),
+                })
+                : new TakeStrip(this.takes, scene.id, activeId, tk.file, {
+                    height: 56,
+                    playheadAt,
+                    onScrub: (sec: number) => this.scrubTo(tk.file, sec),
+                    onResetPlayhead: () => this.resetPlayhead(),
+                });
             stripHost.appendChild(strip.element);
             this.strips.push(strip);
 
@@ -235,6 +442,34 @@ export class TuneView {
             list.appendChild(row);
         });
         this.bodyEl.appendChild(list);
+    }
+
+    /** play/pause + whole/window + reset transport row */
+    private buildTransport(): HTMLElement {
+        const wrap = el("div", { class: "tv-transport" });
+        const playing = this.selectedFile != null &&
+            this.takes.auditioning === this.selectedFile;
+        const play = el("button", {
+            class: "tv-tp-play",
+            text: playing ? "⏸ pause" : "▶ play",
+            title: "play / pause the selected take (space)",
+        });
+        play.onclick = () => this.togglePlay();
+        const scope = el("button", {
+            class: "tv-tp-scope" + (this.wholeTake ? "" : " on"),
+            text: this.wholeTake ? "whole take" : "window",
+            title:
+                "play only the picked sub-take window, or the whole recording (w)",
+        });
+        scope.onclick = () => this.setWhole(!this.wholeTake);
+        const reset = el("button", {
+            class: "tv-tp-reset",
+            text: "↺ start",
+            title: "reset the playhead to the window start (home)",
+        });
+        reset.onclick = () => this.resetPlayhead();
+        wrap.append(play, scope, reset);
+        return wrap;
     }
 
     private destroyStrips(): void {
