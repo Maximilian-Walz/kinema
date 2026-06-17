@@ -16,6 +16,10 @@ declare global {
       sceneLens: () => number[];
       begin: (sceneIndex: number | null) => void;
       finished: () => boolean;
+      /** current global clock time (seconds). The exporter resamples captured
+          frames by this, because a screenshot under virtual time advances the
+          clock by a full compositor flush, not by one output frame. */
+      now: () => number;
       seek: (sceneIndex: number, local: number) => void;
     };
   }
@@ -69,6 +73,7 @@ export function bootRender(): void {
       P.setPlaying(true);
     },
     finished: () => !player!.playing,
+    now: () => player!.time,
     seek: (sceneIndex, local) => player!.seekScene(sceneIndex, local),
   };
 }

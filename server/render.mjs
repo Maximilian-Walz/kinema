@@ -208,16 +208,41 @@ export async function exportVideo(opts) {
     ff.on('error', ffFail);
     ff.on('close', (code) => code === 0 ? ffDone() : ffFail(new Error('ffmpeg exited ' + code + '\n' + ffErr.slice(-2500))));
 
+    /* A screenshot under --run-all-compositor-stages-before-draw advances
+       virtual time by a whole compositor flush (~50 ms here), NOT by one output
+       frame — so the naive "advance frameMs, screenshot" loop walks content
+       forward ~50 ms per captured frame and the video plays fast (e.g. 1.5x at
+       30 fps, 2x at 60 fps), finishing early. Instead, capture frames at that
+       natural cadence, read each frame's true content time, and resample to the
+       requested constant fps by content time (nearest neighbour) — so the video
+       plays at real speed and stays in sync with the absolutely-placed audio.
+       Streaming, O(1) memory: keep the last two captures and emit dups/drops. */
     const frameMs = 1000 / fps;
-    for (let f = 0; f < totalFrames; f++) {
-      await advanceVirtualTime(client, frameMs);
-      const png = await page.screenshot({
-        type: 'png',
-        clip: { x: 0, y: 0, width, height },
-      });
-      if (!ff.stdin.write(png)) await once(ff.stdin, 'drain');
-      if (f % 15 === 0 || f === totalFrames - 1) {
-        progress({ state: 'rendering', phase: 'rendering frames', frame: f + 1, totalFrames });
+    const base = sceneIndex == null ? 0 : lens.slice(0, sceneIndex).reduce((a, b) => a + b, 0);
+    /* local content time (seconds) of the current capture; player.now() is the
+       global clock, so subtract the scene's offset for a single-scene export */
+    const grab = async () => {
+      await advanceVirtualTime(client, frameMs); // nudge; the screenshot does the bulk advance
+      const png = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width, height } });
+      const t = (await page.evaluate(() => window.__render.now())) - base;
+      return { png, t };
+    };
+    let prev = await grab();
+    let cur = prev;
+    for (let out = 0; out < totalFrames; out++) {
+      const targetT = out / fps;
+      /* advance the capture until it reaches (or passes) the target content
+         time, or the clock plateaus at the end */
+      while (cur.t < targetT && cur.t < duration - 1e-3) {
+        prev = cur;
+        cur = await grab();
+        if (cur.t <= prev.t + 1e-4) break; // clock stopped advancing — avoid spinning
+      }
+      /* emit whichever of the bracketing captures is closer to the target */
+      const frame = Math.abs(prev.t - targetT) <= Math.abs(cur.t - targetT) ? prev.png : cur.png;
+      if (!ff.stdin.write(frame)) await once(ff.stdin, 'drain');
+      if (out % 15 === 0 || out === totalFrames - 1) {
+        progress({ state: 'rendering', phase: 'rendering frames', frame: out + 1, totalFrames });
       }
     }
     ff.stdin.end();
