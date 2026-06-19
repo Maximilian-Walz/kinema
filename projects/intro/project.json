@@ -4,9 +4,11 @@
   "height": 1080,
   "scenes": [
     "01-what",
-    "02-timeline",
-    "03-takes",
-    "04-export",
-    "05-make"
+    "02-modes",
+    "03-time",
+    "04-scene",
+    "05-voice",
+    "06-export",
+    "07-make"
   ]
 }

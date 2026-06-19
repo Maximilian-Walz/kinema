@@ -152,7 +152,7 @@ reusing across scenes (see [projects/intro/theme.css](../projects/intro/theme.cs
   between them for full-frame beats.
 
 **Include the `fx` presets in every project's `theme.css`** so the SCENE
-editor's animation dropdown works (intro and groupchat both ship them). The
+editor's animation dropdown works (the intro project ships them). The
 canonical block — `.fx-fade/.fx-up/.fx-down/.fx-left/.fx-right/.fx-pop` plus the
 shared `.fx-*.on` reset — is in
 [projects/intro/theme.css](../projects/intro/theme.css); copy it verbatim (tune
@@ -163,8 +163,8 @@ the distances/easing to taste). Without it, picking a preset does nothing.
 `behaviors` lists per-scene engine routines that run every frame (beyond the pure
 class toggling). Currently the engine implements one:
 
-- `thread-autoscroll` — keeps the newest visible message in view inside
-  `#threadview` / `#threadcol` (used by the groupchat debate scene).
+- `thread-autoscroll` — keeps the newest visible message in view inside a
+  `#threadview` / `#threadcol` pair (e.g. a scrolling chat or debate scene).
 
 Add new behaviors in `runBehaviors` in [src/engine/player.ts](../src/engine/player.ts).
 

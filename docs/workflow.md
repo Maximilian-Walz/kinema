@@ -24,9 +24,10 @@ in the transport bar). The whole window re-flows per mode so only the surfaces
 you need for the job are on screen:
 
 - **RECORD** (`F1`) — teleprompter at the bottom with the current line large,
-  prev/next dimmed; a pinned bar with arm/disarm mic, live waveform, level
-  meter and a big "rec this line" button. Side panel shows the last takes for
-  the line under the cursor.
+  prev/next dimmed; a pinned bar with an `arm`/`mute` mic button, live waveform,
+  level meter, a `rec` button, and a `focus`/`chain` toggle (record this one line
+  vs. roll straight into the next at each line end). Side panel shows the last
+  takes for the line under the cursor.
 - **TUNE** (`F2`) — bottom dock becomes a take comparator: a section
   navigator (one button per script line) on the left, and one wide
   scrubbable waveform per take on the right (▶ audition, ★ pick, ✕ trash).
@@ -60,7 +61,12 @@ you need for the job are on screen:
 
 The line under the playhead is the implicit selection across the modes, so
 clicking a section in the TUNE navigator or a line in the RECORD prompter just
-seeks — and the side panel updates in lock-step.
+seeks — and the side panel updates in lock-step. The studio opens in TIME.
+
+The transport bar is fixed across every mode: play / restart (`⇧R`), the scene
+chevrons (`Ctrl ←/→`, or `[` / `]`, or `1`–`9`), the `⤓ export` button, and a
+`clean` toggle (`C`) that hides all studio chrome so you can screen-capture just
+the stage.
 
 ## 3. Tune timings (TIME mode)
 
@@ -82,21 +88,31 @@ mode-specific keys.
 
 ## 4. Record voice (RECORD mode)
 
-Press `F1` to switch to RECORD. Arm the mic from the bar at the top of the
-prompter dock, watch the level / clip indicator while you read. Press `r`
-(or click "rec this line") to record the line under the cursor with a 3-2-1
-count-in; recording auto-stops at the line end and the new take is auto-picked.
-A top-of-app red banner stays visible while recording, regardless of mode.
+Press `F1` to switch to RECORD. `arm` the mic from the dock bar, watch the level
+/ clip indicator while you read, then press `r` (or click `rec`) to record the
+line under the cursor with a 3-2-1 count-in. On stop the new take is auto-picked.
+
+The `focus`/`chain` toggle decides what "stop" means: in **focus** (default) you
+record one line and stay on it as long as you like — stop with `Esc` or the stop
+button, then pick or re-length the take. In **chain** the recording auto-advances
+at each line's end and rolls into the next, so you can read a whole scene in one
+pass. A top-of-app red banner stays visible while recording, regardless of mode.
 
 ## 5. Compare and pick takes (TUNE mode)
 
 Press `F2` to switch to TUNE. The section navigator lists every line in the
 scene; click one to seek to it. The comparator on the right shows every take
 for the selected line with a scrubbable waveform — click anywhere on the
-waveform to jump audition to that point. `★ pick` sets the take used in
-preview and export. The post-chain cards in the side panel adjust the chosen
-take's high-pass, gate, compressor, and gain (changes apply live to preview
-and audition; "normalize" / "match all takes" target -18 dBFS RMS).
+waveform to jump audition to that point. `★ pick` sets the take used in preview
+and export. Audition plays just the line-length window by default; the
+`whole take` / `window` toggle (or `W`) plays the entire recording instead. Drag
+the picked take's window edges to re-length the line — later lines, captions and
+element timings ripple along to keep the scene in sync.
+
+The post-chain cards in the side panel adjust the chosen take's high-pass, gate,
+compressor, and level/gain (changes apply live to preview and audition); the
+`match all takes` button normalizes every picked take to −18 dBFS RMS (−1 dBFS
+peak ceiling).
 
 If mic latency pushed a take out of sync, switch to TIME mode and drag its
 waveform in the VOICE track to align it; that offset is used in both preview
@@ -132,4 +148,5 @@ from two places:
   ```
 
 `STUDIO_PROJECT=<path> npm run dev` registers one more path and makes it the
-default. Otherwise the default is `groupchat` if present, else the first project.
+default. Otherwise the default is the first registered project (in-tree projects
+sort alphabetically, so a fresh clone opens on the bundled `intro` tour).

@@ -4,7 +4,7 @@
      node scripts/validate.mjs [projectDir]
 
    With no arg it validates the resolved default project (same rules as the
-   server: STUDIO_PROJECT, else groupchat, else the first projects/*). Reads
+   server: STUDIO_PROJECT, else the first projects/*). Reads
    files straight off disk the way server/api.mjs loadProject does, and checks
    the mistakes a human or an AI most often makes hand-writing scene files:
 

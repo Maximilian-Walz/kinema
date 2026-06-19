@@ -9,48 +9,48 @@
     },
     {
       "id": "sub",
-      "enter": 1.5,
+      "enter": 1.8,
       "fx": "fade"
     },
     {
       "id": "proj",
-      "enter": 4.8,
+      "enter": 5.2,
       "fx": "up"
     },
     {
       "id": "o1b",
-      "enter": 12.6
+      "enter": 12.8
     },
     {
       "id": "fHtml",
-      "enter": 12.9,
+      "enter": 13.2,
       "fx": "up"
     },
     {
       "id": "fCss",
-      "enter": 14.4,
+      "enter": 15.6,
       "fx": "up"
     },
     {
       "id": "fJson",
-      "enter": 17.8,
+      "enter": 18,
       "fx": "up"
     },
     {
       "id": "note",
-      "enter": 22,
+      "enter": 22.4,
       "fx": "fade"
     }
   ],
   "captions": [
     {
-      "from": 8.6,
-      "to": 12.4,
+      "from": 9.2,
+      "to": 12.6,
       "text": "one scene = three files"
     },
     {
-      "from": 22,
-      "to": 27.6,
+      "from": 22.4,
+      "to": 27.8,
       "text": "the files on disk are the whole video"
     }
   ],
@@ -58,37 +58,37 @@
     {
       "id": "01-what-l1",
       "from": 0,
-      "to": 4.6,
-      "text": "This is Kinema. It turns plain web files into data-driven videos."
+      "to": 4.8,
+      "text": "This is Kinema — a studio for videos you build out of plain web files."
     },
     {
       "id": "01-what-l2",
-      "from": 4.8,
-      "to": 8.4,
-      "text": "Every video is a project: a folder of scenes."
+      "from": 5,
+      "to": 9,
+      "text": "Every video is a project: just a folder of scenes."
     },
     {
       "id": "01-what-l3",
-      "from": 8.6,
-      "to": 12.6,
-      "text": "And a scene is just three files you already know."
+      "from": 9.2,
+      "to": 12.8,
+      "text": "And a scene is three files you already know."
     },
     {
       "id": "01-what-l4",
-      "from": 12.8,
+      "from": 13,
       "to": 17.6,
       "text": "An HTML file for the markup, a CSS file for the look,"
     },
     {
       "id": "01-what-l5",
       "from": 17.8,
-      "to": 21.8,
-      "text": "and a JSON file holding the timing and the narration."
+      "to": 22,
+      "text": "and a JSON file for the timing and the narration."
     },
     {
       "id": "01-what-l6",
-      "from": 22,
-      "to": 27.6,
+      "from": 22.2,
+      "to": 28,
       "text": "Nothing is hidden in a database. The files on disk are the whole video."
     }
   ]

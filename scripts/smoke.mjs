@@ -23,8 +23,9 @@ try {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  /* / with no ?project= now shows the picker; boot the studio on the default
-     project so the structural checks below (groupchat) line up */
+  /* / with no ?project= shows the picker; boot the default project. A fresh
+     clone ships only `intro`, so the structural checks derive their expectations
+     from the loaded project rather than hard-coding scene/line counts. */
   const projects = await (await fetch(BASE + "/api/projects")).json();
   const def = (projects.find((p) => p.default) || projects[0]).id;
   await page.goto(BASE + "/?project=" + def, {
@@ -34,29 +35,55 @@ try {
   await page.waitForSelector("#scenecontent", { timeout: 10000 });
   await new Promise((r) => setTimeout(r, 800));
 
-  ok((await page.$("#s1deck")) !== null, "scene 1 mounted");
+  const proj = await (await fetch(BASE + "/api/project?project=" + def)).json();
+  const sceneCount = proj.scenes.length;
+  const s0 = proj.scenes[0];
+
   ok(
-    await page.$eval("#s1deck", (el) => !el.classList.contains("on")),
-    "schedule: s1deck off at t=0",
+    await page.$eval("#scenecontent", (el) => el.children.length > 0),
+    "scene 1 mounted (content present)",
   );
-  await page.evaluate(() => {
-    /* seek via keyboard: 2 = scene 2 */
-  });
   ok((await page.$$(".tl-track")).length === 4, "timeline: 4 tracks (scenes/script/captions/voice)");
-  ok((await page.$$(".tl-scene")).length === 9, "timeline: 9 scene blocks");
   ok(
-    (await page.$$(".sp-line")).length === 4,
-    "script panel: 4 lines for scene 1",
+    (await page.$$(".tl-scene")).length === sceneCount,
+    `timeline: ${sceneCount} scene blocks (matches project)`,
+  );
+  ok(
+    (await page.$$(".sp-line")).length === s0.lines.length,
+    `script panel: ${s0.lines.length} lines for scene 1`,
   );
 
-  await page.keyboard.press("5");
-  await new Promise((r) => setTimeout(r, 400));
-  ok((await page.$("#threadcol")) !== null, "key 5 jumps to debate scene");
-  await page.keyboard.press("ArrowRight"); // +5s -> round1 + adv1 on
+  /* the stage is a pure function of t: the first schedule entry's element is off
+     before its enter and on once the clock passes it (the engine toggles `cls`,
+     default "on"). Project-agnostic: derive the id/time from the loaded scene. */
+  const e0 = s0.schedule.find((e) => e.enter >= 0.5) || s0.schedule[0];
+  const onCls = e0.cls || "on";
+  await page.evaluate(
+    (t) => window.__studio.player.seek(window.__studio.player.offsets[0] + t),
+    Math.max(0, e0.enter - 0.3),
+  );
+  await new Promise((r) => setTimeout(r, 150));
+  const offBefore = await page.evaluate(
+    (id, c) => { const el = document.getElementById(id); return !!el && !el.classList.contains(c); },
+    e0.id, onCls,
+  );
+  await page.evaluate(
+    (t) => window.__studio.player.seek(window.__studio.player.offsets[0] + t),
+    e0.enter + 0.5,
+  );
+  await new Promise((r) => setTimeout(r, 150));
+  const onAfter = await page.evaluate(
+    (id, c) => { const el = document.getElementById(id); return !!el && el.classList.contains(c); },
+    e0.id, onCls,
+  );
+  ok(offBefore && onAfter, `schedule toggles #${e0.id}.${onCls} across its enter (${e0.enter}s)`);
+
+  /* number keys jump scenes: "2" -> scene 2 */
+  await page.keyboard.press("2");
   await new Promise((r) => setTimeout(r, 300));
   ok(
-    await page.$eval("#adv1", (el) => el.classList.contains("on")),
-    "schedule applies at t=5 in scene 5",
+    await page.evaluate(() => window.__studio.player.sceneIndex === 1),
+    "number key jumps to scene 2",
   );
   await page.keyboard.press("c");
   await new Promise((r) => setTimeout(r, 200));
@@ -251,7 +278,6 @@ try {
   );
   await rp.evaluate(() => window.__render.ready);
   const lens = await rp.evaluate(() => window.__render.sceneLens());
-  const proj = await (await fetch(BASE + "/api/project")).json();
   const expected = proj.scenes.reduce((a, s) => a + s.len, 0);
   ok(
     lens.length === proj.scenes.length &&
@@ -264,7 +290,7 @@ try {
     await rp.evaluate(() => !window.__render.finished()),
     "begin(4) starts playback",
   );
-  ok((await rp.$("#threadcol")) !== null, "render mode mounted scene 5");
+  ok((await rp.$("#scenecontent")) !== null, "render mode mounted a scene");
   ok(
     rerrors.length === 0,
     "no page errors (render)" + (rerrors.length ? ": " + rerrors[0] : ""),

@@ -1,0 +1,22 @@
+{
+  "title": "MAKE YOUR OWN",
+  "len": 17,
+  "schedule": [
+    { "id": "st1", "enter": 2.0, "fx": "left" },
+    { "id": "st2", "enter": 3.4, "fx": "left" },
+    { "id": "st3", "enter": 4.8, "fx": "left" },
+    { "id": "o7b", "enter": 14.4 },
+    { "id": "end", "enter": 14.8, "fx": "up" },
+    { "id": "endsub", "enter": 15.7, "fx": "fade" }
+  ],
+  "captions": [
+    { "from": 2.0, "to": 11.0, "text": "copy · rename · edit one scene at a time" }
+  ],
+  "lines": [
+    { "id": "07-make-l1", "from": 0, "to": 1.8, "text": "That's the whole tool." },
+    { "id": "07-make-l2", "from": 2.0, "to": 6.0, "text": "Copy this project, rename the folder, and edit one scene at a time." },
+    { "id": "07-make-l3", "from": 6.2, "to": 11.0, "text": "Each scene is a small, readable file an AI or a teammate can change," },
+    { "id": "07-make-l4", "from": 11.2, "to": 14.2, "text": "without touching the rest of the video." },
+    { "id": "07-make-l5", "from": 14.8, "to": 16.8, "text": "Now go build your video." }
+  ]
+}

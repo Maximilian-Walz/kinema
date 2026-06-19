@@ -1,0 +1,57 @@
+/* SCENE-mode mock: canvas + inspector, side by side. */
+.work{display:flex;gap:26px;align-items:stretch}
+
+/* the live canvas (a scene preview) */
+.canvas{position:relative;width:1040px;height:600px;background:
+  radial-gradient(900px 520px at 50% -10%,#15244a 0%,#0a0f1e 60%);
+  border:1px solid var(--line);border-radius:18px;overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.cchips{position:absolute;top:22px;left:24px;display:flex;gap:10px}
+.bchip{font-family:var(--mono);font-size:15px;letter-spacing:.12em;color:var(--dim);
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:6px 13px}
+.bchip.hot{color:var(--accent);border-color:var(--accent)}
+
+.el-head{position:absolute;left:70px;top:200px;font-size:72px;font-weight:800;
+  letter-spacing:-.01em;color:var(--text);transition:font-size .5s cubic-bezier(.2,.7,.3,1),color .45s}
+.el-head.big{font-size:84px}
+.el-head.recolor{color:var(--accent2)}
+.el-card{position:absolute;left:74px;top:316px;font-size:30px;color:var(--dim);
+  font-family:var(--mono)}
+
+/* selection overlay box drawn over the selected element, with a corner handle */
+.selbox{position:absolute;left:58px;top:188px;width:404px;height:100px;
+  border:2px solid var(--accent);border-radius:6px;opacity:0;
+  transition:opacity .3s,width .5s cubic-bezier(.2,.7,.3,1),height .5s cubic-bezier(.2,.7,.3,1)}
+.selbox.on{opacity:1}
+.selbox.big{width:470px;height:112px}
+.handle{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;
+  background:var(--accent);border:2px solid var(--bg);border-radius:3px}
+.selbox.pulse .handle{box-shadow:0 0 0 0 rgba(91,155,255,.6);animation:hpulse 1.1s ease-out infinite}
+@keyframes hpulse{0%{box-shadow:0 0 0 0 rgba(91,155,255,.55)}100%{box-shadow:0 0 0 16px rgba(91,155,255,0)}}
+
+/* inspector */
+.insp{width:434px;background:var(--panel);border:1px solid var(--line);
+  border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.itabs{display:flex;gap:6px;background:var(--bg);border:1px solid var(--line);
+  border-radius:12px;padding:6px}
+.itab{flex:1;text-align:center;font-family:var(--mono);font-size:19px;
+  letter-spacing:.12em;color:var(--dim);border-radius:8px;padding:12px 0;transition:all .3s}
+.itab.hot{background:var(--panel2);color:var(--accent2)}
+
+.ibody{position:relative;height:170px}
+.ifield{position:absolute;inset:0;display:flex;flex-direction:column;gap:14px;
+  opacity:0;transition:opacity .35s}
+.ifield.show{opacity:1}
+.ifield label{font-family:var(--mono);font-size:17px;letter-spacing:.1em;color:var(--dim)}
+.iinput{font-size:30px;color:var(--text);background:var(--bg);border:1px solid var(--accent);
+  border-radius:10px;padding:16px 18px;display:flex;align-items:center}
+.iinput .cur{display:inline-block;width:2px;height:32px;margin-left:3px;
+  background:var(--accent2);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.swatches{display:flex;gap:14px}
+.swatches i{width:58px;height:58px;border-radius:12px;border:2px solid transparent}
+.swatches i.sel{border-color:var(--text);box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--accent2)}
+.idrop{font-size:26px;color:var(--text);background:var(--bg);border:1px solid var(--line);
+  border-radius:10px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center}
+.idrop span{color:var(--accent2)}

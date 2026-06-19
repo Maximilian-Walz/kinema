@@ -39,7 +39,7 @@ What separates a valid project from a watchable one:
   narration is ~24s, not "30 because 30 is tidy".
 - **Land schedule entries on the narration beats.** An element appears when the line
   that introduces it starts. Read the `from` of the relevant line and set `enter`
-  to match (or a beat before). The intro and groupchat scenes show this: every
+  to match (or a beat before). The intro scenes show this: every
   `enter` lines up with a `lines[].from`.
 - **Motion lives in CSS, the engine only toggles classes.** Give an element `.el`
   and it fades + slides in on `.on`; schedule it and it animates when its `enter`
@@ -124,7 +124,7 @@ and look at each warning. Re-run until clean.
 
 ## Don't
 
-- Don't bake project-specific content (groupchat's agents, the intro's copy) into a
+- Don't bake another project's content (the intro's copy, a sample scene's text) into a
   generated project. Distill the patterns, not the words.
 - Don't animate from JavaScript or add engine behaviors casually. `behaviors` are
   per-scene engine routines listed in project-format.md; only use one that exists.

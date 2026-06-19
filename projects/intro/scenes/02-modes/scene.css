@@ -1,0 +1,20 @@
+/* mode chips, styled to read like the real mode switcher: dim by default,
+   accent fill when "hot". */
+#o2{gap:60px}
+
+.switch{display:flex;gap:24px}
+.chip2{display:flex;align-items:center;gap:16px;font-family:var(--mono);
+  background:var(--panel2);border:1px solid var(--line);border-radius:16px;
+  padding:20px 32px;color:var(--dim);transition:background .35s,color .35s,
+  border-color .35s,box-shadow .35s,transform .35s}
+.chip2 .k{font-size:20px;color:var(--dim);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:5px 11px}
+.chip2 .n{font-size:32px;letter-spacing:.14em;font-weight:700}
+.chip2.hot{background:var(--accent);border-color:var(--accent);color:#0b1020;
+  box-shadow:0 0 46px rgba(91,155,255,.45);transform:translateY(-4px)}
+.chip2.hot .k{background:rgba(11,16,32,.18);border-color:transparent;color:#0b1020}
+
+.desc{display:flex;flex-direction:column;gap:18px;align-items:flex-start;width:980px}
+.desc .line{font-size:30px;color:var(--dim)}
+.desc .line b{display:inline-block;min-width:148px;font-family:var(--mono);
+  font-size:26px;letter-spacing:.12em;color:var(--text);margin-right:14px}

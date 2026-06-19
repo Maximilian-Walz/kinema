@@ -9,9 +9,9 @@
        the repo root: { "projects": ["../my-video", "C:/work/other"] }.
      - STUDIO_PROJECT (single path, repo-relative or absolute) is kept as an
        override: it is registered too and becomes the default project.
-   Default project: STUDIO_PROJECT if set, else "groupchat" if present, else the
-   first registered project. The registry re-scans on demand so newly added
-   in-tree projects appear without a restart.
+   Default project: STUDIO_PROJECT if set, else the first registered project
+   (in-tree projects are scanned in alphabetical order). The registry re-scans on
+   demand so newly added in-tree projects appear without a restart.
 ============================================================================ */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -67,7 +67,6 @@ export function createRegistry(root) {
       const e = add(override);
       if (e) defaultId = e.id;
     }
-    if (!defaultId && next.has('groupchat')) defaultId = 'groupchat';
     if (!defaultId && next.size) defaultId = next.keys().next().value;
     if (defaultId && next.has(defaultId)) next.get(defaultId).default = true;
 

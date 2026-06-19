@@ -62,7 +62,7 @@ writes, takes/picks, and `POST /api/export` → [server/render.mjs](server/rende
 ## Projects
 
 `/projects/*` is gitignored **except** `projects/intro` (the tracked template,
-shown as "Meet Kinema"). Other projects (e.g. `projects/groupchat`) are their own
+shown as "Meet Kinema"). Other projects (e.g. `projects/my-video`) are their own
 nested git repos with `takes/` + `exports/` on disk — their edits won't show in
 this repo's `git status`; commit them in their own repo. See
 [docs/project-repos.md](docs/project-repos.md) and

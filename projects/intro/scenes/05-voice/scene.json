@@ -1,0 +1,26 @@
+{
+  "title": "VOICE",
+  "len": 27.5,
+  "schedule": [
+    { "id": "prompter", "enter": 0.6, "fx": "up" },
+    { "id": "micbar", "enter": 4.6, "fx": "up" },
+    { "id": "o5b", "enter": 13.0 },
+    { "id": "nav", "enter": 13.4, "fx": "left" },
+    { "id": "comp", "enter": 13.6, "fx": "right" },
+    { "id": "tk2", "enter": 17.4, "cls": "picked" },
+    { "id": "strip2", "enter": 23.2, "cls": "nudge" }
+  ],
+  "captions": [
+    { "from": 4.6, "to": 9.4, "text": "a 3-2-1 count-in, then read the line" },
+    { "from": 17.2, "to": 20.4, "text": "★ pick the take used in preview + export" },
+    { "from": 20.6, "to": 27.4, "text": "clean it with the post chain · drag to fix mic lag" }
+  ],
+  "lines": [
+    { "id": "05-voice-l1", "from": 0, "to": 4.4, "text": "Need a voiceover? RECORD turns your script into a teleprompter." },
+    { "id": "05-voice-l2", "from": 4.6, "to": 9.4, "text": "Arm the mic, and record a take for the line you're on." },
+    { "id": "05-voice-l3", "from": 9.6, "to": 12.8, "text": "Read it as many times as you like." },
+    { "id": "05-voice-l4", "from": 13.0, "to": 17.0, "text": "Then switch to TUNE to hear your takes back to back," },
+    { "id": "05-voice-l5", "from": 17.2, "to": 20.4, "text": "and star the one you want to keep." },
+    { "id": "05-voice-l6", "from": 20.6, "to": 27.4, "text": "A small post-chain cleans up the sound, and if the mic lagged, drag the waveform back into sync." }
+  ]
+}
