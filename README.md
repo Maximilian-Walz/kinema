@@ -1,5 +1,7 @@
 # Kinema
 
+[![ci](https://github.com/Maximilian-Walz/kinema/actions/workflows/ci.yml/badge.svg)](https://github.com/Maximilian-Walz/kinema/actions/workflows/ci.yml)
+
 A local studio for data-driven animation videos. Play and scrub HTML/CSS scenes
 on one global timeline, drag clips to tune every timing, read narration off a
 synced teleprompter, record per-scene voice takes, and export a frame-exact MP4
@@ -12,6 +14,9 @@ edit one scene without touching anything else.
 
 ![The studio with a project loaded](docs/media/studio.png)
 
+**[▶ Watch the 75-second intro](docs/media/meet-kinema.mp4)** — the MP4 is this
+repo's own output: `projects/intro` exported by the studio, frame for frame.
+
 ## Quickstart
 
 Requires Node.js and an installed Chrome or Edge (for export).
@@ -22,6 +27,16 @@ Requires Node.js and an installed Chrome or Edge (for export).
 
 That intro project is a short tour of the tool. The keys and interactions live in
 the UI hint bar and button tooltips, so just start playing and dragging.
+
+To start a video of your own:
+
+```
+node scripts/new-project.mjs my-video "My Video"
+```
+
+This scaffolds `projects/my-video` from the intro template (projects are
+gitignored here on purpose — see
+[docs/project-repos.md](docs/project-repos.md)).
 
 ## Docs
 

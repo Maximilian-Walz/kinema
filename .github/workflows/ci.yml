@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run validate
+
+      - run: npm run build
+
+      # The runtime checks drive the real studio in headless Chrome (the
+      # ubuntu runner ships google-chrome, which findChrome picks up).
+      - name: start dev server
+        run: |
+          npm run dev &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4321/ > /dev/null && break
+            sleep 1
+          done
+
+      - name: smoke checks
+        run: node scripts/smoke.mjs
+
+      # stage-check mutates projects/intro by design; the workspace is
+      # ephemeral here, so no restore is needed.
+      - name: SCENE-mode checks
+        run: node scripts/stage-check.mjs http://127.0.0.1:4321

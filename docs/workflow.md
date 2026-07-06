@@ -14,8 +14,9 @@ You can also point the skill at one existing scene to redo or add an animation,
 or to retime a scene after you have edited its narration. It treats timings
 already in `scene.json` as yours and will not silently overwrite them.
 
-No AI handy? Copy `projects/intro`, rename the folder, and edit a scene at a
-time. Each scene is three small files (see [project-format.md](project-format.md)).
+No AI handy? `node scripts/new-project.mjs my-video "My Video"` scaffolds a
+fresh project from the intro template; edit a scene at a time. Each scene is
+three small files (see [project-format.md](project-format.md)).
 
 ## 2. Pick a workspace mode
 
