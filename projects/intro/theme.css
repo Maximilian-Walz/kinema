@@ -44,10 +44,12 @@
 .fx-fade.on,.fx-up.on,.fx-down.on,.fx-left.on,.fx-right.on,.fx-pop.on{
   opacity:1;transform:none}
 
-/* a full-stage overlay; stack several and fade between them */
+/* A full-stage overlay; stack several and toggle between them. Schedule the
+   outgoing overlay's exit at the incoming one's enter — otherwise it stays
+   fully lit underneath and bleeds through the incoming fade. */
 .ovl{position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:40px;text-align:center;
-  padding:0 120px 140px;opacity:0;pointer-events:none;transition:opacity .6s;
+  padding:0 120px 112px;opacity:0;pointer-events:none;transition:opacity .45s;
   background:radial-gradient(1300px 750px at 50% -12%,#0d1421 0%,var(--bg) 62%)}
 .ovl.on{opacity:1}
 
@@ -74,17 +76,17 @@ h1{font-size:96px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
 
 /* transport bar: [project] [mode switch] | [play] [scene nav] ... [rec] [export]
    The thin top edge is the global seek bar, tinted by the active mode. */
-.tbar{position:relative;display:flex;align-items:center;gap:18px;
-  padding:20px 22px 15px;border-bottom:1px solid var(--line);
+.tbar{position:relative;display:flex;align-items:center;gap:14px;
+  padding:16px 20px 13px;border-bottom:1px solid var(--line);
   font-family:var(--mono);font-size:19px;color:var(--dim)}
 .tbar::before{content:"";position:absolute;left:0;top:0;height:5px;width:38%;
   background:var(--m,var(--accent))}
-.proj{padding:8px 14px;background:var(--panel2);border:1px solid var(--line);
-  border-radius:10px;color:var(--text);font-size:18px}
+.proj{padding:7px 14px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;color:var(--text);font-size:17px}
 .proj i{font-style:normal;color:var(--faint);margin-left:8px}
 .modesw{display:flex;gap:2px;background:var(--line);border:1px solid var(--line);
   border-radius:12px;padding:2px}
-.mchip{display:flex;align-items:center;gap:9px;padding:8px 15px;
+.mchip{display:flex;align-items:center;gap:9px;padding:7px 14px;
   border-radius:9px;font-size:17px;letter-spacing:.12em;color:var(--dim);
   transition:background .3s,color .3s,box-shadow .3s}
 .mchip .k{font-weight:400;font-size:12.5px;color:var(--faint);letter-spacing:.05em}
@@ -94,14 +96,17 @@ h1{font-size:96px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
 .m-time{--m:var(--accent)} .m-scene{--m:var(--cyan)}
 .tsep{width:1px;height:30px;background:var(--line)}
 .tspace{flex:1}
-.tbtn{display:flex;align-items:center;gap:10px;padding:8px 16px;
+.tbtn{display:flex;align-items:center;gap:10px;padding:7px 14px;
   background:var(--panel2);border:1px solid var(--line);border-radius:10px;
   color:var(--text);font-size:17px}
 .kbd{padding:1px 8px;border:1px solid var(--line);border-radius:6px;
   font-size:12.5px;color:var(--faint);background:rgba(0,0,0,.25);
   letter-spacing:.04em}
-.tnav{display:flex;flex-direction:column;align-items:center;gap:2px;
-  padding:0 6px;color:var(--text);font-size:17.5px}
-.tnav .ttime{font-size:13.5px;color:var(--faint)}
+/* scene nav: chevrons flank a [title / time] column, like the real .t-nav */
+.tnav{display:flex;align-items:center;gap:12px;padding:0 4px}
+.tnav .ch{font-weight:400;color:var(--dim);font-size:20px;line-height:1}
+.tcol{display:flex;flex-direction:column;align-items:center;gap:2px}
+.tcol .tscene{color:var(--text);font-size:17px;line-height:1.2}
+.tcol .ttime{font-size:13px;color:var(--faint)}
 .trec{border-color:var(--red);color:#ffa198}
 .tsaved{color:var(--green);font-size:15px}
