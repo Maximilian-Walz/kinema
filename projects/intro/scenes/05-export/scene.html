@@ -1,0 +1,21 @@
+<!-- The export dialog, styled after the real one (src/ui/export-dialog.ts +
+     .export-panel). The progress bar fills while the status line counts
+     frames, then flips to the finished MP4. -->
+<div class="ovl on" id="o5" style="transition:none">
+  <div class="dialog" id="dialog">
+    <div class="dhead">Export MP4 <span class="dx">&#10005;</span></div>
+    <div class="drow"><span class="dl">frame rate</span>
+      <span class="dsel">30 fps <b>&#9662;</b></span></div>
+    <div class="drow"><span class="dl">scope</span>
+      <span class="dbtn">this scene</span><span class="dbtn hot">full video</span></div>
+    <div class="dhint">headless Chrome renders each frame on a frozen clock,
+      ffmpeg muxes in the picked takes</div>
+    <div class="dprog" id="prog">
+      <div class="pbarx"><b id="ebar"></b></div>
+      <div class="pstat" id="stRun">rendering &middot; frame 812 / 2340 &middot; scene 3 / 6</div>
+      <div class="pstat done" id="stDone">&#10003; done &middot; <b>exports/meet-kinema.mp4</b></div>
+    </div>
+  </div>
+</div>
+
+<div id="caption"></div>

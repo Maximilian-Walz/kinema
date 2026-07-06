@@ -1,0 +1,76 @@
+/* SCENE mode mock: canvas + inspector. Cyan is the SCENE accent; the amber
+   flash on the headline mirrors the real in-place text editor
+   (src/ui/styles.css .sv-editing), the cyan box + corner handle the real
+   selection overlay. */
+.app2{display:flex;height:700px}
+.canvas{position:relative;flex:1;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  border-right:1px solid var(--line)}
+.demo{display:flex;flex-direction:column;align-items:center;gap:70px}
+.dtitle{font-size:64px;font-weight:700;letter-spacing:-.01em;
+  padding:8px 20px;border-radius:6px;
+  transition:color .5s,outline-color .3s,background .3s}
+.dtitle.recolor{color:var(--mint)}
+.dtitle.editing{outline:3px solid #ffd166;background:rgba(255,209,102,.1);
+  box-shadow:0 0 24px rgba(255,209,102,.35)}
+.chart{display:flex;align-items:flex-end;gap:44px;height:330px;
+  border-bottom:2px solid var(--line);padding:0 30px}
+.bar{width:130px;height:0;background:rgba(121,192,255,.75);
+  border-radius:8px 8px 0 0;transition:height .55s cubic-bezier(.2,.7,.3,1)}
+/* two windows drive the bars (initial entrance + the TIMING-tab replay); each
+   needs its own class — the engine applies same-id entries last-wins, so a
+   second "on" window would blank the first one's on-time. */
+.bar.on,.bar.replay{height:var(--h)}
+
+/* selection overlay: cyan ring + corner resize handle, like .sv-ovl-sel */
+.selbox{position:absolute;left:calc(50% - 320px);top:calc(50% - 268px);
+  width:640px;height:110px;border-radius:6px;opacity:0;transition:opacity .3s;
+  outline:3px solid var(--cyan);
+  box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 18px rgba(57,197,207,.6)}
+.selbox.on{opacity:1}
+.handle{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;
+  background:var(--cyan);border:2px solid var(--bg);border-radius:4px}
+
+/* inspector = the side panel in SCENE mode */
+.insp{position:relative;width:400px;background:var(--panel);
+  border-top:3px solid var(--cyan);padding:20px 18px;
+  display:flex;flex-direction:column;gap:16px}
+.ins-empty{position:absolute;inset:20px 18px auto;display:none;
+  font-family:var(--mono);font-size:16px;color:var(--faint);line-height:1.5}
+.ins-empty.vis{display:block}
+.ins-body{display:flex;flex-direction:column;gap:16px;opacity:0;
+  transition:opacity .3s}
+.ins-body.on{opacity:1}
+.ins-name{font-size:20px;color:var(--text)}
+.ins-name b{display:block;font-weight:400;font-family:var(--mono);
+  font-size:14px;color:var(--faint);margin-top:4px}
+.itabs{display:flex;gap:3px;border:1px solid var(--line);border-radius:10px;
+  background:var(--panel);padding:3px}
+.itab{flex:1;text-align:center;padding:9px 4px;border-radius:8px;
+  font-family:var(--mono);font-size:14px;letter-spacing:.14em;
+  color:var(--dim);transition:background .25s,color .25s}
+.itab.hot{background:var(--panel2);color:var(--cyan)}
+.grp{display:none;flex-direction:column;gap:9px}
+.grp.show{display:flex}
+.grp label{font-family:var(--mono);font-size:12.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);margin-top:6px}
+.ifield{display:flex;align-items:center;background:var(--panel2);
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+  font-family:var(--mono);font-size:16.5px;color:var(--text)}
+.ifield.short{max-width:130px}
+.ifield .dd{margin-left:auto;color:var(--faint)}
+.caret{width:2.5px;height:22px;margin-left:3px;background:var(--cyan);
+  box-shadow:0 0 6px var(--cyan)}
+.swatches{display:flex;gap:10px}
+.swatches i{width:40px;height:32px;border-radius:7px;
+  border:2px solid transparent}
+.swatches i#sw2{transition:border-color .3s,box-shadow .3s}
+.swatches i#sw2.pick{border-color:var(--text);
+  box-shadow:0 0 0 2px var(--panel),0 0 10px rgba(126,231,135,.6)}
+.addexit{align-self:flex-start;margin-top:8px;padding:8px 14px;
+  border:1px solid var(--cyan);border-radius:8px;color:var(--cyan);
+  font-family:var(--mono);font-size:14px}
+
+/* the saved tick fades in when the narration mentions the files */
+#saved{opacity:0;transition:opacity .4s}
+#saved.on{opacity:1}

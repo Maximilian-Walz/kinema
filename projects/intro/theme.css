@@ -1,18 +1,20 @@
 /* ============================================================================
    Meet Kinema — shared theme for all scenes.
-   Loaded once before any scene CSS. Kept small on purpose: this project is the
-   template colleagues copy, so the helpers below are the ones worth reusing.
+   Loaded once before any scene CSS. The palette mirrors the studio's own
+   chrome (src/ui/styles.css), so the mock windows in scenes 02-05 look like
+   the app the viewer is about to use.
 ============================================================================ */
 :root{
-  --bg:#0b1020; --panel:#161c2e; --panel2:#1f2740; --line:#2c3350;
-  --text:#e9edf6; --dim:#93a0bd;
-  --accent:#5b9bff; --accent2:#7ee0c4; --warn:#ffcf6b; --rec:#ff5d6c;
+  --bg:#05070a; --panel:#0d1117; --panel2:#161b22; --line:#30363d;
+  --text:#e6edf3; --dim:#8b949e; --faint:#586069;
+  --accent:#a371f7; --green:#3fb950; --red:#f85149; --cyan:#39c5cf;
+  --amber:#e3b341; --blue:#79c0ff; --mint:#7ee787;
   --mono:'SF Mono','Cascadia Code',Consolas,monospace;
 }
 
 /* the scene mounts into #scenecontent, which fills the 1920x1080 stage */
 #scenecontent{position:absolute;inset:0;background:
-  radial-gradient(1200px 700px at 50% -10%,#13203f 0%,var(--bg) 60%);
+  radial-gradient(1300px 750px at 50% -12%,#0d1421 0%,var(--bg) 62%);
   color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
   overflow:hidden;margin:0;padding:0;box-sizing:border-box}
 /* zero-specificity reset so every scene.css rule can override it */
@@ -26,7 +28,7 @@
   transition:opacity .5s cubic-bezier(.2,.7,.3,1),transform .5s cubic-bezier(.2,.7,.3,1)}
 .el.on{opacity:1;transform:translateY(0)}
 
-/* ---- entrance-animation presets (the STAGE editor's "animation" dropdown) ----
+/* ---- entrance-animation presets (the SCENE editor's "animation" dropdown) ----
    The studio writes ScheduleEntry.fx = "up" | "fade" | ... and the engine keeps
    a `.fx-<name>` base class on the element for the whole scene (the hidden
    "before" state) while toggling `.on` to animate it in. Picking a preset in the
@@ -46,17 +48,60 @@
 .ovl{position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:40px;text-align:center;
   padding:0 120px 140px;opacity:0;pointer-events:none;transition:opacity .6s;
-  background:radial-gradient(1200px 700px at 50% -10%,#13203f 0%,var(--bg) 60%)}
+  background:radial-gradient(1300px 750px at 50% -12%,#0d1421 0%,var(--bg) 62%)}
 .ovl.on{opacity:1}
 
-h1{font-size:92px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
-.sub{font-size:32px;color:var(--dim);font-family:var(--mono)}
-.heading{font-family:var(--mono);font-size:24px;letter-spacing:.22em;color:var(--dim)}
-.note{font-size:30px;color:var(--accent2);font-family:var(--mono)}
+h1{font-size:96px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
+.sub{font-size:33px;color:var(--dim);font-family:var(--mono)}
+.heading{font-family:var(--mono);font-size:25px;letter-spacing:.22em;color:var(--dim)}
+.note{font-size:30px;color:var(--mint);font-family:var(--mono)}
 
 /* caption = reserved lower-third band; keep scene content above it */
 #caption{position:absolute;bottom:0;left:0;right:0;text-align:center;
-  font-size:30px;color:#cdd6ea;font-style:italic;opacity:0;
+  font-size:29px;color:#c9d1d9;font-style:italic;opacity:0;
   transition:opacity .5s;z-index:80;padding:30px 220px 30px;
-  background:linear-gradient(transparent,rgba(5,7,16,.9) 45%)}
+  background:linear-gradient(transparent,rgba(3,5,8,.92) 45%)}
 #caption.on{opacity:1}
+
+/* ================= mock studio chrome (scenes 02-05) =================
+   A stylised copy of the real app chrome at ~1.7x scale so it reads on video.
+   Colours and shapes track src/ui/styles.css: same panel greys, same
+   per-mode accents (RECORD red, TUNE green, TIME purple, SCENE cyan).
+   Delete this whole section if your own project doesn't mock the studio. */
+.win{width:1560px;background:var(--panel);border:1px solid var(--line);
+  border-radius:16px;overflow:hidden;text-align:left;
+  box-shadow:0 40px 100px rgba(0,0,0,.6)}
+
+/* transport bar: [project] [mode switch] | [play] [scene nav] ... [rec] [export]
+   The thin top edge is the global seek bar, tinted by the active mode. */
+.tbar{position:relative;display:flex;align-items:center;gap:18px;
+  padding:20px 22px 15px;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:19px;color:var(--dim)}
+.tbar::before{content:"";position:absolute;left:0;top:0;height:5px;width:38%;
+  background:var(--m,var(--accent))}
+.proj{padding:8px 14px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;color:var(--text);font-size:18px}
+.proj i{font-style:normal;color:var(--faint);margin-left:8px}
+.modesw{display:flex;gap:2px;background:var(--line);border:1px solid var(--line);
+  border-radius:12px;padding:2px}
+.mchip{display:flex;align-items:center;gap:9px;padding:8px 15px;
+  border-radius:9px;font-size:17px;letter-spacing:.12em;color:var(--dim);
+  transition:background .3s,color .3s,box-shadow .3s}
+.mchip .k{font-weight:400;font-size:12.5px;color:var(--faint);letter-spacing:.05em}
+.mchip.active,.mchip.on{background:var(--panel2);color:var(--text);
+  box-shadow:inset 0 -3px 0 var(--m,var(--accent))}
+.m-rec{--m:var(--red)} .m-tune{--m:var(--green)}
+.m-time{--m:var(--accent)} .m-scene{--m:var(--cyan)}
+.tsep{width:1px;height:30px;background:var(--line)}
+.tspace{flex:1}
+.tbtn{display:flex;align-items:center;gap:10px;padding:8px 16px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  color:var(--text);font-size:17px}
+.kbd{padding:1px 8px;border:1px solid var(--line);border-radius:6px;
+  font-size:12.5px;color:var(--faint);background:rgba(0,0,0,.25);
+  letter-spacing:.04em}
+.tnav{display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:0 6px;color:var(--text);font-size:17.5px}
+.tnav .ttime{font-size:13.5px;color:var(--faint)}
+.trec{border-color:var(--red);color:#ffa198}
+.tsaved{color:var(--green);font-size:15px}

@@ -1,0 +1,4 @@
+/* End card: title + the two commands that start a video of your own. */
+.cmd{font-family:var(--mono);font-size:30px;color:var(--mint);
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:18px 34px}

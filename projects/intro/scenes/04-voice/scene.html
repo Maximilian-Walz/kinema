@@ -1,0 +1,86 @@
+<!-- Voice, in two overlays: RECORD (teleprompter + mic monitor, red accent),
+     then TUNE (take comparator, green accent) covers it. The prompter shows
+     this very scene's narration, so the screen reads what the voice says. -->
+<div class="ovl on" id="o4a" style="transition:none">
+  <div class="win" style="--m:var(--red)">
+
+    <div class="tbar">
+      <span class="proj">Meet Kinema <i>&#9662;</i></span>
+      <span class="modesw">
+        <span class="mchip m-rec active">RECORD <b class="k">F1</b></span>
+        <span class="mchip m-tune">TUNE <b class="k">F2</b></span>
+        <span class="mchip m-time">TIME <b class="k">F3</b></span>
+        <span class="mchip m-scene">SCENE <b class="k">F4</b></span>
+      </span>
+      <span class="tsep"></span>
+      <span class="tnav">&#8249; &nbsp;4 &middot; VOICE&nbsp; &#8250;<span class="ttime">0:53 / 1:18</span></span>
+      <span class="tspace"></span>
+      <span class="tbtn">&#8595; export</span>
+    </div>
+
+    <div class="monitor">
+      <span class="recbtn" id="recbtn"><b class="rdot"></b> rec <b class="kbd">R</b></span>
+      <span class="armbtn">&#9210; armed</span>
+      <div class="livewave">
+            <i style="height:73%"></i><i style="height:43%"></i><i style="height:16%"></i><i style="height:47%"></i><i style="height:24%"></i><i style="height:89%"></i><i style="height:37%"></i><i style="height:59%"></i><i style="height:60%"></i><i style="height:83%"></i><i style="height:69%"></i><i style="height:88%"></i><i style="height:35%"></i><i style="height:33%"></i><i style="height:53%"></i><i style="height:45%"></i><i style="height:74%"></i><i style="height:53%"></i><i style="height:86%"></i><i style="height:74%"></i><i style="height:53%"></i><i style="height:84%"></i><i style="height:45%"></i><i style="height:59%"></i><i style="height:82%"></i><i style="height:50%"></i><i style="height:41%"></i><i style="height:71%"></i><i style="height:82%"></i><i style="height:81%"></i><i style="height:29%"></i><i style="height:34%"></i><i style="height:41%"></i><i style="height:20%"></i><i style="height:26%"></i><i style="height:65%"></i><i style="height:76%"></i><i style="height:33%"></i><i style="height:57%"></i><i style="height:37%"></i>
+          </div>
+      <span class="meter"><b></b></span>
+    </div>
+
+    <div class="prompter">
+      <div class="pline done">RECORD turns your script into a teleprompter and records your voice.</div>
+      <div class="pline cur">Read a line as many times as you like.
+        <span class="pbar"><b id="pfill"></b></span>
+      </div>
+      <div class="pline">Then TUNE plays the takes back to back, and you star the keeper.</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="ovl" id="o4b">
+  <div class="win" style="--m:var(--green)">
+
+    <div class="tbar">
+      <span class="proj">Meet Kinema <i>&#9662;</i></span>
+      <span class="modesw">
+        <span class="mchip m-rec">RECORD <b class="k">F1</b></span>
+        <span class="mchip m-tune active">TUNE <b class="k">F2</b></span>
+        <span class="mchip m-time">TIME <b class="k">F3</b></span>
+        <span class="mchip m-scene">SCENE <b class="k">F4</b></span>
+      </span>
+      <span class="tsep"></span>
+      <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
+      <span class="tnav">&#8249; &nbsp;4 &middot; VOICE&nbsp; &#8250;<span class="ttime">0:57 / 1:18</span></span>
+      <span class="tspace"></span>
+      <span class="tbtn">&#8595; export</span>
+    </div>
+
+    <div class="comp">
+      <div class="comphd"><span class="ct">0:53&ndash;0:57</span>&ldquo;Read a line as many times as you like.&rdquo;</div>
+
+      <div class="take" id="tk1">
+        <span class="tplay">&#9654;</span><span class="tname">take 1</span>
+        <span class="tmeta">2:41 pm &middot; 3.8 s</span>
+        <div class="strip">
+            <i style="height:30%"></i><i style="height:60%"></i><i style="height:64%"></i><i style="height:84%"></i><i style="height:83%"></i><i style="height:34%"></i><i style="height:66%"></i><i style="height:25%"></i><i style="height:77%"></i><i style="height:41%"></i><i style="height:39%"></i><i style="height:67%"></i><i style="height:24%"></i><i style="height:79%"></i><i style="height:42%"></i><i style="height:36%"></i><i style="height:61%"></i><i style="height:51%"></i><i style="height:57%"></i><i style="height:85%"></i><i style="height:49%"></i><i style="height:89%"></i><i style="height:22%"></i><i style="height:59%"></i><i style="height:64%"></i><i style="height:28%"></i><i style="height:61%"></i><i style="height:73%"></i><i style="height:59%"></i><i style="height:20%"></i><i style="height:82%"></i><i style="height:51%"></i><i style="height:48%"></i><i style="height:77%"></i><i style="height:72%"></i><i style="height:28%"></i><i style="height:83%"></i><i style="height:40%"></i><i style="height:23%"></i><i style="height:32%"></i>
+          </div>
+        <span class="star">&#9734; pick</span>
+      </div>
+
+      <div class="take" id="tk2">
+        <span class="tplay">&#9654;</span><span class="tname">take 2</span>
+        <span class="tmeta">2:42 pm &middot; 3.6 s</span>
+        <div class="strip">
+            <i style="height:21%"></i><i style="height:72%"></i><i style="height:73%"></i><i style="height:59%"></i><i style="height:17%"></i><i style="height:46%"></i><i style="height:76%"></i><i style="height:49%"></i><i style="height:30%"></i><i style="height:32%"></i><i style="height:28%"></i><i style="height:60%"></i><i style="height:59%"></i><i style="height:39%"></i><i style="height:65%"></i><i style="height:25%"></i><i style="height:79%"></i><i style="height:24%"></i><i style="height:89%"></i><i style="height:26%"></i><i style="height:35%"></i><i style="height:23%"></i><i style="height:67%"></i><i style="height:48%"></i><i style="height:66%"></i><i style="height:18%"></i><i style="height:21%"></i><i style="height:16%"></i><i style="height:25%"></i><i style="height:52%"></i><i style="height:21%"></i><i style="height:89%"></i><i style="height:39%"></i><i style="height:27%"></i><i style="height:32%"></i><i style="height:40%"></i><i style="height:51%"></i><i style="height:54%"></i><i style="height:89%"></i><i style="height:69%"></i>
+          </div>
+        <span class="star"><b class="off">&#9734;</b><b class="onn">&#9733;</b> pick</span>
+      </div>
+
+      <div class="post">post &#9656; high-pass &middot; gate &middot; compressor &middot; level</div>
+    </div>
+
+  </div>
+</div>
+
+<div id="caption"></div>

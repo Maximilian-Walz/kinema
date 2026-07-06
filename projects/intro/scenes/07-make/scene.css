@@ -1,6 +1,0 @@
-.steps{display:flex;flex-direction:column;gap:24px}
-.step{display:flex;align-items:baseline;gap:24px;background:var(--panel);
-  border:1px solid var(--line);border-radius:16px;padding:24px 38px;width:780px;
-  text-align:left}
-.step b{font-family:var(--mono);font-size:34px;color:var(--accent);width:170px}
-.step span{font-size:28px;color:var(--dim)}

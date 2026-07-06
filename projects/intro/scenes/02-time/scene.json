@@ -1,0 +1,27 @@
+{
+  "title": "TIME",
+  "len": 14,
+  "schedule": [
+    { "id": "win", "enter": 0.3, "fx": "fade" },
+    { "id": "mRec", "enter": 1.5, "cls": "on", "exit": 1.95 },
+    { "id": "mTune", "enter": 1.95, "cls": "on", "exit": 2.4 },
+    { "id": "mTime", "enter": 2.4, "cls": "on", "exit": 2.85 },
+    { "id": "mScene", "enter": 2.85, "cls": "on", "exit": 3.3 },
+    { "id": "rScenes", "enter": 5.0, "fx": "up" },
+    { "id": "rScript", "enter": 5.6, "fx": "up" },
+    { "id": "rCaps", "enter": 6.2, "fx": "up" },
+    { "id": "rVoice", "enter": 6.8, "fx": "up" },
+    { "id": "drag", "enter": 9.0, "cls": "moved" },
+    { "id": "snap", "enter": 9.7, "cls": "on", "exit": 11.0 },
+    { "id": "stretch", "enter": 11.8, "cls": "grow" }
+  ],
+  "captions": [
+    { "from": 0.6, "to": 3.4, "text": "F1–F4 switch modes" },
+    { "from": 9.0, "to": 13.6, "text": "clips snap to the playhead and to each other" }
+  ],
+  "lines": [
+    { "id": "02-time-l1", "from": 0, "to": 3.4, "text": "You edit it in the studio: one window, four modes." },
+    { "id": "02-time-l2", "from": 3.6, "to": 8.2, "text": "TIME is the timeline. Scenes, script, captions and voice, all on one clock." },
+    { "id": "02-time-l3", "from": 8.4, "to": 13.6, "text": "Grab a clip to move it, or pull on its edge to retime it." }
+  ]
+}

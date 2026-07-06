@@ -1,0 +1,20 @@
+{
+  "title": "VOICE",
+  "len": 12.5,
+  "schedule": [
+    { "id": "recbtn", "enter": 1.2, "cls": "live", "exit": 6.4 },
+    { "id": "pfill", "enter": 1.4, "cls": "go" },
+    { "id": "o4b", "enter": 7.0 },
+    { "id": "tk1", "enter": 7.4, "fx": "up" },
+    { "id": "tk2", "enter": 7.7, "fx": "up" },
+    { "id": "tk2", "enter": 9.8, "cls": "picked" }
+  ],
+  "captions": [
+    { "from": 9.6, "to": 12.2, "text": "★ = the take used in preview and export" }
+  ],
+  "lines": [
+    { "id": "04-voice-l1", "from": 0, "to": 3.8, "text": "RECORD turns your script into a teleprompter and records your voice." },
+    { "id": "04-voice-l2", "from": 4.0, "to": 6.8, "text": "Read a line as many times as you like." },
+    { "id": "04-voice-l3", "from": 7.0, "to": 12.2, "text": "Then TUNE plays the takes back to back, and you star the keeper." }
+  ]
+}

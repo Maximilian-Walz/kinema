@@ -1,0 +1,102 @@
+<!-- The studio window in TIME mode, laid out like the real app: stage preview
+     + side panel on top, transport bar, global timeline dock below. The mode
+     chips light in turn on "four modes"; a script clip drags to the playhead
+     and snaps; another clip stretches at its edge. -->
+<div class="ovl on" id="o2" style="transition:none">
+  <div class="win" id="win" style="--m:var(--accent)">
+
+    <div class="app">
+      <div class="stagepane">
+        <div class="mini">
+          <div class="mini-h">Kinema</div>
+          <div class="mini-s">web files in, video out</div>
+        </div>
+      </div>
+      <div class="sidepane">
+        <div class="sline done"><span class="t">00:00 &middot; 00:05</span>This is Kinema, a small studio for making videos out of web files.</div>
+        <div class="sline cur"><span class="t">00:05 &middot; 00:08</span>Everything you're watching right now is HTML and CSS.</div>
+        <div class="sline"><span class="t">00:09 &middot; 00:14</span>A video is a folder of scenes, and every scene is three files.</div>
+      </div>
+    </div>
+
+    <div class="tbar">
+      <span class="proj">Meet Kinema <i>&#9662;</i></span>
+      <span class="modesw">
+        <span class="mchip m-rec" id="mRec">RECORD <b class="k">F1</b></span>
+        <span class="mchip m-tune" id="mTune">TUNE <b class="k">F2</b></span>
+        <span class="mchip m-time active" id="mTime">TIME <b class="k">F3</b></span>
+        <span class="mchip m-scene" id="mScene">SCENE <b class="k">F4</b></span>
+      </span>
+      <span class="tsep"></span>
+      <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
+      <span class="tnav">&#8249; &nbsp;2 &middot; TIME&nbsp; &#8250;<span class="ttime">0:31 / 1:18</span></span>
+      <span class="tspace"></span>
+      <span class="tsaved">&#10003; saved</span>
+      <span class="tbtn trec">&#9679; rec</span>
+      <span class="tbtn">&#8595; export</span>
+    </div>
+
+    <div class="dock">
+      <div class="ruler">
+        <span style="left:0">0:00</span><span style="left:300px">0:15</span>
+        <span style="left:600px">0:30</span><span style="left:900px">0:45</span>
+        <span style="left:1200px">1:00</span><span style="left:1500px">1:15</span>
+      </div>
+
+      <div class="track tk-scenes" id="rScenes"><b class="lab">SCENES</b>
+        <div class="lane">
+          <div class="clip sc" style="left:4px;width:434px"><span>1 &middot; WHAT IT IS</span><em>0:22</em></div>
+          <div class="clip sc cur" style="left:442px;width:276px"><span>2 &middot; TIME</span><em>0:14</em></div>
+          <div class="clip sc" style="left:722px;width:237px"><span>3 &middot; SCENE</span><em>0:12</em></div>
+          <div class="clip sc" style="left:963px;width:246px"><span>4 &middot; VOICE</span><em>0:12</em></div>
+          <div class="clip sc" style="left:1213px;width:197px"><span>5 &middot; EXPORT</span><em>0:10</em></div>
+          <div class="clip sc" style="left:1414px;width:138px"><span>6 &middot; END</span><em>0:07</em></div>
+        </div>
+      </div>
+
+      <div class="track tk-script" id="rScript"><b class="lab">SCRIPT</b>
+        <div class="lane">
+          <div class="clip ln" style="left:10px;width:120px"></div>
+          <div class="clip ln" style="left:140px;width:90px"></div>
+          <div class="clip ln" id="drag" style="left:300px;width:150px"></div>
+          <div class="clip ln" style="left:620px;width:130px"></div>
+          <div class="clip ln" style="left:770px;width:180px"></div>
+          <div class="clip ln" id="stretch" style="left:1000px;width:150px"></div>
+          <div class="clip ln" style="left:1290px;width:110px"></div>
+          <div class="clip ln" style="left:1420px;width:100px"></div>
+        </div>
+      </div>
+
+      <div class="track tk-caps" id="rCaps"><b class="lab">CAPTIONS</b>
+        <div class="lane">
+          <div class="clip cap" style="left:90px;width:170px"></div>
+          <div class="clip cap" style="left:520px;width:140px"></div>
+          <div class="clip cap" style="left:1240px;width:170px"></div>
+        </div>
+      </div>
+
+      <div class="track tk-voice" id="rVoice"><b class="lab">VOICE</b>
+        <div class="lane">
+          <div class="vwave" style="left:8px;width:420px">
+            <i style="height:60%"></i><i style="height:38%"></i><i style="height:56%"></i><i style="height:89%"></i><i style="height:66%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:84%"></i><i style="height:22%"></i><i style="height:90%"></i><i style="height:32%"></i><i style="height:30%"></i><i style="height:89%"></i><i style="height:20%"></i><i style="height:44%"></i><i style="height:18%"></i><i style="height:21%"></i><i style="height:66%"></i><i style="height:84%"></i><i style="height:76%"></i><i style="height:71%"></i><i style="height:21%"></i><i style="height:62%"></i><i style="height:53%"></i><i style="height:31%"></i><i style="height:82%"></i><i style="height:21%"></i><i style="height:75%"></i><i style="height:27%"></i><i style="height:18%"></i>
+          </div>
+          <div class="vwave" style="left:450px;width:260px">
+            <i style="height:69%"></i><i style="height:71%"></i><i style="height:80%"></i><i style="height:77%"></i><i style="height:78%"></i><i style="height:71%"></i><i style="height:19%"></i><i style="height:41%"></i><i style="height:27%"></i><i style="height:65%"></i><i style="height:44%"></i><i style="height:38%"></i><i style="height:74%"></i><i style="height:39%"></i><i style="height:81%"></i><i style="height:57%"></i><i style="height:31%"></i><i style="height:50%"></i>
+          </div>
+          <div class="vwave" style="left:730px;width:430px">
+            <i style="height:58%"></i><i style="height:47%"></i><i style="height:38%"></i><i style="height:78%"></i><i style="height:60%"></i><i style="height:42%"></i><i style="height:69%"></i><i style="height:59%"></i><i style="height:46%"></i><i style="height:58%"></i><i style="height:34%"></i><i style="height:22%"></i><i style="height:60%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:38%"></i><i style="height:49%"></i><i style="height:22%"></i><i style="height:73%"></i><i style="height:31%"></i><i style="height:25%"></i><i style="height:79%"></i><i style="height:61%"></i><i style="height:62%"></i><i style="height:85%"></i><i style="height:34%"></i><i style="height:52%"></i><i style="height:45%"></i><i style="height:63%"></i><i style="height:66%"></i>
+          </div>
+          <div class="vwave" style="left:1180px;width:350px">
+            <i style="height:33%"></i><i style="height:30%"></i><i style="height:62%"></i><i style="height:16%"></i><i style="height:37%"></i><i style="height:73%"></i><i style="height:73%"></i><i style="height:48%"></i><i style="height:43%"></i><i style="height:54%"></i><i style="height:35%"></i><i style="height:38%"></i><i style="height:78%"></i><i style="height:37%"></i><i style="height:60%"></i><i style="height:20%"></i><i style="height:81%"></i><i style="height:67%"></i><i style="height:49%"></i><i style="height:29%"></i><i style="height:77%"></i><i style="height:37%"></i><i style="height:32%"></i><i style="height:50%"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="playhead"></div>
+      <div class="snapline" id="snap"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="caption"></div>

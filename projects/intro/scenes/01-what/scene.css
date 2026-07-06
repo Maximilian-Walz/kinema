@@ -1,9 +1,16 @@
-.chip{font-size:34px;color:var(--text);background:var(--panel);
-  border:1px solid var(--line);border-radius:999px;padding:16px 34px}
-.chip b{color:var(--accent)}
-
-.files{display:flex;gap:40px}
-.file{width:380px;background:var(--panel);border:1px solid var(--line);
-  border-radius:18px;padding:38px 30px;text-align:center}
-.file .ext{font-family:var(--mono);font-size:36px;color:var(--accent);font-weight:600}
-.file .d{margin-top:14px;font-size:26px;color:var(--dim)}
+/* Three file cards in the studio's panel style; a coloured language dot per
+   file type (like a repo listing). `.hl` lifts the card the narration is on. */
+.files{display:flex;gap:34px}
+.file{width:400px;padding:34px 30px 30px;background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;
+  display:flex;flex-direction:column;gap:12px;
+  transition:border-color .4s,transform .4s,box-shadow .4s}
+.file .ext{font-family:var(--mono);font-size:30px;color:var(--text);
+  display:flex;align-items:center;justify-content:center;gap:14px}
+.file .d{font-size:22px;color:var(--dim)}
+.dot{width:15px;height:15px;border-radius:50%;flex:none}
+.dot.html{background:#f0883e}
+.dot.css{background:var(--blue)}
+.dot.json{background:var(--amber)}
+.file.hl{border-color:var(--accent);transform:translateY(-8px);
+  box-shadow:0 18px 44px rgba(0,0,0,.45)}

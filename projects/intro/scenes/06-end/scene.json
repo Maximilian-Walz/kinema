@@ -1,0 +1,14 @@
+{
+  "title": "MAKE YOURS",
+  "len": 7,
+  "schedule": [
+    { "id": "end", "enter": 0.4, "fx": "pop" },
+    { "id": "cmd", "enter": 2.2, "fx": "up" },
+    { "id": "dev", "enter": 4.0, "fx": "fade" }
+  ],
+  "captions": [],
+  "lines": [
+    { "id": "06-end-l1", "from": 0, "to": 1.8, "text": "That's the tour." },
+    { "id": "06-end-l2", "from": 2.0, "to": 6.4, "text": "Copy this project, swap in your own scenes, and hit record." }
+  ]
+}

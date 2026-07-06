@@ -1,0 +1,76 @@
+<!-- The studio window in SCENE mode: the live canvas on the left (a little
+     chart scene), the inspector in the side panel on the right. Selecting the
+     headline draws the cyan box + handle; the tab strip walks TEXT -> LOOK ->
+     TIMING while the headline gets retyped, recoloured, and the bars replay
+     their entrance. -->
+<div class="ovl on" id="o3" style="transition:none">
+  <div class="win" id="win" style="--m:var(--cyan)">
+
+    <div class="tbar">
+      <span class="proj">Meet Kinema <i>&#9662;</i></span>
+      <span class="modesw">
+        <span class="mchip m-rec">RECORD <b class="k">F1</b></span>
+        <span class="mchip m-tune">TUNE <b class="k">F2</b></span>
+        <span class="mchip m-time">TIME <b class="k">F3</b></span>
+        <span class="mchip m-scene active">SCENE <b class="k">F4</b></span>
+      </span>
+      <span class="tsep"></span>
+      <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
+      <span class="tnav">&#8249; &nbsp;3 &middot; SCENE&nbsp; &#8250;<span class="ttime">0:41 / 1:18</span></span>
+      <span class="tspace"></span>
+      <span class="tsaved" id="saved">&#10003; saved &middot; scene.html, scene.css</span>
+      <span class="tbtn">&#8595; export</span>
+    </div>
+
+    <div class="app2">
+      <div class="canvas">
+        <div class="demo">
+          <div class="dtitle" id="dtitle">Signups by week</div>
+          <div class="chart">
+            <div class="bar" id="b1" style="--h:140px"></div>
+            <div class="bar" id="b2" style="--h:230px"></div>
+            <div class="bar" id="b3" style="--h:320px"></div>
+          </div>
+        </div>
+        <div class="selbox" id="selbox"><b class="handle"></b></div>
+      </div>
+
+      <div class="insp">
+        <div class="ins-empty" id="insEmpty">select an element on the stage</div>
+        <div class="ins-body" id="insBody">
+          <div class="ins-name">Signups by week <b>#dtitle</b></div>
+          <div class="itabs">
+            <span class="itab" id="tabText">TEXT</span>
+            <span class="itab" id="tabLook">LOOK</span>
+            <span class="itab" id="tabTiming">TIMING</span>
+          </div>
+          <div class="grp" id="gText">
+            <label>text</label>
+            <div class="ifield">Signups by week<b class="caret"></b></div>
+          </div>
+          <div class="grp" id="gLook">
+            <label>colour</label>
+            <div class="swatches">
+              <i style="background:#e6edf3"></i>
+              <i id="sw2" style="background:#7ee787"></i>
+              <i style="background:#79c0ff"></i>
+              <i style="background:#a371f7"></i>
+            </div>
+            <label>font size</label>
+            <div class="ifield short">64 px</div>
+          </div>
+          <div class="grp" id="gTiming">
+            <label>enters at</label>
+            <div class="ifield short">1.0 s</div>
+            <label>animation</label>
+            <div class="ifield">slide up <b class="dd">&#9662;</b></div>
+            <div class="addexit">+ add exit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="caption"></div>
