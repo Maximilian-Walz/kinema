@@ -771,7 +771,11 @@ export function createApi({ registry }) {
         const fps = Math.max(5, Math.min(60, parseInt(body.fps, 10) || 30));
         const scene = typeof body.scene === 'string' && ctx.sceneIds().includes(body.scene)
           ? body.scene : null;
-        if (req.headers.host) origin = 'http://' + req.headers.host;
+        /* learn the real port from the request, but only trust loopback hosts —
+           the origin becomes the URL the headless export browser navigates to */
+        if (req.headers.host && /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i.test(req.headers.host)) {
+          origin = 'http://' + req.headers.host;
+        }
         await startExport(ctx, { fps, scene });
         json(res, 200, { ok: true });
 

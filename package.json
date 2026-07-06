@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "description": "Local studio for data-driven animation videos: timeline editor, teleprompter, voice takes, frame-exact MP4 export.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Maximilian-Walz/kinema.git"
+  },
   "scripts": {
     "dev": "vite",
     "start": "vite",
