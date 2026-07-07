@@ -72,6 +72,11 @@ element with that `#id`:
 - the class is `cls` if given, else `"on"`.
 - multiple entries can target the same id (e.g. one to reveal it, another to add
   a highlight class over a window).
+- entries are applied in order every frame, and for entries sharing the same
+  `id` **and** `cls` the last one wins — an entry whose window is inactive
+  removes the class even if an earlier window is active. So two on-windows for
+  one element need distinct classes (e.g. `"on"` for the entrance, a `"replay"`
+  class with the same CSS for a second run).
 - `fx` (optional) names an **entrance-animation preset**. When set, the engine
   keeps a `fx-<name>` base class on the element for the whole scene (so it sits
   in the preset's hidden "before" state) and toggles `cls` to animate it in. The
@@ -149,7 +154,11 @@ reusing across scenes (see [projects/intro/theme.css](../projects/intro/theme.cs
   place. Give a scheduled element `.el` and it animates in when its entry fires.
   (`.el` is the class-based equivalent of the `fx: "up"` preset.)
 - `.ovl` — a full-stage overlay that fades in on `.on`. Stack several and toggle
-  between them for full-frame beats.
+  between them for full-frame beats. Schedule the outgoing overlay's `exit` at
+  the incoming one's `enter` so they dissolve into each other — an overlay left
+  `on` stays fully lit underneath and bleeds through the incoming fade. Give the
+  first overlay `class="ovl on"` in the markup plus an `{ "enter": 0, "exit": t }`
+  entry.
 
 **Include the `fx` presets in every project's `theme.css`** so the SCENE
 editor's animation dropdown works (the intro project ships them). The

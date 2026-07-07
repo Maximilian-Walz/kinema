@@ -4,15 +4,17 @@ description: >
   Create or revise a Kinema project (a folder of HTML/CSS/JSON scenes on a
   global timeline). Use when the user wants to draft a new video from a topic,
   article, or outline; add or revise a single scene in an existing project; or
-  retime a scene against narration they have edited. Reads docs/project-format.md
-  and validates with scripts/validate.mjs.
+  retime a scene against narration they have edited. Scaffolds with
+  scripts/new-project.mjs, reads docs/project-format.md, validates with
+  scripts/validate.mjs.
 ---
 
 # video-project
 
 Generate and revise Kinema projects. The studio plays plain web files on one
 timeline; a video is a folder of scenes, each scene three files. You write those
-files. The format is the contract; the craft is what makes it watchable.
+files — the user then records real voice over them and fine-tunes in the studio.
+The format is the contract; the craft is what makes it watchable.
 
 ## Read first
 
@@ -21,9 +23,13 @@ The file format is authoritative in **docs/project-format.md** (layout,
 helpers, behaviors). Read it before writing anything. This skill does not restate
 it; it adds the craft and the workflows.
 
-**projects/intro** is the reference project. Its `theme.css` has the `.el` / `.ovl`
-helpers worth reusing, and its scenes are deliberately small so they read as
-examples. Copy patterns from it, not content.
+**projects/intro** is the reference for *patterns*, not for scale: its
+`theme.css` carries the palette, the `.el`/`.ovl` helpers and the canonical
+`.fx-*` preset block, and its scene.json files show schedule entries landing on
+narration beats. But its scenes are a produced tour that mocks the studio's own
+UI — don't take them as the template for an ordinary content scene, and don't
+copy their markup. A typical scene is far smaller: a heading, a few elements, a
+caption div.
 
 ## The craft
 
@@ -31,6 +37,9 @@ What separates a valid project from a watchable one:
 
 - **Script first, then everything else.** Write the full narration before laying out
   a single scene. The script decides the scenes, their order, and their lengths.
+  The user will read this script aloud, line by line, into a mic — write lines
+  that a person can actually say (short sentences, no nested clauses, no
+  citations mid-sentence).
 - **Pace narration at ~2.5 words/second.** A `lines` window of `[from, to)` should
   hold about `2.5 * (to - from)` words. A 5-second line is ~12 words. This is how
   you size both the line windows and the scene.
@@ -39,20 +48,26 @@ What separates a valid project from a watchable one:
   narration is ~24s, not "30 because 30 is tidy".
 - **Land schedule entries on the narration beats.** An element appears when the line
   that introduces it starts. Read the `from` of the relevant line and set `enter`
-  to match (or a beat before). The intro scenes show this: every
-  `enter` lines up with a `lines[].from`.
-- **Motion lives in CSS, the engine only toggles classes.** Give an element `.el`
-  and it fades + slides in on `.on`; schedule it and it animates when its `enter`
-  fires. Use `.ovl` for full-frame beats; stack overlays and let an opaque one cover
-  the previous (no `exit` needed). Never animate from JavaScript. A class change must
-  look identical played forward or scrubbed backward.
+  to match (or a beat before).
+- **Motion lives in CSS, the engine only toggles classes.** Never animate from
+  JavaScript. A class change must look identical played forward or scrubbed
+  backward, so use CSS transitions, not keyframe animations tied to wall time.
 - **Two ways to animate; prefer the `fx` preset for new work.** Set `fx` in the
   schedule (`up`/`fade`/`down`/`left`/`right`/`pop`) and the theme's `.fx-*` rules
   animate it — fully driven by the SCENE editor's animation dropdown, no scene CSS.
   Class-based (`.el` etc.) is the alternative for bespoke motion, but the dropdown
-  can't see it (reads "none"). **Always copy the `.fx-*` block from
-  projects/intro/theme.css into a new project's `theme.css`** or the dropdown does
+  can't see it (reads "none"). **A new project's `theme.css` must contain the
+  `.fx-*` block** (the scaffold below brings it along) or the dropdown does
   nothing. `.el` is just the class-based equivalent of `fx: "up"`.
+- **Overlays dissolve; nothing gets left `on`.** For full-frame beats, stack
+  `.ovl` overlays: the first carries `class="ovl on"` in markup plus a schedule
+  entry `{ "enter": 0, "exit": t }`, and the next enters at that same `t`. An
+  overlay without an exit stays fully lit underneath and bleeds through the
+  incoming fade.
+- **One element, two on-windows → two class names.** Schedule entries sharing an
+  `id` *and* `cls` are last-wins per frame (see project-format.md), so a second
+  appearance window silently blanks the first. Give it a distinct class with the
+  same CSS (e.g. `.bar.on, .bar.replay { … }`).
 - **1920x1080 stage. Keep content above the caption band.** The lower third is
   reserved for captions. If a scene uses captions, include `<div id="caption"></div>`
   and keep real content out of the bottom band.
@@ -66,8 +81,7 @@ What separates a valid project from a watchable one:
   `[\w.-]+` and unique within the scene (e.g. `"id": "ln-1"`, `"ln-2"`). The
   validator flags duplicate or malformed ids. When you revise a scene, keep each
   surviving line's existing `id` so its recorded take stays attached; only new
-  lines need a fresh id. (Lines authored without an id still load, but emitting
-  them keeps takes stable from the start.)
+  lines need a fresh id.
 
 ## Workflows
 
@@ -77,10 +91,12 @@ What separates a valid project from a watchable one:
    scene. Confirm the script with the user before building if the topic is open-ended.
 2. **Plan scenes.** For each scene, split the script into `lines` and size each window
    at ~2.5 w/s. Sum them to get `len`.
-3. **Scaffold.** Create `projects/<name>/` with `project.json` (name, scene order,
-   1920x1080), a `theme.css` (start from projects/intro/theme.css so `.el`/`.ovl`
-   **and the `.fx-*` presets** exist), and `scenes/<id>/` folders. Scene ids
-   match `[\w.-]+`.
+3. **Scaffold.** Run `node scripts/new-project.mjs <name> "Display Name"`. It copies
+   the intro as a template (minus takes/exports). Then make it yours: delete the
+   intro's scene folders, write your own, list them in `project.json`, and trim
+   `theme.css` — keep the palette, `.el`/`.ovl`/`.fx-*` helpers and `#caption`,
+   delete the marked "mock studio chrome" section (it exists only for the intro's
+   own tour).
 4. **Build each scene.** `scene.html` (markup with ids, `#caption` if used),
    `scene.css` (scene-scoped look), `scene.json` (`title`, `len`, `schedule`,
    `captions`, `lines`). Put schedule entries on the line beats.
@@ -109,7 +125,7 @@ What separates a valid project from a watchable one:
    hand for a reason; explain any window you move.
 4. Validate and fix.
 
-## Validate
+## Validate, then look at it
 
 After writing or editing, always run:
 
@@ -122,6 +138,18 @@ enter/exit out of `[0, len]` (errors, exit non-zero); span ordering, overlaps,
 out-of-range captions/lines, and a missing caption div are warnings. Fix every error
 and look at each warning. Re-run until clean.
 
+Validation can't see layout. With the dev server up (`npm run dev`, note the
+port), open `http://localhost:<port>/?project=<name>` — or, headlessly, drive
+that page with puppeteer-core, `window.__studio.player.seek(t)` to each scene's
+key beats, and screenshot the stage (press `c` first for clean mode). Look at
+the frames: overlapping text, content in the caption band, and mistimed
+entrances only show up visually.
+
+Two live-studio caveats: `scene.html`/`scene.css` hot-reload on save, but
+`scene.json` flows the other way (studio → disk, debounced) — after editing
+timings on disk while the studio is open, reload the browser tab, and don't
+edit timings on disk while the user is dragging clips.
+
 ## Don't
 
 - Don't bake another project's content (the intro's copy, a sample scene's text) into a
@@ -130,3 +158,4 @@ and look at each warning. Re-run until clean.
   per-scene engine routines listed in project-format.md; only use one that exists.
 - Don't pick scene lengths or line windows by feel. Derive them from word count.
 - Don't overwrite a user's hand-tuned `scene.json` timings without telling them.
+- Don't leave the intro's mock-studio CSS or scenes in a scaffolded project.
