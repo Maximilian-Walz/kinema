@@ -48,17 +48,17 @@
     },
     {
       "id": "tk1",
-      "enter": 10.8,
+      "enter": 9.57,
       "fx": "up"
     },
     {
       "id": "tk2",
-      "enter": 11.1,
+      "enter": 9.870000000000001,
       "fx": "up"
     },
     {
       "id": "tk2",
-      "enter": 13.2,
+      "enter": 10.96,
       "cls": "picked"
     }
   ],
@@ -69,8 +69,8 @@
       "text": "F1–F4 switch modes"
     },
     {
-      "from": 11.200000000000001,
-      "to": 12.64,
+      "from": 10.290000000000001,
+      "to": 12.63,
       "text": "★ = the take used in preview and export"
     }
   ],
