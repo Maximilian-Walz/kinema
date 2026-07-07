@@ -20,6 +20,22 @@ const selectTab = async (page, name) => {
   await new Promise((r) => setTimeout(r, 100));
 };
 
+/* click the #title entry's clip in the SCENE dock. The checks below assert
+   title-specific facts (enter 0.4, no exit), and the first clip in the lanes
+   is whichever entry enters earliest — in the current intro that is the o1a
+   overlay (enter 0), not the title. Target the clip by its auto-label. */
+const clickTitleClip = async (page, clickCount = 1) => {
+  const box = await page.evaluate(() => {
+    const c = [...document.querySelectorAll(".sv-lanes .tl-element")]
+      .find((el) => el.querySelector(".tl-cliptext")?.textContent === "Kinema");
+    if (!c) return null;
+    const r = c.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  if (!box) throw new Error("no clip labelled 'Kinema' in the SCENE lanes");
+  await page.mouse.click(box.x, box.y, { clickCount });
+};
+
 const browser = await puppeteer.launch({
   executablePath: findChrome(),
   headless: true,
@@ -232,7 +248,7 @@ try {
   /* --- T25: selection overlay box draws over the element while it's on-screen,
      and hides once it's off-screen (before entrance / after exit) --- */
   await page.evaluate(() => window.__studio.player.seek(2)); // #title visible (enter 0.4)
-  await page.click(".sv-lanes .tl-element"); // selects #title
+  await clickTitleClip(page); // selects #title
   await new Promise((r) => setTimeout(r, 200));
   const selBox = await page.evaluate(() => {
     const b = document.querySelector(".sv-ovl-sel");
@@ -283,13 +299,13 @@ try {
 
   /* double-click a timeline CLIP seeks to its element's entrance too */
   await page.evaluate(() => window.__studio.player.seek(6));
-  await page.click(".sv-lanes .tl-element", { clickCount: 2 }); // first clip = #title (enter 0.4)
+  await clickTitleClip(page, 2); // #title's clip (enter 0.4)
   await new Promise((r) => setTimeout(r, 150));
   const clipDbl = await page.evaluate(() => window.__studio.player.localTime);
   ok(Math.abs(clipDbl - 0.4) < 0.2, `double-click a clip seeks to its entrance (local=${clipDbl.toFixed(2)})`);
 
   /* "+ add exit" spawns the exit at the playhead (when past the entrance) */
-  await page.click(".sv-lanes .tl-element"); // select #title (a marker)
+  await clickTitleClip(page); // select #title (a marker, no exit yet)
   await new Promise((r) => setTimeout(r, 120));
   await selectTab(page, "timing"); // the "+ add exit" button lives in the TIMING group
   await page.evaluate(() => window.__studio.player.seek(5));

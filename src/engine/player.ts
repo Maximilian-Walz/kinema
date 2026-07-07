@@ -188,6 +188,14 @@ export class Player {
     this.driven.clear();  // fresh markup carries none of the old classes
     this.drivenFx.clear();
     this.threadScroll = 0;
+    // Apply every preset's hidden "before" state NOW, before the scene event:
+    // its listeners re-render chrome and read layout, and that forced style
+    // recalc would otherwise capture the fresh markup WITHOUT the fx classes
+    // as the transition start state — the whole scene then visibly fades from
+    // fully-built to hidden on every mount (a flash at each scene cut).
+    for (const ev of scene.schedule) {
+      if (ev.fx) this.resolve(ev.id)?.classList.add('fx-' + ev.fx);
+    }
     this.events.emit('scene', index);
   }
 
