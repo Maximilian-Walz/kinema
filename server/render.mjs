@@ -223,8 +223,13 @@ export async function exportVideo(opts) {
        global clock, so subtract the scene's offset for a single-scene export */
     const grab = async () => {
       await advanceVirtualTime(client, frameMs); // nudge; the screenshot does the bulk advance
-      const png = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width, height } });
+      /* read the clock BEFORE the screenshot: the screenshot's own compositor
+         flush advances virtual time another ~50 ms, but the pixels it returns
+         are the state from before that flush. Stamping after the screenshot
+         dated every capture ~50 ms ahead of its content, which smeared the
+         final frame of a scene 1-2 output frames past the cut. */
       const t = (await page.evaluate(() => window.__render.now())) - base;
+      const png = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width, height } });
       return { png, t };
     };
     let prev = await grab();
