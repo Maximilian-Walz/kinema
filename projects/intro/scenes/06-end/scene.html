@@ -1,7 +1,21 @@
-<!-- Close: the copy-and-go card. -->
+<!-- Close: the two on-ramps, side by side — ask the AI, or scaffold by hand. -->
 <div class="ovl on" id="o6" style="transition:none">
   <h1 id="end">Kinema</h1>
-  <div class="cmd" id="cmd">node scripts/new-project.mjs your-video</div>
+
+  <div class="paths">
+    <div class="path" id="pAi">
+      <div class="plabel">WITH AI</div>
+      <div class="pcmd"><b>&#8250;</b> make me a video about &hellip;</div>
+      <div class="pnote">the video-project skill drafts every scene</div>
+    </div>
+    <div class="por" id="pOr">or</div>
+    <div class="path" id="pHand">
+      <div class="plabel">BY HAND</div>
+      <div class="pcmd mono">node scripts/new-project.mjs your-video</div>
+      <div class="pnote">edit one scene at a time</div>
+    </div>
+  </div>
+
   <div class="sub" id="dev">npm run dev</div>
 </div>
 

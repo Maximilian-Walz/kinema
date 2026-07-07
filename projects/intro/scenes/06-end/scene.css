@@ -1,4 +1,13 @@
-/* End card: title + the two commands that start a video of your own. */
-.cmd{font-family:var(--mono);font-size:30px;color:var(--mint);
-  background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  padding:18px 34px}
+/* End card: the two on-ramps as studio-styled panels. The AI path leads with
+   a prompt, the by-hand path with the scaffold command. */
+.paths{display:flex;align-items:center;gap:30px}
+.path{width:540px;padding:26px 30px;background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;text-align:left;
+  display:flex;flex-direction:column;gap:11px}
+.plabel{font-family:var(--mono);font-size:13px;letter-spacing:.2em;
+  color:var(--faint)}
+.pcmd{font-size:24px;color:var(--text)}
+.pcmd b{font-weight:400;color:var(--accent);margin-right:6px}
+.pcmd.mono{font-family:var(--mono);font-size:20.5px;color:var(--mint)}
+.pnote{font-size:16px;color:var(--dim)}
+.por{font-family:var(--mono);font-size:17px;color:var(--faint)}

@@ -1,14 +1,17 @@
 {
   "title": "MAKE YOURS",
-  "len": 7,
+  "len": 9.5,
   "schedule": [
     { "id": "end", "enter": 0.4, "fx": "pop" },
-    { "id": "cmd", "enter": 2.2, "fx": "up" },
-    { "id": "dev", "enter": 4.0, "fx": "fade" }
+    { "id": "pAi", "enter": 2.2, "fx": "up" },
+    { "id": "pOr", "enter": 5.6, "fx": "fade" },
+    { "id": "pHand", "enter": 6.0, "fx": "up" },
+    { "id": "dev", "enter": 8.0, "fx": "fade" }
   ],
   "captions": [],
   "lines": [
     { "id": "06-end-l1", "from": 0, "to": 1.8, "text": "That's the tour." },
-    { "id": "06-end-l2", "from": 2.0, "to": 6.4, "text": "Scaffold a project, let the AI draft it, and hit record." }
+    { "id": "06-end-l2", "from": 2.0, "to": 5.8, "text": "Ask Claude for a draft. The video-project skill knows the format." },
+    { "id": "06-end-l3", "from": 6.0, "to": 8.8, "text": "Or scaffold a project and build it yourself." }
   ]
 }
