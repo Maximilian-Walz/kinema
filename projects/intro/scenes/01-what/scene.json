@@ -1,28 +1,107 @@
 {
   "title": "WHAT IT IS",
-  "len": 24,
+  "len": 21,
   "schedule": [
-    { "id": "title", "enter": 0.4, "fx": "up" },
-    { "id": "sub", "enter": 1.4, "fx": "fade" },
-    { "id": "o1a", "enter": 0, "exit": 8.0 },
-    { "id": "o1b", "enter": 8.0 },
-    { "id": "fHtml", "enter": 8.6, "fx": "up" },
-    { "id": "fCss", "enter": 9.0, "fx": "up" },
-    { "id": "fJson", "enter": 9.4, "fx": "up" },
-    { "id": "fHtml", "enter": 12.7, "cls": "hl", "exit": 14.0 },
-    { "id": "fCss", "enter": 14.1, "cls": "hl", "exit": 15.4 },
-    { "id": "fJson", "enter": 15.5, "cls": "hl", "exit": 16.8 },
-    { "id": "note", "enter": 17.2, "fx": "fade" }
+    {
+      "id": "title",
+      "enter": 0.4,
+      "fx": "up"
+    },
+    {
+      "id": "sub",
+      "enter": 1.4,
+      "fx": "fade"
+    },
+    {
+      "id": "o1a",
+      "enter": 0,
+      "exit": 8
+    },
+    {
+      "id": "o1b",
+      "enter": 8
+    },
+    {
+      "id": "fHtml",
+      "enter": 8.6,
+      "fx": "up"
+    },
+    {
+      "id": "fCss",
+      "enter": 9,
+      "fx": "up"
+    },
+    {
+      "id": "fJson",
+      "enter": 9.4,
+      "fx": "up"
+    },
+    {
+      "id": "fHtml",
+      "enter": 11.47,
+      "cls": "hl",
+      "exit": 12.48
+    },
+    {
+      "id": "fCss",
+      "enter": 12.48,
+      "cls": "hl",
+      "exit": 13.19
+    },
+    {
+      "id": "fJson",
+      "enter": 13.19,
+      "cls": "hl",
+      "exit": 14.49
+    },
+    {
+      "id": "note",
+      "enter": 17.2,
+      "fx": "fade"
+    }
   ],
   "captions": [
-    { "from": 4.2, "to": 7.6, "text": "this intro is itself a Kinema project — projects/intro in the repo" },
-    { "from": 17.6, "to": 23.4, "text": "ask Claude — the in-repo video-project skill teaches it the format" }
+    {
+      "from": 4.2,
+      "to": 7.6,
+      "text": "this intro is itself a Kinema project — projects/intro in the repo"
+    },
+    {
+      "from": 16.3,
+      "to": 21,
+      "text": "ask Claude — the in-repo video-project skill teaches it the format"
+    }
   ],
   "lines": [
-    { "id": "01-what-l1", "from": 0, "to": 4.0, "text": "This is Kinema, a small studio for making videos out of web files." },
-    { "id": "01-what-l2", "from": 4.2, "to": 7.6, "text": "Everything you're watching right now is HTML and CSS." },
-    { "id": "01-what-l3", "from": 8.2, "to": 12.4, "text": "A video is a folder of scenes, and every scene is three files." },
-    { "id": "01-what-l4", "from": 12.6, "to": 16.8, "text": "Markup, styles, and a bit of JSON that says what happens when." },
-    { "id": "01-what-l5", "from": 17.2, "to": 23.4, "text": "And you don't write these by hand: an AI skill in the repo drafts the whole video for you." }
+    {
+      "id": "01-what-l1",
+      "from": 0,
+      "to": 4,
+      "text": "This is Kinema, a small studio for making videos out of web files."
+    },
+    {
+      "id": "01-what-l2",
+      "from": 4.2,
+      "to": 7.6,
+      "text": "Everything you're watching right now is HTML and CSS."
+    },
+    {
+      "id": "01-what-l3",
+      "from": 7.8,
+      "to": 11.4,
+      "text": "A video is a folder of scenes, and every scene is three files."
+    },
+    {
+      "id": "01-what-l4",
+      "from": 11.4,
+      "to": 15.6,
+      "text": "Markup, styles, and a bit of JSON that says what happens when."
+    },
+    {
+      "id": "01-what-l5",
+      "from": 15.6,
+      "to": 21,
+      "text": "And you don't write these by hand: an AI skill in the repo drafts the whole video for you."
+    }
   ]
 }

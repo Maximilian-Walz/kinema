@@ -4,7 +4,8 @@ dist/
 # the "intro" project is the one exception: it ships tracked as the template.
 /projects/*
 !/projects/intro
-/projects/intro/takes/
+# ship the intro voice takes with the template so the sample video reproduces;
+# exports are large, regenerable artifacts and stay machine-local.
 /projects/intro/exports/
 # machine-local list of out-of-tree projects (see server/plugin.mjs)
 /studio.config.json

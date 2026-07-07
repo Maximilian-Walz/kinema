@@ -1,27 +1,103 @@
 {
   "title": "VOICE",
-  "len": 16,
+  "len": 12.64,
   "schedule": [
-    { "id": "mRec", "enter": 1.2, "cls": "on", "exit": 1.65 },
-    { "id": "mTune", "enter": 1.65, "cls": "on", "exit": 2.1 },
-    { "id": "mTime", "enter": 2.1, "cls": "on", "exit": 2.55 },
-    { "id": "mScene", "enter": 2.55, "cls": "on", "exit": 3.0 },
-    { "id": "recbtn", "enter": 7.6, "cls": "live", "exit": 10.2 },
-    { "id": "pfill", "enter": 7.6, "cls": "go" },
-    { "id": "o4a", "enter": 0, "exit": 10.4 },
-    { "id": "o4b", "enter": 10.4 },
-    { "id": "tk1", "enter": 10.8, "fx": "up" },
-    { "id": "tk2", "enter": 11.1, "fx": "up" },
-    { "id": "tk2", "enter": 13.2, "cls": "picked" }
+    {
+      "id": "mRec",
+      "enter": 1.2,
+      "cls": "on",
+      "exit": 1.65
+    },
+    {
+      "id": "mTune",
+      "enter": 1.65,
+      "cls": "on",
+      "exit": 2.1
+    },
+    {
+      "id": "mTime",
+      "enter": 2.1,
+      "cls": "on",
+      "exit": 2.55
+    },
+    {
+      "id": "mScene",
+      "enter": 2.55,
+      "cls": "on",
+      "exit": 3
+    },
+    {
+      "id": "recbtn",
+      "enter": 7.12,
+      "cls": "live",
+      "exit": 8.73
+    },
+    {
+      "id": "pfill",
+      "enter": 7.3100000000000005,
+      "cls": "go"
+    },
+    {
+      "id": "o4a",
+      "enter": 0,
+      "exit": 8.83
+    },
+    {
+      "id": "o4b",
+      "enter": 9.15
+    },
+    {
+      "id": "tk1",
+      "enter": 10.8,
+      "fx": "up"
+    },
+    {
+      "id": "tk2",
+      "enter": 11.1,
+      "fx": "up"
+    },
+    {
+      "id": "tk2",
+      "enter": 13.2,
+      "cls": "picked"
+    }
   ],
   "captions": [
-    { "from": 0.5, "to": 3.2, "text": "F1–F4 switch modes" },
-    { "from": 13.0, "to": 15.6, "text": "★ = the take used in preview and export" }
+    {
+      "from": 0.5,
+      "to": 3.2,
+      "text": "F1–F4 switch modes"
+    },
+    {
+      "from": 11.200000000000001,
+      "to": 12.64,
+      "text": "★ = the take used in preview and export"
+    }
   ],
   "lines": [
-    { "id": "02-voice-l1", "from": 0, "to": 3.4, "text": "You polish it in the studio: one window, four modes." },
-    { "id": "02-voice-l2", "from": 3.6, "to": 7.2, "text": "First the voice. RECORD turns the script into a teleprompter." },
-    { "id": "02-voice-l3", "from": 7.4, "to": 10.2, "text": "Read a line as many times as you like." },
-    { "id": "02-voice-l4", "from": 10.6, "to": 15.6, "text": "TUNE plays the takes back to back, and you star the keeper." }
+    {
+      "id": "02-voice-l1",
+      "from": 0,
+      "to": 3.4,
+      "text": "You polish it in the studio: one window, four modes."
+    },
+    {
+      "id": "02-voice-l2",
+      "from": 3.4,
+      "to": 7,
+      "text": "First the voice. RECORD turns the script into a teleprompter."
+    },
+    {
+      "id": "02-voice-l3",
+      "from": 7,
+      "to": 9.1,
+      "text": "Read a line as many times as you like."
+    },
+    {
+      "id": "02-voice-l4",
+      "from": 9.1,
+      "to": 12.64,
+      "text": "TUNE plays the takes back to back, and you star the keeper."
+    }
   ]
 }
