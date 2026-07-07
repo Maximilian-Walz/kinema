@@ -9,6 +9,6 @@
   "captions": [],
   "lines": [
     { "id": "06-end-l1", "from": 0, "to": 1.8, "text": "That's the tour." },
-    { "id": "06-end-l2", "from": 2.0, "to": 6.4, "text": "Copy this project, swap in your own scenes, and hit record." }
+    { "id": "06-end-l2", "from": 2.0, "to": 6.4, "text": "Scaffold a project, let the AI draft it, and hit record." }
   ]
 }

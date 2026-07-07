@@ -1,6 +1,6 @@
 {
   "title": "WHAT IT IS",
-  "len": 20,
+  "len": 24,
   "schedule": [
     { "id": "title", "enter": 0.4, "fx": "up" },
     { "id": "sub", "enter": 1.4, "fx": "fade" },
@@ -15,13 +15,14 @@
     { "id": "note", "enter": 17.2, "fx": "fade" }
   ],
   "captions": [
-    { "from": 4.2, "to": 7.6, "text": "this intro is itself a Kinema project — projects/intro in the repo" }
+    { "from": 4.2, "to": 7.6, "text": "this intro is itself a Kinema project — projects/intro in the repo" },
+    { "from": 17.6, "to": 23.4, "text": "ask Claude — the in-repo video-project skill teaches it the format" }
   ],
   "lines": [
     { "id": "01-what-l1", "from": 0, "to": 4.0, "text": "This is Kinema, a small studio for making videos out of web files." },
     { "id": "01-what-l2", "from": 4.2, "to": 7.6, "text": "Everything you're watching right now is HTML and CSS." },
     { "id": "01-what-l3", "from": 8.2, "to": 12.4, "text": "A video is a folder of scenes, and every scene is three files." },
     { "id": "01-what-l4", "from": 12.6, "to": 16.8, "text": "Markup, styles, and a bit of JSON that says what happens when." },
-    { "id": "01-what-l5", "from": 17.2, "to": 19.8, "text": "If you can edit a web page, you can edit this." }
+    { "id": "01-what-l5", "from": 17.2, "to": 23.4, "text": "And you don't write these by hand: an AI skill in the repo drafts the whole video for you." }
   ]
 }

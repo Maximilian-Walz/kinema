@@ -1,0 +1,34 @@
+{
+  "title": "SCENE",
+  "len": 12,
+  "schedule": [
+    { "id": "win", "enter": 0.3, "fx": "fade" },
+    { "id": "b1", "enter": 1.0, "exit": 7.4 },
+    { "id": "b2", "enter": 1.2, "exit": 7.4 },
+    { "id": "b3", "enter": 1.4, "exit": 7.4 },
+    { "id": "insEmpty", "enter": 0, "cls": "vis", "exit": 3.2 },
+    { "id": "selbox", "enter": 3.2 },
+    { "id": "insBody", "enter": 3.2 },
+    { "id": "tabText", "enter": 3.2, "cls": "hot", "exit": 5.5 },
+    { "id": "gText", "enter": 3.2, "cls": "show", "exit": 5.5 },
+    { "id": "dtitle", "enter": 3.8, "cls": "editing", "exit": 5.2 },
+    { "id": "tabLook", "enter": 5.6, "cls": "hot", "exit": 6.9 },
+    { "id": "gLook", "enter": 5.6, "cls": "show", "exit": 6.9 },
+    { "id": "sw2", "enter": 5.9, "cls": "pick" },
+    { "id": "dtitle", "enter": 5.9, "cls": "recolor" },
+    { "id": "tabTiming", "enter": 7.0, "cls": "hot" },
+    { "id": "gTiming", "enter": 7.0, "cls": "show" },
+    { "id": "b1", "enter": 7.8, "cls": "replay" },
+    { "id": "b2", "enter": 7.95, "cls": "replay" },
+    { "id": "b3", "enter": 8.1, "cls": "replay" },
+    { "id": "saved", "enter": 8.8 }
+  ],
+  "captions": [
+    { "from": 3.2, "to": 7.0, "text": "double-click edits text right on the stage" }
+  ],
+  "lines": [
+    { "id": "04-scene-l1", "from": 0, "to": 3.4, "text": "SCENE zooms into a single scene to fine-tune it." },
+    { "id": "04-scene-l2", "from": 3.6, "to": 7.6, "text": "Reword the headline, restyle it, or retime how it enters." },
+    { "id": "04-scene-l3", "from": 7.8, "to": 11.6, "text": "Every change goes straight back into the files on disk." }
+  ]
+}

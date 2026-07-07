@@ -1,0 +1,21 @@
+{
+  "title": "TIME",
+  "len": 12,
+  "schedule": [
+    { "id": "win", "enter": 0.3, "fx": "fade" },
+    { "id": "rScenes", "enter": 1.0, "fx": "up" },
+    { "id": "rScript", "enter": 1.6, "fx": "up" },
+    { "id": "rCaps", "enter": 2.2, "fx": "up" },
+    { "id": "rVoice", "enter": 2.8, "fx": "up" },
+    { "id": "drag", "enter": 5.6, "cls": "moved" },
+    { "id": "snap", "enter": 6.3, "cls": "on", "exit": 7.6 },
+    { "id": "stretch", "enter": 8.8, "cls": "grow" }
+  ],
+  "captions": [
+    { "from": 5.0, "to": 10.4, "text": "clips snap to the playhead and to each other" }
+  ],
+  "lines": [
+    { "id": "03-time-l1", "from": 0, "to": 4.6, "text": "Then TIME: scenes, script, captions and your takes, all on one clock." },
+    { "id": "03-time-l2", "from": 4.8, "to": 10.4, "text": "Grab a clip to move it, or pull on its edge, until the beats sit on your voice." }
+  ]
+}

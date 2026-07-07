@@ -14,7 +14,7 @@ edit one scene without touching anything else.
 
 ![The studio with a project loaded](docs/media/studio.png)
 
-**[▶ Watch the 75-second intro](docs/media/meet-kinema.mp4)** — the MP4 is this
+**[▶ Watch the 80-second intro](docs/media/meet-kinema.mp4)** — the MP4 is this
 repo's own output: `projects/intro` exported by the studio, frame for frame.
 
 ## Quickstart

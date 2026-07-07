@@ -68,7 +68,7 @@
 .pbar{position:absolute;left:9%;right:9%;bottom:5px;height:4px;
   border-radius:2px;background:rgba(255,255,255,.1);overflow:hidden}
 .pbar b{display:block;height:100%;width:0;background:var(--mint);
-  transition:width 4.5s linear}
+  transition:width 2.6s linear}
 .pbar b.go{width:100%}
 
 /* --- TUNE side panel: playback meter + post-chain summary --- */

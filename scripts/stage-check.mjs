@@ -141,7 +141,7 @@ try {
   /* restore the note text so the repo file isn't left edited */
   await page.evaluate(async () => {
     await fetch("/api/scenes/01-what/element-text?project=intro", {
-      method: "PUT", body: JSON.stringify({ id: "note", text: "if you can edit a web page, you can edit this" }),
+      method: "PUT", body: JSON.stringify({ id: "note", text: "an AI drafts these three files for you" }),
     });
   });
 

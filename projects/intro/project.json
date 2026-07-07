@@ -4,9 +4,9 @@
   "height": 1080,
   "scenes": [
     "01-what",
-    "02-time",
-    "03-scene",
-    "04-voice",
+    "02-voice",
+    "03-time",
+    "04-scene",
     "05-export",
     "06-end"
   ]
