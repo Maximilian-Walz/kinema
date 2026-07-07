@@ -1,51 +1,37 @@
-<!-- The studio window in SCENE mode: the live canvas on the left (a little
-     chart scene), the inspector in the side panel on the right. Selecting the
-     headline draws the cyan box + handle; the tab strip walks TEXT -> LOOK ->
-     TIMING while the headline gets retyped, recoloured, and the bars replay
-     their entrance. -->
+<!-- The studio window in SCENE mode, mirroring the real frame: the live canvas
+     (a little chart scene) + the inspector side panel on top, transport strip,
+     and the scene-local timeline dock (narration strip + element clips).
+     Selecting the headline draws the cyan box + handle; the tab strip walks
+     TEXT -> LOOK -> TIMING while the headline gets retyped, recoloured, and
+     the bars replay their entrance. -->
 <div class="ovl on" id="o3" style="transition:none">
-  <div class="win" id="win" style="--m:var(--cyan)">
+  <div class="win" id="win" style="--m:var(--cyan);--seek:52%">
 
-    <div class="tbar">
-      <span class="proj">Meet Kinema <i>&#9662;</i></span>
-      <span class="modesw">
-        <span class="mchip m-rec">RECORD <b class="k">F1</b></span>
-        <span class="mchip m-tune">TUNE <b class="k">F2</b></span>
-        <span class="mchip m-time">TIME <b class="k">F3</b></span>
-        <span class="mchip m-scene active">SCENE <b class="k">F4</b></span>
-      </span>
-      <span class="tsep"></span>
-      <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
-      <span class="tnav"><b class="ch">&#8249;</b><span class="tcol"><span class="tscene">3 &middot; SCENE</span><span class="ttime">0:39 / 1:15</span></span><b class="ch">&#8250;</b></span>
-      <span class="tspace"></span>
-      <span class="tsaved" id="saved">&#10003; saved &middot; scene.html, scene.css</span>
-      <span class="tbtn">&#8595; export</span>
-    </div>
-
-    <div class="app2">
-      <div class="canvas">
-        <div class="demo">
+    <div class="app">
+      <div class="stagepane">
+        <div class="stageframe">
           <div class="dtitle" id="dtitle">Signups by week</div>
           <div class="chart">
-            <div class="bar" id="b1" style="--h:140px"></div>
-            <div class="bar" id="b2" style="--h:230px"></div>
-            <div class="bar" id="b3" style="--h:320px"></div>
+            <div class="bar" id="b1" style="--h:80px"></div>
+            <div class="bar" id="b2" style="--h:130px"></div>
+            <div class="bar" id="b3" style="--h:185px"></div>
           </div>
+          <div class="selbox" id="selbox"><b class="handle"></b></div>
         </div>
-        <div class="selbox" id="selbox"><b class="handle"></b></div>
       </div>
 
-      <div class="insp">
+      <div class="sidepane">
         <div class="ins-empty" id="insEmpty">select an element on the stage</div>
         <div class="ins-body" id="insBody">
-          <div class="ins-name">Signups by week <b>#dtitle</b></div>
+          <div class="ins-name"><b class="tagc">DIV</b> Signups by week</div>
+          <div class="ins-id">#dtitle</div>
           <div class="itabs">
             <span class="itab" id="tabText">TEXT</span>
             <span class="itab" id="tabLook">LOOK</span>
             <span class="itab" id="tabTiming">TIMING</span>
           </div>
           <div class="grp" id="gText">
-            <label>text</label>
+            <label>content</label>
             <div class="ifield">Signups by week<b class="caret"></b></div>
           </div>
           <div class="grp" id="gLook">
@@ -57,7 +43,7 @@
               <i style="background:#a371f7"></i>
             </div>
             <label>font size</label>
-            <div class="ifield short">64 px</div>
+            <div class="ifield short">40 px</div>
           </div>
           <div class="grp" id="gTiming">
             <label>enters at</label>
@@ -68,6 +54,68 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="tbar">
+      <span class="proj">Meet Kinema <i>&#9662;</i></span>
+      <span class="modesw">
+        <span class="mchip m-rec">RECORD <b class="k">F1</b></span>
+        <span class="mchip m-tune">TUNE <b class="k">F2</b></span>
+        <span class="mchip m-time">TIME <b class="k">F3</b></span>
+        <span class="mchip m-scene active">SCENE <b class="k">F4</b></span>
+      </span>
+      <span class="tsep"></span>
+      <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
+      <span class="tbtn">&#10226; <b class="kbd">&#8679;R</b></span>
+      <span class="tnav">
+        <span class="tbtn">&#10216; <b class="kbd">Ctrl &#8592;</b></span>
+        <span class="tcol"><span class="tscene">Scene 3 of 6 &middot; SCENE</span><span class="ttime">00:06.1 / 00:12 &middot; total 1:15</span></span>
+        <span class="tbtn"><b class="kbd">Ctrl &#8594;</b> &#10217;</span>
+      </span>
+      <span class="tspace"></span>
+      <span class="tsaved" id="saved">&#10003; saved &middot; scene.html, scene.css</span>
+      <span class="tbtn">&#8595; export</span>
+      <span class="tbtn">&#9633; <b class="kbd">C</b></span>
+    </div>
+
+    <div class="dock">
+      <div class="dtool">
+        <span class="dlab">3 &middot; SCENE</span>
+        <span class="dbtn">+ by id</span><span class="dbtn">&#8594; play through</span>
+        <span class="dhint">click an element in the preview to select &middot; dbl-click = edit text &middot; drag it to move</span>
+      </div>
+
+      <div class="svscript">
+        <div class="svclip" style="left:0;width:350px">SCENE is where you put a single sc&hellip;</div>
+        <div class="svclip" style="left:375px;width:500px">Click anything: retype it, recolour it, pick&hellip;</div>
+        <div class="svclip" style="left:900px;width:550px">Every change goes straight back into the fil&hellip;</div>
+      </div>
+
+      <div class="ruler">
+        <span style="left:0">00:00</span><span style="left:125px">00:01</span>
+        <span style="left:250px">00:02</span><span style="left:375px">00:03</span>
+        <span style="left:500px">00:04</span><span style="left:625px">00:05</span>
+        <span style="left:750px">00:06</span><span style="left:875px">00:07</span>
+        <span style="left:1000px">00:08</span><span style="left:1125px">00:09</span>
+        <span style="left:1250px">00:10</span><span style="left:1375px">00:11</span>
+      </div>
+
+      <div class="lanes">
+        <div class="elrow">
+          <div class="elclip marker" style="left:125px;width:280px"><b class="tagc">DIV</b>Signups by week</div>
+        </div>
+        <div class="elrow">
+          <div class="elclip marker" style="left:125px;width:160px"><b class="tagc">DIV</b>bar one</div>
+        </div>
+        <div class="elrow">
+          <div class="elclip marker" style="left:150px;width:160px"><b class="tagc">DIV</b>bar two</div>
+        </div>
+        <div class="elrow">
+          <div class="elclip marker" style="left:175px;width:160px"><b class="tagc">DIV</b>bar three</div>
+        </div>
+      </div>
+
+      <div class="svplayhead"></div>
     </div>
 
   </div>

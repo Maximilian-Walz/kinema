@@ -1,33 +1,65 @@
-/* Export dialog mock, after .export-panel: same panel greys, purple accent
-   bar, mono form rows. */
-.dialog{width:880px;background:var(--panel);border:1px solid var(--line);
-  border-radius:20px;padding:36px 40px;display:flex;flex-direction:column;
-  gap:22px;text-align:left;box-shadow:0 30px 90px rgba(0,0,0,.65)}
-.dhead{display:flex;justify-content:space-between;font-size:30px;
-  font-weight:600;letter-spacing:-.01em}
-.dx{color:var(--faint);font-size:24px}
-.drow{display:flex;align-items:center;gap:16px;font-family:var(--mono);
-  font-size:19px;color:var(--dim)}
-.dl{width:170px;flex:none}
-.dsel{display:flex;align-items:center;gap:14px;padding:10px 18px;
-  background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+/* Export dialog over the dimmed app, after the real .export-overlay /
+   .export-panel: same panel greys, purple accent bar, mono form rows. The
+   backdrop window is static scenery (no scheduled ids). */
+
+/* backdrop app frame (reuses theme .win/.tbar/.dock helpers) */
+.mini-h{font-size:52px;font-weight:800;letter-spacing:-.01em}
+.mini-s{font-family:var(--mono);font-size:15px;color:var(--dim)}
+.sline{padding:10px 12px;border-radius:9px;font-size:14.5px;line-height:1.5;
+  color:var(--dim);border-left:3px solid transparent}
+.sline .t{display:block;font-family:var(--mono);font-size:10.5px;
+  color:var(--faint);letter-spacing:.08em;margin-bottom:3px}
+.sline.cur{background:var(--panel2);color:var(--text);
+  border-left-color:var(--accent)}
+.ruler{position:relative;flex:none;height:26px;border-bottom:1px solid var(--line)}
+.ruler span{position:absolute;top:5px;font-family:var(--mono);font-size:11px;
+  color:var(--dim);border-left:1px solid var(--dim);padding-left:5px;height:17px}
+.track{position:relative;flex:none;height:48px}
+.lab{position:absolute;left:8px;top:5px;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.14em;color:var(--faint);
+  background:rgba(13,17,23,.85);padding:1px 7px;border-radius:4px}
+.lane{position:absolute;inset:0}
+.clip.sc{position:absolute;top:50%;translate:0 -50%;height:32px;
+  background:var(--panel2);color:var(--text);display:flex;align-items:center;
+  padding:0 10px;font-family:var(--mono);font-size:12.5px;border-radius:6px;
+  overflow:hidden;white-space:nowrap}
+.clip.sc.cur{background:rgba(163,113,247,.22);outline:1px solid var(--accent)}
+
+/* the modal veil, like .export-overlay */
+.veil{position:absolute;inset:0;background:rgba(5,7,10,.7)}
+
+/* fixed offsets (not translate) so fx-pop's scale transform composes */
+.dialog{position:absolute;left:calc(50% - 380px);top:280px;width:760px;
+  background:var(--panel);
+  border:1px solid var(--line);border-radius:18px;padding:28px 32px;
+  display:flex;flex-direction:column;gap:18px;text-align:left;
+  box-shadow:0 30px 90px rgba(0,0,0,.65)}
+.dhead{display:flex;justify-content:space-between;align-items:center;
+  font-size:26px;font-weight:600;letter-spacing:-.01em}
+.dx{color:var(--faint);font-size:16px;border:1px solid var(--line);
+  border-radius:7px;padding:3px 10px}
+.drow{display:flex;align-items:center;gap:14px;font-family:var(--mono);
+  font-size:16px;color:var(--dim)}
+.dl{width:140px;flex:none}
+.dsel{display:flex;align-items:center;gap:12px;padding:8px 15px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;
   color:var(--text)}
 .dsel b{color:var(--faint)}
-.dbtn{padding:10px 20px;border:1px solid var(--line);border-radius:10px;
+.dbtn2{padding:8px 17px;border:1px solid var(--line);border-radius:8px;
   color:var(--dim)}
-.dbtn.hot{border-color:var(--accent);color:#d2a8ff;
+.dbtn2.hot{border-color:var(--accent);color:#d2a8ff;
   background:rgba(163,113,247,.08)}
-.dhint{font-family:var(--mono);font-size:15.5px;color:var(--faint);
-  line-height:1.6;padding-top:14px;border-top:1px dashed rgba(48,54,61,.7)}
+.dhint{font-family:var(--mono);font-size:13px;color:var(--faint);
+  line-height:1.6;padding-top:12px;border-top:1px dashed rgba(48,54,61,.7)}
 
-.dprog{display:flex;flex-direction:column;gap:12px;opacity:0;
+.dprog{display:flex;flex-direction:column;gap:10px;opacity:0;
   transition:opacity .4s}
 .dprog.on{opacity:1}
-.pbarx{height:14px;background:var(--panel2);border-radius:99px;overflow:hidden}
+.pbarx{height:11px;background:var(--panel2);border-radius:99px;overflow:hidden}
 .pbarx b{display:block;height:100%;width:0;background:var(--accent);
   border-radius:99px;transition:width 5s linear}
 .pbarx b.go{width:100%}
-.pstat{display:none;font-family:var(--mono);font-size:17px;color:var(--dim)}
+.pstat{display:none;font-family:var(--mono);font-size:14px;color:var(--dim)}
 .pstat.show{display:block}
 .pstat.done{color:var(--mint)}
 .pstat.done b{font-weight:400;color:#d2a8ff}

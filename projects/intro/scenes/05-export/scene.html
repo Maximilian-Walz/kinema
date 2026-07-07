@@ -1,21 +1,80 @@
-<!-- The export dialog, styled after the real one (src/ui/export-dialog.ts +
-     .export-panel). The progress bar fills while the status line counts
-     frames, then flips to the finished MP4. -->
+<!-- The export dialog over the dimmed app, like the real .export-overlay:
+     a static TIME-mode window sits behind a veil; the dialog runs the form ->
+     progress -> done story. -->
 <div class="ovl on" id="o5" style="transition:none">
+
+  <div class="win backdrop" style="--m:var(--accent);--seek:82%">
+    <div class="app">
+      <div class="stagepane">
+        <div class="stageframe">
+          <div class="mini-h">Kinema</div>
+          <div class="mini-s">web files in, video out</div>
+        </div>
+      </div>
+      <div class="sidepane">
+        <div class="sline"><span class="t">00:58 &ndash; 01:00</span>When it plays right, export.</div>
+        <div class="sline cur"><span class="t">01:00 &ndash; 01:08</span>Headless Chrome draws every frame on a frozen clock, then ffmpeg packs the frames and your narration into one MP4.</div>
+      </div>
+    </div>
+    <div class="tbar">
+      <span class="proj">Meet Kinema <i>&#9662;</i></span>
+      <span class="modesw">
+        <span class="mchip m-rec">RECORD <b class="k">F1</b></span>
+        <span class="mchip m-tune">TUNE <b class="k">F2</b></span>
+        <span class="mchip m-time active">TIME <b class="k">F3</b></span>
+        <span class="mchip m-scene">SCENE <b class="k">F4</b></span>
+      </span>
+      <span class="tsep"></span>
+      <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
+      <span class="tnav">
+        <span class="tbtn">&#10216; <b class="kbd">Ctrl &#8592;</b></span>
+        <span class="tcol"><span class="tscene">Scene 5 of 6 &middot; EXPORT</span><span class="ttime">01:00.5 / 00:10 &middot; total 1:15</span></span>
+        <span class="tbtn"><b class="kbd">Ctrl &#8594;</b> &#10217;</span>
+      </span>
+      <span class="tspace"></span>
+      <span class="tbtn">&#8595; export</span>
+      <span class="tbtn">&#9633; <b class="kbd">C</b></span>
+    </div>
+    <div class="dock">
+      <div class="dtool">
+        <span class="dlab">TIMELINE</span>
+        <span class="dbtn">&#8722;</span><span class="dbtn">fit</span><span class="dbtn">+</span>
+      </div>
+      <div class="ruler">
+        <span style="left:0">00:00</span><span style="left:200px">00:10</span>
+        <span style="left:400px">00:20</span><span style="left:600px">00:30</span>
+        <span style="left:800px">00:40</span><span style="left:1000px">00:50</span>
+        <span style="left:1200px">01:00</span><span style="left:1400px">01:10</span>
+      </div>
+      <div class="track"><b class="lab">SCENES</b>
+        <div class="lane">
+          <div class="clip sc" style="left:4px;width:400px">1 &middot; WHAT IT IS</div>
+          <div class="clip sc" style="left:412px;width:270px">2 &middot; TIME</div>
+          <div class="clip sc" style="left:686px;width:240px">3 &middot; SCENE</div>
+          <div class="clip sc" style="left:930px;width:250px">4 &middot; VOICE</div>
+          <div class="clip sc cur" style="left:1184px;width:200px">5 &middot; EXPORT</div>
+          <div class="clip sc" style="left:1388px;width:140px">6 &middot; END</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="veil"></div>
+
   <div class="dialog" id="dialog">
     <div class="dhead">Export MP4 <span class="dx">&#10005;</span></div>
     <div class="drow"><span class="dl">frame rate</span>
       <span class="dsel">30 fps <b>&#9662;</b></span></div>
     <div class="drow"><span class="dl">scope</span>
-      <span class="dbtn">this scene</span><span class="dbtn hot">full video</span></div>
-    <div class="dhint">headless Chrome renders each frame on a frozen clock,
-      ffmpeg muxes in the picked takes</div>
+      <span class="dbtn2">this scene</span><span class="dbtn2 hot">full video</span></div>
+    <div class="dhint">Frame-exact render via headless Chrome; picked takes are
+      muxed in. Iterate with &ldquo;this scene&rdquo; at 15 fps.</div>
     <div class="dprog" id="prog">
       <div class="pbarx"><b id="ebar"></b></div>
-      <div class="pstat" id="stRun">rendering &middot; frame 812 / 2340 &middot; scene 3 / 6</div>
+      <div class="pstat" id="stRun">rendering &middot; frame 812 / 2250 &middot; scene 3 / 6</div>
       <div class="pstat done" id="stDone">&#10003; done &middot; <b>exports/meet-kinema.mp4</b></div>
     </div>
   </div>
+
 </div>
 
 <div id="caption"></div>

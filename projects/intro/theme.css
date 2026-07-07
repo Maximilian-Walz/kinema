@@ -66,47 +66,79 @@ h1{font-size:96px;font-weight:800;line-height:1.1;letter-spacing:-.01em}
 #caption.on{opacity:1}
 
 /* ================= mock studio chrome (scenes 02-05) =================
-   A stylised copy of the real app chrome at ~1.7x scale so it reads on video.
-   Colours and shapes track src/ui/styles.css: same panel greys, same
-   per-mode accents (RECORD red, TUNE green, TIME purple, SCENE cyan).
+   A copy of the real app frame (src/ui/styles.css) at near-1:1 proportions:
+   stage + side panel on top, transport in the middle, mode dock at the
+   bottom — the same grid the real window uses in every mode. Type runs
+   ~1.25x the real UI so it stays readable on video. Per-mode accents:
+   RECORD red, TUNE green, TIME purple, SCENE cyan.
    Delete this whole section if your own project doesn't mock the studio. */
-.win{width:1560px;background:var(--panel);border:1px solid var(--line);
-  border-radius:16px;overflow:hidden;text-align:left;
-  box-shadow:0 40px 100px rgba(0,0,0,.6)}
+.win{width:1560px;height:860px;display:flex;flex-direction:column;
+  background:var(--bg);border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;text-align:left;box-shadow:0 40px 100px rgba(0,0,0,.6)}
 
-/* transport bar: [project] [mode switch] | [play] [scene nav] ... [rec] [export]
-   The thin top edge is the global seek bar, tinted by the active mode. */
-.tbar{position:relative;display:flex;align-items:center;gap:14px;
-  padding:16px 20px 13px;border-bottom:1px solid var(--line);
-  font-family:var(--mono);font-size:19px;color:var(--dim)}
-.tbar::before{content:"";position:absolute;left:0;top:0;height:5px;width:38%;
-  background:var(--m,var(--accent))}
-.proj{padding:7px 14px;background:var(--panel2);border:1px solid var(--line);
-  border-radius:10px;color:var(--text);font-size:17px}
-.proj i{font-style:normal;color:var(--faint);margin-left:8px}
+/* --- top region: stage preview + side panel --- */
+.app{flex:1;display:flex;min-height:0;background:var(--bg)}
+.stagepane{flex:1;display:flex;align-items:center;justify-content:center;
+  min-width:0;padding:16px}
+.stageframe{position:relative;width:880px;height:494px;overflow:hidden;
+  outline:1px solid var(--line);background:
+  radial-gradient(700px 400px at 50% -12%,#0d1421 0%,var(--bg) 62%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;text-align:center}
+.sidepane{width:390px;flex:none;background:var(--panel);
+  border-left:1px solid var(--line);border-top:2px solid var(--m,var(--accent));
+  padding:14px 16px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.sp-title{font-family:var(--mono);font-size:12px;letter-spacing:.16em;
+  color:var(--faint);text-transform:uppercase}
+
+/* --- transport bar (middle strip) --- */
+.tbar{flex:none;position:relative;display:flex;align-items:center;gap:10px;
+  padding:14px 16px 11px;background:var(--panel);
+  border-top:1px solid var(--line);font-family:var(--mono);font-size:15px;
+  color:var(--dim)}
+/* the slim global seek bar pinned to the transport's top edge */
+.tbar::before{content:"";position:absolute;left:0;top:0;height:4px;
+  width:var(--seek,35%);background:var(--m,var(--accent))}
+.proj{padding:6px 12px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:8px;color:var(--text);font-size:14.5px;white-space:nowrap}
+.proj i{font-style:normal;color:var(--faint);margin-left:10px;font-size:12px}
 .modesw{display:flex;gap:2px;background:var(--line);border:1px solid var(--line);
-  border-radius:12px;padding:2px}
-.mchip{display:flex;align-items:center;gap:9px;padding:7px 14px;
-  border-radius:9px;font-size:17px;letter-spacing:.12em;color:var(--dim);
+  border-radius:10px;padding:2px}
+.mchip{display:flex;align-items:center;gap:8px;padding:6px 12px;
+  border-radius:8px;font-size:14px;letter-spacing:.12em;color:var(--dim);
   transition:background .3s,color .3s,box-shadow .3s}
-.mchip .k{font-weight:400;font-size:12.5px;color:var(--faint);letter-spacing:.05em}
+.mchip .k{font-weight:400;font-size:11px;color:var(--faint);letter-spacing:.05em}
 .mchip.active,.mchip.on{background:var(--panel2);color:var(--text);
-  box-shadow:inset 0 -3px 0 var(--m,var(--accent))}
+  box-shadow:inset 0 -2px 0 var(--m,var(--accent))}
 .m-rec{--m:var(--red)} .m-tune{--m:var(--green)}
 .m-time{--m:var(--accent)} .m-scene{--m:var(--cyan)}
-.tsep{width:1px;height:30px;background:var(--line)}
+.tsep{width:1px;height:24px;background:var(--line)}
 .tspace{flex:1}
-.tbtn{display:flex;align-items:center;gap:10px;padding:7px 14px;
-  background:var(--panel2);border:1px solid var(--line);border-radius:10px;
-  color:var(--text);font-size:17px}
-.kbd{padding:1px 8px;border:1px solid var(--line);border-radius:6px;
-  font-size:12.5px;color:var(--faint);background:rgba(0,0,0,.25);
-  letter-spacing:.04em}
-/* scene nav: chevrons flank a [title / time] column, like the real .t-nav */
-.tnav{display:flex;align-items:center;gap:12px;padding:0 4px}
-.tnav .ch{font-weight:400;color:var(--dim);font-size:20px;line-height:1}
-.tcol{display:flex;flex-direction:column;align-items:center;gap:2px}
-.tcol .tscene{color:var(--text);font-size:17px;line-height:1.2}
-.tcol .ttime{font-size:13px;color:var(--faint)}
-.trec{border-color:var(--red);color:#ffa198}
-.tsaved{color:var(--green);font-size:15px}
+.tbtn{display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+  color:var(--text);font-size:14px;white-space:nowrap}
+.kbd{padding:0 6px;border:1px solid var(--line);border-radius:5px;
+  font-size:10.5px;line-height:16px;color:var(--faint);
+  background:rgba(0,0,0,.25);letter-spacing:.04em}
+/* scene nav: [⟨ Ctrl←] [Scene x of 6 · TITLE / time · total] [Ctrl→ ⟩] */
+.tnav{display:flex;align-items:center;gap:8px;padding:0 2px}
+.tcol{display:flex;flex-direction:column;align-items:center;gap:2px;
+  min-width:220px}
+.tcol .tscene{color:var(--text);font-size:14px;line-height:1.2;
+  white-space:nowrap}
+.tcol .ttime{font-size:11px;color:var(--faint);white-space:nowrap}
+.tsaved{color:var(--green);font-size:13px;white-space:nowrap}
+
+/* --- bottom dock --- */
+.dock{flex:none;position:relative;height:330px;background:var(--panel);
+  border-top:1px solid var(--line);display:flex;flex-direction:column;
+  min-height:0;overflow:hidden}
+.dtool{flex:none;display:flex;align-items:center;gap:8px;padding:7px 14px;
+  border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.5px;
+  color:var(--dim)}
+.dtool .dlab{font-size:11.5px;letter-spacing:.18em;color:var(--faint)}
+.dtool .dbtn{padding:2px 11px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:7px;color:var(--text);
+  font-size:12px}
+.dtool .dhint{margin-left:auto;font-size:11px;color:var(--faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

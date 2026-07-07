@@ -1,8 +1,29 @@
-<!-- Voice, in two overlays: RECORD (teleprompter + mic monitor, red accent),
-     then TUNE (take comparator, green accent) covers it. The prompter shows
-     this very scene's narration, so the screen reads what the voice says. -->
-<div class="ovl on" id="o4a" style="transition:none">
-  <div class="win" style="--m:var(--red)">
+<!-- Voice, in two overlays that dissolve into each other: RECORD (stage +
+     takes side panel + monitor bar + teleprompter dock, red accent), then
+     TUNE (stage + post side panel + section nav + take comparator, green).
+     The prompter shows this very scene's narration, so the screen reads what
+     the voice says. -->
+<div class="ovl on" id="o4a">
+  <div class="win" style="--m:var(--red);--seek:66%">
+
+    <div class="app">
+      <div class="stagepane">
+        <div class="stageframe">
+          <div class="mini-h">Kinema</div>
+          <div class="mini-s">web files in, video out</div>
+        </div>
+      </div>
+      <div class="sidepane">
+        <div class="sp-title">takes &middot; VOICE</div>
+        <div class="reccard">
+          Read a line as many times as you like.
+          <span class="recnote">recording take 3&hellip;</span>
+        </div>
+        <div class="srow"><b class="sdot on"></b><span class="stime">00:48</span><span class="stext">RECORD turns your script into a telepro&hellip;</span><b class="scount has">2</b></div>
+        <div class="srow active"><b class="sdot on"></b><span class="stime">00:52</span><span class="stext">Read a line as many times as you like.</span><b class="scount has">2</b></div>
+        <div class="srow"><b class="sdot"></b><span class="stime">00:55</span><span class="stext">Then TUNE plays the takes back to back,&hellip;</span><b class="scount">&ndash;</b></div>
+      </div>
+    </div>
 
     <div class="tbar">
       <span class="proj">Meet Kinema <i>&#9662;</i></span>
@@ -13,33 +34,62 @@
         <span class="mchip m-scene">SCENE <b class="k">F4</b></span>
       </span>
       <span class="tsep"></span>
-      <span class="tnav"><b class="ch">&#8249;</b><span class="tcol"><span class="tscene">4 &middot; VOICE</span><span class="ttime">0:48 / 1:15</span></span><b class="ch">&#8250;</b></span>
+      <span class="tbtn">&#9654;</span>
+      <span class="tbtn">&#10226; <b class="kbd">&#8679;R</b></span>
+      <span class="tnav">
+        <span class="tbtn">&#10216; <b class="kbd">Ctrl &#8592;</b></span>
+        <span class="tcol"><span class="tscene">Scene 4 of 6 &middot; VOICE</span><span class="ttime">00:48.6 / 00:13 &middot; total 1:15</span></span>
+        <span class="tbtn"><b class="kbd">Ctrl &#8594;</b> &#10217;</span>
+      </span>
       <span class="tspace"></span>
       <span class="tbtn">&#8595; export</span>
+      <span class="tbtn">&#9633; <b class="kbd">C</b></span>
     </div>
 
-    <div class="monitor">
-      <span class="recbtn" id="recbtn"><b class="rdot"></b> rec <b class="kbd">R</b></span>
-      <span class="armbtn">&#9210; armed</span>
-      <div class="livewave">
-            <i style="height:73%"></i><i style="height:43%"></i><i style="height:16%"></i><i style="height:47%"></i><i style="height:24%"></i><i style="height:89%"></i><i style="height:37%"></i><i style="height:59%"></i><i style="height:60%"></i><i style="height:83%"></i><i style="height:69%"></i><i style="height:88%"></i><i style="height:35%"></i><i style="height:33%"></i><i style="height:53%"></i><i style="height:45%"></i><i style="height:74%"></i><i style="height:53%"></i><i style="height:86%"></i><i style="height:74%"></i><i style="height:53%"></i><i style="height:84%"></i><i style="height:45%"></i><i style="height:59%"></i><i style="height:82%"></i><i style="height:50%"></i><i style="height:41%"></i><i style="height:71%"></i><i style="height:82%"></i><i style="height:81%"></i><i style="height:29%"></i><i style="height:34%"></i><i style="height:41%"></i><i style="height:20%"></i><i style="height:26%"></i><i style="height:65%"></i><i style="height:76%"></i><i style="height:33%"></i><i style="height:57%"></i><i style="height:37%"></i>
-          </div>
-      <span class="meter"><b></b></span>
-    </div>
-
-    <div class="prompter">
-      <div class="pline done">RECORD turns your script into a teleprompter and records your voice.</div>
-      <div class="pline cur">Read a line as many times as you like.
-        <span class="pbar"><b id="pfill"></b></span>
+    <div class="dock">
+      <div class="monitor">
+        <span class="recbtn" id="recbtn"><b class="rdot"></b> rec <b class="kbd">R</b></span>
+        <span class="chainbtn">&#8857; focus</span>
+        <span class="armbtn">&#9679; arm</span>
+        <div class="livewave">
+          <i style="height:73%"></i><i style="height:43%"></i><i style="height:16%"></i><i style="height:47%"></i><i style="height:24%"></i><i style="height:89%"></i><i style="height:37%"></i><i style="height:59%"></i><i style="height:60%"></i><i style="height:83%"></i><i style="height:69%"></i><i style="height:88%"></i><i style="height:35%"></i><i style="height:33%"></i><i style="height:53%"></i><i style="height:45%"></i><i style="height:74%"></i><i style="height:53%"></i><i style="height:86%"></i><i style="height:74%"></i><i style="height:53%"></i><i style="height:84%"></i><i style="height:45%"></i><i style="height:59%"></i><i style="height:82%"></i><i style="height:50%"></i><i style="height:41%"></i><i style="height:71%"></i><i style="height:82%"></i><i style="height:81%"></i><i style="height:29%"></i><i style="height:34%"></i><i style="height:41%"></i><i style="height:20%"></i><i style="height:26%"></i><i style="height:65%"></i><i style="height:76%"></i><i style="height:33%"></i><i style="height:57%"></i><i style="height:37%"></i>
+        </div>
+        <span class="meter"><b></b></span>
       </div>
-      <div class="pline">Then TUNE plays the takes back to back, and you star the keeper.</div>
+
+      <div class="prompter">
+        <div class="pzoom"><b>A&#8722;</b><b>A+</b></div>
+        <div class="ptitle">4 &middot; VOICE</div>
+        <div class="pline done">RECORD turns your script into a teleprompter and records your voice.</div>
+        <div class="pline cur">Read a line as many times as you like.
+          <span class="pbar"><b id="pfill"></b></span>
+        </div>
+        <div class="pline">Then TUNE plays the takes back to back, and you star the keeper.</div>
+      </div>
     </div>
 
   </div>
 </div>
 
 <div class="ovl" id="o4b">
-  <div class="win" style="--m:var(--green)">
+  <div class="win" style="--m:var(--green);--seek:71%">
+
+    <div class="app">
+      <div class="stagepane">
+        <div class="stageframe">
+          <div class="mini-h">Kinema</div>
+          <div class="mini-s">web files in, video out</div>
+        </div>
+      </div>
+      <div class="sidepane">
+        <div class="sp-title">post &middot; VOICE</div>
+        <div class="pbrow"><span class="pblab">playback</span><span class="pbmeter"><b></b></span><span class="pbbtn">match all takes</span></div>
+        <div class="postcard">
+          Read a line as many times as you like.
+          <span class="postnote">post &#9656; high-pass 80 Hz &middot; gate &middot; compressor &middot; +1.5 dB</span>
+        </div>
+      </div>
+    </div>
 
     <div class="tbar">
       <span class="proj">Meet Kinema <i>&#9662;</i></span>
@@ -50,34 +100,58 @@
         <span class="mchip m-scene">SCENE <b class="k">F4</b></span>
       </span>
       <span class="tsep"></span>
-      <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
-      <span class="tnav"><b class="ch">&#8249;</b><span class="tcol"><span class="tscene">4 &middot; VOICE</span><span class="ttime">0:53 / 1:15</span></span><b class="ch">&#8250;</b></span>
+      <span class="tbtn">&#9654;</span>
+      <span class="tbtn">&#10226;</span>
+      <span class="tnav">
+        <span class="tbtn">&#10216; <b class="kbd">Ctrl &#8592;</b></span>
+        <span class="tcol"><span class="tscene">Scene 4 of 6 &middot; VOICE</span><span class="ttime">00:53.0 / 00:13 &middot; total 1:15</span></span>
+        <span class="tbtn"><b class="kbd">Ctrl &#8594;</b> &#10217;</span>
+      </span>
       <span class="tspace"></span>
       <span class="tbtn">&#8595; export</span>
+      <span class="tbtn">&#9633; <b class="kbd">C</b></span>
     </div>
 
-    <div class="comp">
-      <div class="comphd"><span class="ct">0:52&ndash;0:55</span>&ldquo;Read a line as many times as you like.&rdquo;</div>
+    <div class="dock tunedock">
+      <div class="tvnav">
+        <div class="tvtitle">VOICE &middot; 3 LINES</div>
+        <div class="tvrow"><b class="tvnum">1</b><span class="tvtext">RECORD turns your script into a teleprompter and records&hellip;</span><b class="tvcount has">2</b></div>
+        <div class="tvrow active"><b class="tvnum">2</b><span class="tvtext">Read a line as many times as you like.</span><b class="tvcount has">2</b></div>
+        <div class="tvrow"><b class="tvnum">3</b><span class="tvtext">Then TUNE plays the takes back to back, and you star&hellip;</span><b class="tvcount">&ndash;</b></div>
+      </div>
 
-      <div class="take" id="tk1">
-        <span class="tplay">&#9654;</span><span class="tname">take 1</span>
-        <span class="tmeta">2:41 pm &middot; 3.8 s</span>
-        <span class="star">&#9734; pick</span>
-        <div class="strip">
+      <div class="tvbody">
+        <div class="tvhead">
+          <span class="ct">00:52&ndash;00:55</span>
+          <span class="tvline">Read a line as many times as you like.</span>
+          <span class="tvtrans">
+            <span class="dbtn">&#9654; <b class="kbd">SPACE</b></span>
+            <span class="dbtn">window <b class="kbd">W</b></span>
+            <span class="dbtn">&#10226; <b class="kbd">&#8679;R</b></span>
+          </span>
+        </div>
+
+        <div class="take" id="tk1">
+          <span class="tplay">&#9654;</span><span class="tname">take 1</span>
+          <span class="tmeta">2:41 pm &middot; 3.8 s</span>
+          <span class="star">&#9734; pick</span>
+          <span class="tdel">&#10005;</span>
+          <div class="strip">
             <i style="height:30%"></i><i style="height:60%"></i><i style="height:64%"></i><i style="height:84%"></i><i style="height:83%"></i><i style="height:34%"></i><i style="height:66%"></i><i style="height:25%"></i><i style="height:77%"></i><i style="height:41%"></i><i style="height:39%"></i><i style="height:67%"></i><i style="height:24%"></i><i style="height:79%"></i><i style="height:42%"></i><i style="height:36%"></i><i style="height:61%"></i><i style="height:51%"></i><i style="height:57%"></i><i style="height:85%"></i><i style="height:49%"></i><i style="height:89%"></i><i style="height:22%"></i><i style="height:59%"></i><i style="height:64%"></i><i style="height:28%"></i><i style="height:61%"></i><i style="height:73%"></i><i style="height:59%"></i><i style="height:20%"></i><i style="height:82%"></i><i style="height:51%"></i><i style="height:48%"></i><i style="height:77%"></i><i style="height:72%"></i><i style="height:28%"></i><i style="height:83%"></i><i style="height:40%"></i><i style="height:23%"></i><i style="height:32%"></i>
           </div>
-      </div>
+        </div>
 
-      <div class="take" id="tk2">
-        <span class="tplay">&#9654;</span><span class="tname">take 2</span>
-        <span class="tmeta">2:42 pm &middot; 3.6 s</span>
-        <span class="star"><b class="off">&#9734;</b><b class="onn">&#9733;</b> pick</span>
-        <div class="strip">
+        <div class="take" id="tk2">
+          <span class="tplay">&#9654;</span><span class="tname">take 2</span>
+          <span class="tmeta">2:42 pm &middot; 3.6 s</span>
+          <span class="star"><b class="off">&#9734;</b><b class="onn">&#9733;</b> pick</span>
+          <span class="tdel">&#10005;</span>
+          <div class="strip">
             <i style="height:21%"></i><i style="height:72%"></i><i style="height:73%"></i><i style="height:59%"></i><i style="height:17%"></i><i style="height:46%"></i><i style="height:76%"></i><i style="height:49%"></i><i style="height:30%"></i><i style="height:32%"></i><i style="height:28%"></i><i style="height:60%"></i><i style="height:59%"></i><i style="height:39%"></i><i style="height:65%"></i><i style="height:25%"></i><i style="height:79%"></i><i style="height:24%"></i><i style="height:89%"></i><i style="height:26%"></i><i style="height:35%"></i><i style="height:23%"></i><i style="height:67%"></i><i style="height:48%"></i><i style="height:66%"></i><i style="height:18%"></i><i style="height:21%"></i><i style="height:16%"></i><i style="height:25%"></i><i style="height:52%"></i><i style="height:21%"></i><i style="height:89%"></i><i style="height:39%"></i><i style="height:27%"></i><i style="height:32%"></i><i style="height:40%"></i><i style="height:51%"></i><i style="height:54%"></i><i style="height:89%"></i><i style="height:69%"></i>
           </div>
+        </div>
       </div>
 
-      <div class="post">post &#9656; high-pass &middot; gate &middot; compressor &middot; level</div>
     </div>
 
   </div>

@@ -1,67 +1,67 @@
 /* TIME mode mock. Lane/clip colours track the real timeline
-   (src/ui/styles.css .tl-*): scenes = panel chips, script = green,
-   captions = amber, voice = green waveform blocks, purple playhead. */
-.app{display:flex;height:330px;background:var(--bg)}
-.stagepane{flex:1;display:flex;align-items:center;justify-content:center;
-  border-right:1px solid var(--line)}
-.mini{text-align:center;display:flex;flex-direction:column;gap:12px}
-.mini-h{font-size:60px;font-weight:800;letter-spacing:-.01em}
-.mini-s{font-family:var(--mono);font-size:19px;color:var(--dim)}
-.sidepane{width:400px;background:var(--panel);border-top:3px solid var(--accent);
-  padding:16px;display:flex;flex-direction:column;gap:10px}
-.sline{padding:12px 14px;border-radius:10px;font-size:16.5px;line-height:1.5;
-  color:var(--dim);border-left:3px solid transparent}
-.sline .t{display:block;font-family:var(--mono);font-size:12px;
-  color:var(--faint);letter-spacing:.08em;margin-bottom:4px}
+   (src/ui/styles.css .tl-*): scenes = panel chips, script = green with text,
+   captions = amber with text, voice = green waveform blocks, purple playhead. */
+
+/* stage preview content */
+.mini-h{font-size:52px;font-weight:800;letter-spacing:-.01em}
+.mini-s{font-family:var(--mono);font-size:15px;color:var(--dim)}
+
+/* side panel: the script teleprompter */
+.sline{position:relative;padding:10px 12px;border-radius:9px;font-size:14.5px;
+  line-height:1.5;color:var(--dim);border-left:3px solid transparent}
+.sline .t{display:block;font-family:var(--mono);font-size:10.5px;
+  color:var(--faint);letter-spacing:.08em;margin-bottom:3px}
 .sline.cur{background:var(--panel2);color:var(--text);
   border-left-color:var(--accent)}
 .sline.done{opacity:.5}
+.sline .merge{position:absolute;right:8px;bottom:8px;font-weight:400;
+  font-family:var(--mono);font-size:9.5px;color:var(--faint);
+  border:1px solid var(--line);border-radius:5px;padding:1px 6px;opacity:.7}
 
 /* dock: ruler + four tracks; the playhead spans them all */
-.dock{position:relative;height:308px;background:var(--panel)}
-.ruler{position:relative;height:36px;border-bottom:1px solid var(--line)}
-.ruler span{position:absolute;top:7px;font-family:var(--mono);font-size:14px;
-  color:var(--dim);border-left:1px solid var(--dim);padding-left:6px;height:22px}
-.track{position:relative;border-bottom:1px solid rgba(48,54,61,.6)}
-.tk-scenes{height:62px}
-.tk-script{height:60px}
-.tk-caps{height:48px}
-.tk-voice{height:84px}
-.lab{position:absolute;left:10px;top:6px;z-index:6;font-weight:400;
-  font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;
-  color:var(--faint);background:rgba(13,17,23,.85);padding:2px 8px;
-  border-radius:5px;pointer-events:none}
+.ruler{position:relative;flex:none;height:26px;border-bottom:1px solid var(--line)}
+.ruler span{position:absolute;top:5px;font-family:var(--mono);font-size:11px;
+  color:var(--dim);border-left:1px solid var(--dim);padding-left:5px;height:17px}
+.track{position:relative;flex:none;border-bottom:1px solid rgba(48,54,61,.6)}
+.tk-scenes{height:48px}
+.tk-script{height:48px}
+.tk-caps{height:38px}
+.tk-voice{height:78px}
+.lab{position:absolute;left:8px;top:5px;z-index:6;font-weight:400;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+  color:var(--faint);background:rgba(13,17,23,.85);padding:1px 7px;
+  border-radius:4px;pointer-events:none}
 .lane{position:absolute;inset:0}
 
-.clip{position:absolute;top:50%;translate:0 -50%;border-radius:8px}
-.clip.sc{height:42px;background:var(--panel2);color:var(--text);
-  display:flex;align-items:center;gap:10px;padding:0 12px;
-  font-family:var(--mono);font-size:15px;overflow:hidden;white-space:nowrap}
-.clip.sc em{margin-left:auto;font-style:normal;color:var(--faint);font-size:12.5px}
+.clip{position:absolute;top:50%;translate:0 -50%;border-radius:6px;
+  font-family:var(--mono);overflow:hidden;white-space:nowrap}
+.clip.sc{height:32px;background:var(--panel2);color:var(--text);
+  display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12.5px}
+.clip.sc em{margin-left:auto;font-style:normal;color:var(--faint);font-size:11px}
 .clip.sc.cur{background:rgba(163,113,247,.22);outline:1px solid var(--accent)}
-.clip.ln{height:34px;background:rgba(63,185,80,.28);
-  box-shadow:inset 0 0 0 1px rgba(63,185,80,.25)}
-.clip.cap{height:28px;background:rgba(210,153,34,.3);
-  box-shadow:inset 0 0 0 1px rgba(210,153,34,.25)}
+.clip.ln{height:28px;background:rgba(63,185,80,.2);color:#9be8a4;
+  font-size:11.5px;padding:6px 8px}
+.clip.cap{height:24px;background:rgba(210,153,34,.2);color:#e3b341;
+  font-size:11px;padding:4px 8px}
 
 /* the drag demo: #drag slides its right edge onto the playhead (x=560),
    #stretch pulls its right edge out. Motion is a transition, so scrubbing
    backward replays it in reverse. */
 #drag{transition:transform .7s cubic-bezier(.2,.7,.3,1)}
 #drag.moved{transform:translateX(110px);
-  box-shadow:inset 0 0 0 1px rgba(63,185,80,.25),0 0 0 2px var(--blue)}
+  box-shadow:0 0 0 2px var(--blue)}
 #stretch{transition:width .6s cubic-bezier(.2,.7,.3,1)}
 #stretch.grow{width:280px !important}
 
-.vwave{position:absolute;top:50%;translate:0 -50%;height:56px;
+.vwave{position:absolute;top:50%;translate:0 -50%;height:52px;
   display:flex;align-items:center;gap:3px;padding:0 8px;
-  background:rgba(63,185,80,.1);border-radius:8px}
-.vwave i{flex:1;min-height:3px;max-height:46px;background:var(--green);
+  background:rgba(63,185,80,.1);border-radius:6px}
+.vwave i{flex:1;min-height:3px;max-height:42px;background:var(--green);
   opacity:.6;border-radius:1.5px}
 
-.playhead{position:absolute;top:0;bottom:0;left:560px;width:3px;
-  background:var(--accent);box-shadow:0 0 10px rgba(163,113,247,.8);z-index:8}
-.snapline{position:absolute;top:0;bottom:0;left:560px;width:2px;
-  background:var(--blue);box-shadow:0 0 12px rgba(121,192,255,.9);
+.playhead{position:absolute;top:34px;bottom:0;left:560px;width:2px;
+  background:var(--accent);box-shadow:0 0 8px rgba(163,113,247,.8);z-index:8}
+.snapline{position:absolute;top:34px;bottom:0;left:560px;width:2px;
+  background:var(--blue);box-shadow:0 0 10px rgba(121,192,255,.9);
   opacity:0;transition:opacity .3s;z-index:9}
 .snapline.on{opacity:1}

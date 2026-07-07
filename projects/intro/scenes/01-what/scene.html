@@ -1,6 +1,7 @@
-<!-- Title, then "a scene is three files". Two overlays; the second is opaque
-     and simply covers the first, so nothing needs an exit. -->
-<div class="ovl on" id="o1a" style="transition:none">
+<!-- Title, then "a scene is three files". Two overlays that dissolve: the
+     first is scheduled off exactly when the second enters, so they crossfade
+     instead of the title bleeding through (or the frame dipping to black). -->
+<div class="ovl on" id="o1a">
   <h1 id="title">Kinema</h1>
   <div class="sub" id="sub">web files in, video out</div>
 </div>

@@ -1,21 +1,22 @@
-<!-- The studio window in TIME mode, laid out like the real app: stage preview
-     + side panel on top, transport bar, global timeline dock below. The mode
-     chips light in turn on "four modes"; a script clip drags to the playhead
-     and snaps; another clip stretches at its edge. -->
+<!-- The studio window in TIME mode, mirroring the real frame: stage preview +
+     script side panel on top, transport strip, global timeline dock below.
+     The mode chips light in turn on "four modes"; a script clip drags to the
+     playhead and snaps; another clip stretches at its edge. -->
 <div class="ovl on" id="o2" style="transition:none">
-  <div class="win" id="win" style="--m:var(--accent)">
+  <div class="win" id="win" style="--m:var(--accent);--seek:36%">
 
     <div class="app">
       <div class="stagepane">
-        <div class="mini">
+        <div class="stageframe">
           <div class="mini-h">Kinema</div>
           <div class="mini-s">web files in, video out</div>
         </div>
       </div>
       <div class="sidepane">
-        <div class="sline done"><span class="t">00:00 &middot; 00:04</span>This is Kinema, a small studio for making videos out of web files.</div>
-        <div class="sline cur"><span class="t">00:04 &middot; 00:07</span>Everything you're watching right now is HTML and CSS.</div>
-        <div class="sline"><span class="t">00:08 &middot; 00:12</span>A video is a folder of scenes, and every scene is three files.</div>
+        <div class="sline done"><span class="t">00:00 &ndash; 00:04</span>This is Kinema, a small studio for making videos out of web files.</div>
+        <div class="sline cur"><span class="t">00:04 &ndash; 00:07</span>Everything you're watching right now is HTML and CSS.</div>
+        <div class="sline"><span class="t">00:08 &ndash; 00:12</span>A video is a folder of scenes, and every scene is three files.<b class="merge">&#8618; merge up</b></div>
+        <div class="sline"><span class="t">00:12 &ndash; 00:16</span>Markup, styles, and a bit of JSON that says what happens when.<b class="merge">&#8618; merge up</b></div>
       </div>
     </div>
 
@@ -29,18 +30,32 @@
       </span>
       <span class="tsep"></span>
       <span class="tbtn">&#9654; <b class="kbd">SPACE</b></span>
-      <span class="tnav"><b class="ch">&#8249;</b><span class="tcol"><span class="tscene">2 &middot; TIME</span><span class="ttime">0:27 / 1:15</span></span><b class="ch">&#8250;</b></span>
+      <span class="tbtn">&#10226; <b class="kbd">&#8679;R</b></span>
+      <span class="tnav">
+        <span class="tbtn">&#10216; <b class="kbd">Ctrl &#8592;</b></span>
+        <span class="tcol"><span class="tscene">Scene 2 of 6 &middot; TIME</span><span class="ttime">00:05.4 / 00:13 &middot; total 1:15</span></span>
+        <span class="tbtn"><b class="kbd">Ctrl &#8594;</b> &#10217;</span>
+      </span>
       <span class="tspace"></span>
       <span class="tsaved">&#10003; saved</span>
-      <span class="tbtn trec">&#9679; rec</span>
       <span class="tbtn">&#8595; export</span>
+      <span class="tbtn">&#9633; <b class="kbd">C</b></span>
     </div>
 
     <div class="dock">
+      <div class="dtool">
+        <span class="dlab">TIMELINE</span>
+        <span class="dbtn">&#8722;</span><span class="dbtn">fit</span><span class="dbtn">+</span>
+        <span class="tsep"></span>
+        <span class="dbtn">+ line</span><span class="dbtn">+ caption</span>
+        <span class="dhint">drag = move (snaps, shift = free) &middot; ctrl+click / marquee = multi-select &middot; del = delete &middot; I/O = loop</span>
+      </div>
+
       <div class="ruler">
-        <span style="left:0">0:00</span><span style="left:300px">0:15</span>
-        <span style="left:600px">0:30</span><span style="left:900px">0:45</span>
-        <span style="left:1200px">1:00</span><span style="left:1500px">1:15</span>
+        <span style="left:0">00:00</span><span style="left:200px">00:10</span>
+        <span style="left:400px">00:20</span><span style="left:600px">00:30</span>
+        <span style="left:800px">00:40</span><span style="left:1000px">00:50</span>
+        <span style="left:1200px">01:00</span><span style="left:1400px">01:10</span>
       </div>
 
       <div class="track tk-scenes" id="rScenes"><b class="lab">SCENES</b>
@@ -56,22 +71,22 @@
 
       <div class="track tk-script" id="rScript"><b class="lab">SCRIPT</b>
         <div class="lane">
-          <div class="clip ln" style="left:10px;width:120px"></div>
-          <div class="clip ln" style="left:140px;width:90px"></div>
-          <div class="clip ln" id="drag" style="left:300px;width:150px"></div>
-          <div class="clip ln" style="left:620px;width:130px"></div>
-          <div class="clip ln" style="left:770px;width:180px"></div>
-          <div class="clip ln" id="stretch" style="left:1000px;width:150px"></div>
-          <div class="clip ln" style="left:1290px;width:110px"></div>
-          <div class="clip ln" style="left:1420px;width:100px"></div>
+          <div class="clip ln" style="left:10px;width:120px">This is Kinema, a&hellip;</div>
+          <div class="clip ln" style="left:140px;width:90px">Everything&hellip;</div>
+          <div class="clip ln" id="drag" style="left:300px;width:150px">A video is a fold&hellip;</div>
+          <div class="clip ln" style="left:620px;width:130px">You edit it in&hellip;</div>
+          <div class="clip ln" style="left:770px;width:180px">TIME is the timeli&hellip;</div>
+          <div class="clip ln" id="stretch" style="left:1000px;width:150px">Grab a clip to&hellip;</div>
+          <div class="clip ln" style="left:1290px;width:110px">When it pl&hellip;</div>
+          <div class="clip ln" style="left:1420px;width:100px">Copy this&hellip;</div>
         </div>
       </div>
 
       <div class="track tk-caps" id="rCaps"><b class="lab">CAPTIONS</b>
         <div class="lane">
-          <div class="clip cap" style="left:90px;width:170px"></div>
-          <div class="clip cap" style="left:520px;width:140px"></div>
-          <div class="clip cap" style="left:1240px;width:170px"></div>
+          <div class="clip cap" style="left:90px;width:170px">this intro is itse&hellip;</div>
+          <div class="clip cap" style="left:520px;width:140px">F1&ndash;F4 switch&hellip;</div>
+          <div class="clip cap" style="left:1240px;width:170px">deterministic re&hellip;</div>
         </div>
       </div>
 
