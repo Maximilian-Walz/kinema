@@ -95,13 +95,19 @@ export class TuneView {
         this.root.append(this.navEl, this.bodyEl);
     }
 
-    /** id of the script line under the cursor, or null if in a gap. */
+    /** id of the script line under the cursor, or null if in a gap. Overlapping
+        windows resolve to the LATEST-starting line, so a nav click (which seeks
+        to the line's start) always opens the clicked line's takes. */
     private activeLineId(): string | null {
         const local = this.player.localTime;
+        let best: TimedText | null = null;
         for (const ln of this.player.scene.lines) {
-            if (local >= ln.from && local < ln.to) return ln.id ?? null;
+            if (
+                local >= ln.from && local < ln.to &&
+                (!best || ln.from >= best.from)
+            ) best = ln;
         }
-        return null;
+        return best?.id ?? null;
     }
 
     /** Re-render on a cursor move; when the active LINE changes, reset the

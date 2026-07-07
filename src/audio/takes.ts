@@ -169,12 +169,15 @@ export class Takes {
   private readonly player: Player;
   private recorder: MediaRecorder | null = null;
   private recSceneIndex = -1;
-  /** in-scene time at which the line's slot ends (line.to). Recording is NO
-      LONGER force-stopped here: with overrun the user can capture a take longer
-      than the slot and later pick a sub-window in TUNE. We keep recStopAt only
-      as the reference for the chain-mode "did the take reach the slot end?"
-      decision. */
-  private recStopAt = Infinity;
+  /** GLOBAL time at which the recorded line's slot ends (offset + line.to).
+      Recording is NO LONGER force-stopped here: with overrun the user can
+      capture a take longer than the slot and later pick a sub-window in TUNE.
+      We keep it only as the reference for the chain-mode "did the take reach
+      the slot end?" decision. Global rather than scene-local: a line that ends
+      exactly at the scene end never sees localTime reach line.to (the cursor
+      is already in the next scene, local ~0), so a local comparison would
+      break chaining at every scene boundary. */
+  private recStopGlobal = Infinity;
   /** True iff the most recent stopRecording() call happened while the playhead
       had already passed the line's end (the take covers at least the full
       slot). Used by chain mode to decide whether to auto-advance. In FOCUS mode
@@ -248,7 +251,7 @@ export class Takes {
          only a manual stop, a pause, or a scene boundary ends it. */
       if (
         this.chainMode && this.recorder &&
-        this.player.localTime >= this.recStopAt
+        this.player.time >= this.recStopGlobal - 1e-3
       ) {
         this.naturalStop = true;
         this.stopRecording();
@@ -262,6 +265,12 @@ export class Takes {
     });
     player.events.on("scene", () => {
       if (this.recorder && this.player.sceneIndex !== this.recSceneIndex) {
+        /* the "scene" event fires before "time", so when a line runs to the
+           scene's very end the boundary crossing lands here first — flag the
+           natural stop now or chain mode would die at every scene boundary */
+        if (this.chainMode && this.player.time >= this.recStopGlobal - 1e-3) {
+          this.naturalStop = true;
+        }
         this.player.setPlaying(false); // stops the recorder via the play hook
       }
       this.sync();
@@ -309,12 +318,18 @@ export class Takes {
     return this.map[sceneId]?.[lineId]?.chain;
   }
 
-  /** the line whose [from, to) window contains a scene-local time, or null */
+  /** The line whose [from, to) window contains a scene-local time, or null.
+      When windows overlap (hand-retimed in TIME), the LATEST-starting one wins
+      so that seeking to a line's start always lands on that line — first-match
+      would let the earlier line swallow the whole overlap region. */
   lineAt(scene: { lines: TimedText[] }, local: number): TimedText | null {
+    let best: TimedText | null = null;
     for (const ln of scene.lines) {
-      if (local >= ln.from && local < ln.to) return ln;
+      if (local >= ln.from && local < ln.to && (!best || ln.from >= best.from)) {
+        best = ln;
+      }
     }
-    return null;
+    return best;
   }
 
   /** Find a line by id across all scenes. Returns the line + the scene it
@@ -385,7 +400,7 @@ export class Takes {
     const rec = new MediaRecorder(stream, { mimeType: mime });
     const chunks: Blob[] = [];
     this.recSceneIndex = sceneIndex;
-    this.recStopAt = line.to;
+    this.recStopGlobal = this.player.offsets[sceneIndex] + line.to;
     /* FOCUS mode: pin the playhead inside this scene while recording so an
        overrun (especially on the last line) doesn't roll into the next scene —
        which would stop the take via the scene hook and advance the prompter.
@@ -406,7 +421,7 @@ export class Takes {
       if (!reusingMonitor) stream.getTracks().forEach((t) => t.stop());
       this.recorder = null;
       this.recordingLine = null;
-      this.recStopAt = Infinity;
+      this.recStopGlobal = Infinity;
       this.player.maxTime = null;
       /* FOCUS mode never advances. An overrun rolls the playhead past the
          recorded line (up to the scene-end pin), so an overtime stop would
@@ -452,12 +467,16 @@ export class Takes {
       /* In FOCUS mode there is no slot-end auto-stop, so decide here whether this
          stop is "natural" for chain mode: natural iff the playhead already
          passed the line's end (the take covers at least the full slot). (In
-         CHAIN mode naturalStop was set by the time listener at recStopAt, so we
-         leave it as-is.) Also record whether the take overran its slot. */
+         CHAIN mode naturalStop was set by the time/scene listener at
+         recStopGlobal, so we leave it as-is.) Also record whether the take
+         overran its slot. */
       if (!this.chainMode) {
-        const passedEnd = this.player.localTime >= this.recStopAt;
+        /* the FOCUS pin parks the playhead at scene end minus 1e-3, so give the
+           comparison the same epsilon or a last line ending at the scene end
+           would never count as passed */
+        const passedEnd = this.player.time >= this.recStopGlobal - 1e-3;
         this.naturalStop = passedEnd;
-        this.overranLastStop = passedEnd && isFinite(this.recStopAt);
+        this.overranLastStop = passedEnd && isFinite(this.recStopGlobal);
       }
       this.recorder.stop();
     }
@@ -515,16 +534,18 @@ export class Takes {
   async startRecordingWithCountIn(lineId?: string): Promise<string | null> {
     if (this.recorder || this.countInAbort) return null;
 
-    /* resolve the target line up-front so we can show the beat overlay.
-       Lookup is project-wide so chain-mode can pass a lineId from the next
-       scene; startRecording does the seek when it actually starts. */
+    /* resolve the target line up-front so we can seek to it and show the beat
+       overlay. Lookup is project-wide so chain-mode can pass a lineId from the
+       next scene. */
     let scene = this.player.scene;
     let line: TimedText | undefined;
+    let sceneIndex = this.player.sceneIndex;
     if (lineId) {
       const hit = this.findLineAcrossScenes(lineId);
       if (hit) {
         scene = hit.scene;
         line = hit.line;
+        sceneIndex = hit.sceneIndex;
       }
     } else {
       line = this.lineAt(scene, this.player.localTime) ?? scene.lines[0];
@@ -533,6 +554,12 @@ export class Takes {
       return "no line to record (add a narration line first)";
     }
     const lid = line.id;
+
+    /* park the playhead on the target line NOW, not when recording starts:
+       during the count-in the reader needs the stage + prompter to already
+       show the line about to be recorded — chain mode may have handed us a
+       line in the NEXT scene while the stage still shows the previous one */
+    this.player.seekScene(sceneIndex, line.from);
 
     /* open the mic now so the user gets the permission prompt before the
        count-in, and we can reuse it in startRecording */

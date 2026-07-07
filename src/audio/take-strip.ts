@@ -216,10 +216,12 @@ export class TakeStrip {
                         );
                         this.windowLen = end - this.inPoint;
                     } else { // left edge: move inPoint, keep the end fixed in take-time
+                        /* winEnd may sit past the take's end (slot longer than
+                           the recording) — also keep MIN_LEN of audio in range */
                         const start = clamp(
                             x * secPerPx,
                             0,
-                            winEnd - TakeStrip.MIN_LEN,
+                            Math.min(winEnd, this.duration) - TakeStrip.MIN_LEN,
                         );
                         this.inPoint = start;
                         this.windowLen = winEnd - start;
@@ -341,12 +343,18 @@ export class TakeStrip {
             if (this.destroyed) return;
             this.peaks = peaks;
             this.duration = duration;
-            /* now that the duration is known, defensively clamp the in-point in
-               case the line was retimed (windowLen) shorter than the stored
-               value would allow, then show/position the overlay */
+            /* now that the duration is known, defensively clamp the in-point.
+               Slip-only strips need the whole window inside the take, so cap at
+               duration - windowLen. Re-length strips may have a window that
+               legitimately runs past the take's end (slot longer than the
+               recording) — snapping their in-point to that cap would erase a
+               left-edge drag on repaint, so only keep MIN_LEN of audio in
+               range there. */
             if (this.windowLen > 0) {
-                const usable = this.duration - this.windowLen;
-                this.inPoint = Math.max(0, Math.min(Math.max(0, usable), this.inPoint));
+                const cap = this.onResize
+                    ? this.duration - TakeStrip.MIN_LEN
+                    : this.duration - this.windowLen;
+                this.inPoint = Math.max(0, Math.min(Math.max(0, cap), this.inPoint));
             }
             this.positionWindow();
             this.resizeAndDraw();

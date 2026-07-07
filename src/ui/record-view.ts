@@ -360,14 +360,20 @@ export class RecordView {
     }
 
     /** Find the line under the cursor (the one with from <= local < to).
-      Returns null if the cursor sits in a gap (between lines). */
+      Returns null if the cursor sits in a gap (between lines). When line
+      windows overlap the LATEST-starting one wins, so clicking a line (which
+      seeks to its start) always makes THAT line current. */
     private currentLineIndex(): number {
         const local = this.player.localTime;
+        let best = -1;
         for (let i = 0; i < this.lineEls.length; i++) {
             const le = this.lineEls[i];
-            if (local >= le.from && local < le.to) return i;
+            if (
+                local >= le.from && local < le.to &&
+                (best < 0 || le.from >= this.lineEls[best].from)
+            ) best = i;
         }
-        return -1;
+        return best;
     }
 
     private currentLineId(): string | null {

@@ -642,13 +642,15 @@ export class StageView {
       .filter((c) => this.selected.has(c.entry))
       .map((c) => c.entry);
     if (entries.length <= 1) {
-      /* single clip: keep the original per-edge clamp against the scene end */
+      /* single clip: clamp the whole clip inside [0, scene.len] as one unit —
+         clamping exit alone would let enter keep advancing and silently
+         shorten the clip while it's pressed against the scene end */
       const scene = this.player.scene;
       const oEnter = entry.enter, oExit = entry.exit;
       this.beginDrag(e, new Set([entry]), rec.edges(), (delta) => {
-        const d = Math.max(-oEnter, delta);
+        const d = Math.max(-oEnter, Math.min(scene.len - (oExit ?? oEnter), delta));
         entry.enter = round(oEnter + d);
-        if (oExit !== undefined) entry.exit = Math.min(scene.len, round(oExit + d));
+        if (oExit !== undefined) entry.exit = round(oExit + d);
       });
     } else {
       this.beginMultiDrag(e, entry, entries);
