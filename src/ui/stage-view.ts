@@ -1,6 +1,6 @@
 import * as api from "../api";
 import { fmt, type Player } from "../engine/player";
-import type { History } from "../history";
+import type { History, SceneSnapshot } from "../history";
 import type { TimingSync } from "../timings";
 import type { ScheduleEntry, SceneData } from "../types";
 import { el } from "./dom";
@@ -242,7 +242,7 @@ export class StageView {
       el("span", {
         class: "sv-hint",
         text:
-          "click an element in the preview to select · drag it to move · edit text/size/colour in the inspector · del = remove from schedule",
+          "click an element in the preview to select · drag it to move · ←/→ nudge timing (⇧ fine) · alt+arrows move · ctrl+C/V copy clips · del = remove from schedule",
       }),
     );
 
@@ -481,6 +481,7 @@ export class StageView {
     edges: number[],
     apply: (delta: number) => void,
   ): void {
+    this.flushNudge();
     const scene = this.player.scene;
     this.dragging = true;
     const startX = e.clientX;
@@ -570,6 +571,159 @@ export class StageView {
     }
     this.snapGuide.style.display = "none";
     return round(raw);
+  }
+
+  /* ------------------------- nudge (arrow keys) ------------------------- */
+
+  /* Consecutive arrow-key nudges coalesce into ONE undo transaction: the
+     snapshot is taken on the first nudge and committed ~600ms after the last
+     one, so holding a key doesn't flood the history. A different nudge kind /
+     scene (or any other edit starting — drags, deletes, undo) flushes first. */
+  private pendingNudge: {
+    scene: SceneData;
+    before: SceneSnapshot;
+    kind: "timing" | "position";
+    commit: (before: SceneSnapshot) => void;
+  } | null = null;
+  private nudgeTimer = 0;
+
+  private openNudge(
+    scene: SceneData,
+    kind: "timing" | "position",
+    commit: (before: SceneSnapshot) => void,
+  ): void {
+    if (
+      this.pendingNudge &&
+      (this.pendingNudge.kind !== kind || this.pendingNudge.scene !== scene)
+    ) this.flushNudge();
+    if (!this.pendingNudge) {
+      this.pendingNudge = {
+        scene,
+        before: this.history.snapshot(scene),
+        kind,
+        commit,
+      };
+    } else {
+      this.pendingNudge.commit = commit; // latest values win
+    }
+    clearTimeout(this.nudgeTimer);
+    this.nudgeTimer = window.setTimeout(() => this.flushNudge(), 600);
+  }
+
+  /** commit any pending nudge transaction now (called before other edits and
+      before undo/redo so transactions never interleave) */
+  flushNudge(): void {
+    clearTimeout(this.nudgeTimer);
+    const n = this.pendingNudge;
+    this.pendingNudge = null;
+    if (n) n.commit(n.before);
+  }
+
+  /** ←/→ with a selection: move the selected clips' timing by ±0.1s
+      (±0.01s with shift), clamped so the group stays inside the scene. */
+  nudgeTiming(dir: -1 | 1, fine: boolean): void {
+    const scene = this.player.scene;
+    const entries = [...this.selected].filter((en) =>
+      scene.schedule.includes(en)
+    );
+    if (!entries.length) return;
+    const step = (fine ? FINE : 0.1) * dir;
+    const minEnter = Math.min(...entries.map((en) => en.enter));
+    const maxEdge = Math.max(...entries.map((en) => en.exit ?? en.enter));
+    const d = Math.max(-minEnter, Math.min(scene.len - maxEdge, step));
+    if (Math.abs(d) < 1e-9) return;
+    this.openNudge(scene, "timing", (before) => {
+      this.history.commit(scene, before);
+      this.rebuild();
+    });
+    for (const en of entries) {
+      en.enter = round(en.enter + d);
+      if (en.exit !== undefined) en.exit = round(en.exit + d);
+    }
+    this.sync.changed(scene);
+    for (const c of this.clips) c.place();
+    this.onTime(); // refresh the clips' current highlight against the playhead
+  }
+
+  /** alt+arrows: move the selected element by ±1px (±10px with shift) via the
+      translate override — the keyboard version of drag-to-move. */
+  nudgePosition(dx: number, dy: number, big: boolean): void {
+    const sel = this.sel;
+    if (!sel) return;
+    const scene = this.player.scene;
+    const node = this.sceneEl(sel.id);
+    if (!node) return;
+    const id = sel.id;
+    const step = big ? 10 : 1;
+    /* an un-flushed nudge keeps its running value in the inline style;
+       otherwise start from the persisted override */
+    const cur = this.parseTranslate(
+      node.style.translate || this.parseOverrides(scene.css, id).translate,
+    );
+    const nx = cur.x + dx * step, ny = cur.y + dy * step;
+    node.style.translate = `${nx}px ${ny}px`;
+    this.positionBox(this.selBox, node);
+    this.openNudge(scene, "position", (before) => {
+      const val = nx === 0 && ny === 0 ? null : `${nx}px ${ny}px`;
+      api.setElementStyle(scene.id, id, { translate: val })
+        .then((css) => {
+          this.player.replaceSceneCss(scene, css);
+          node.style.translate = ""; // hand off to the CSS override
+          this.history.commit(scene, before);
+          this.renderInspector();
+        })
+        .catch((err) => console.warn("[stage] nudge reposition failed:", err));
+    });
+  }
+
+  /* ------------------------- copy / paste clips ------------------------- */
+
+  /** in-memory clipboard of schedule entries (ctrl+C), pasted at the playhead */
+  private clipboard: ScheduleEntry[] = [];
+
+  /** copy the selected clips; returns false when nothing is selected */
+  copySelection(): boolean {
+    const entries = this.selected.size
+      ? [...this.selected]
+      : (this.sel?.entry ? [this.sel.entry] : []);
+    if (!entries.length) return false;
+    this.clipboard = structuredClone(entries);
+    return true;
+  }
+
+  /** paste the copied clips so the earliest one starts at the playhead,
+      preserving their relative offsets; the pasted clips become the selection */
+  pasteClipboard(): void {
+    if (!this.clipboard.length) return;
+    this.flushNudge();
+    const scene = this.player.scene;
+    const t0 = Math.min(...this.clipboard.map((en) => en.enter));
+    const at = round(
+      Math.max(0, Math.min(scene.len - 0.1, this.player.localTime)),
+    );
+    const before = this.history.snapshot(scene);
+    const added: ScheduleEntry[] = [];
+    for (const src of this.clipboard) {
+      const en = structuredClone(src);
+      /* keep the clip's length: when the playhead is too close to the scene
+         end, pull the clip back so it fits whole instead of truncating it */
+      const len = en.exit !== undefined ? en.exit - en.enter : 0;
+      en.enter = round(
+        Math.max(0, Math.min(scene.len - len, en.enter - t0 + at)),
+      );
+      if (en.exit !== undefined) {
+        en.exit = round(Math.min(scene.len, en.enter + len));
+      }
+      scene.schedule.push(en);
+      added.push(en);
+    }
+    this.history.commit(scene, before);
+    this.sync.changed(scene);
+    this.selected = new Set(added);
+    this.sel = added.length === 1
+      ? { id: added[0].id, entry: added[0] }
+      : null;
+    this.rebuild();
   }
 
   /* ----------------------------- selection ------------------------------ */
@@ -773,6 +927,7 @@ export class StageView {
       written to the scene.css override (live preview while dragging). */
   private beginFontResize(e: PointerEvent): void {
     if (!this.sel) return;
+    this.flushNudge();
     e.preventDefault();
     e.stopPropagation();
     const scene = this.player.scene;
@@ -892,6 +1047,7 @@ export class StageView {
   }
 
   deleteSelection(): void {
+    this.flushNudge();
     const scene = this.player.scene;
     /* remove every selected entry (falls back to the inspector target if the
        set is somehow empty but one is being edited) */
@@ -915,6 +1071,7 @@ export class StageView {
   /* ------------------------------ add clips ----------------------------- */
 
   private addEntry(id: string, cls?: string): void {
+    this.flushNudge();
     const scene = this.player.scene;
     const enter = round(Math.max(0, Math.min(scene.len - 0.1, this.player.localTime)));
     const wantCls = cls && cls !== "on" ? cls : undefined;
@@ -1108,6 +1265,7 @@ export class StageView {
       transform, so it doesn't fight the fx/.el motion). A pointerdown that
       doesn't move past the threshold is just a select. */
   private beginElementDrag(e: PointerEvent, node: HTMLElement, id: string): void {
+    this.flushNudge();
     const scene = this.player.scene;
     const startX = e.clientX, startY = e.clientY;
     const scale = this.getScale();
@@ -1614,6 +1772,7 @@ export class StageView {
   }
 
   private commit(scene: SceneData, mutate: () => void): void {
+    this.flushNudge();
     const before = this.history.snapshot(scene);
     mutate();
     this.history.commit(scene, before);

@@ -261,12 +261,23 @@ async function bootStudio(): Promise<void> {
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
+      stageView.flushNudge(); // a half-open nudge must land before undo pops
       const scene = e.shiftKey ? history.redo() : history.undo();
       if (scene) restoreScene(scene);
     } else if (ctrl && (e.key === "y" || e.key === "Y")) {
       e.preventDefault();
+      stageView.flushNudge();
       const scene = history.redo();
       if (scene) restoreScene(scene);
+    } else if (ctrl && (e.key === "c" || e.key === "C")) {
+      /* copy the selected clips in SCENE; anywhere else leave ctrl+C alone
+         (never toggle clean mode on it) */
+      if (mode.mode === "stage" && stageView.copySelection()) e.preventDefault();
+    } else if (ctrl && (e.key === "v" || e.key === "V")) {
+      if (mode.mode === "stage") {
+        e.preventDefault();
+        stageView.pasteClipboard();
+      }
     } else if (e.code === "Space") {
       e.preventDefault();
       /* Modes without the global timeline are take-centric: Space auditions the
@@ -296,7 +307,7 @@ async function bootStudio(): Promise<void> {
       if (mode.mode === "tune") tuneView.restart();
       else player.restartScene();
     }
-    else if (e.key === "c" || e.key === "C") {
+    else if (!ctrl && (e.key === "c" || e.key === "C")) {
       document.body.classList.toggle("clean");
       rescale();
     } else if (e.key === "i" || e.key === "I") {
@@ -316,18 +327,32 @@ async function bootStudio(): Promise<void> {
            Ctrl/Meta -> next/prev SCENE
            Alt       -> coarse +/-5 s seek
          Modifier combinations are mutually exclusive; pick the most specific
-         one set. */
+         one set.
+         In SCENE with a selection, the arrows edit instead of navigate:
+         plain/shift nudge the selected clips' timing (0.1s / 0.01s fine),
+         alt+arrows move the selected element (1px / 10px with shift).
+         Ctrl keeps scene nav; Escape clears the selection to get nav back. */
       e.preventDefault();
       const dir: -1 | 1 = e.key === "ArrowRight" ? 1 : -1;
-      if (e.altKey) {
+      if (!ctrl && mode.mode === "stage" && stageView.hasSelection()) {
+        if (e.altKey) stageView.nudgePosition(dir, 0, e.shiftKey);
+        else stageView.nudgeTiming(dir, e.shiftKey);
+      } else if (e.altKey) {
         player.seek(player.time + dir * 5);
-      } else if (e.ctrlKey || e.metaKey) {
+      } else if (ctrl) {
         player.seekScene(player.sceneIndex + dir);
       } else if (e.shiftKey) {
         stepSchedule(player, dir);
       } else {
         stepLine(player, dir);
       }
+    } else if (
+      (e.key === "ArrowUp" || e.key === "ArrowDown") && e.altKey &&
+      mode.mode === "stage" && stageView.hasSelection()
+    ) {
+      /* alt+↑/↓: vertical position nudge for the selected element */
+      e.preventDefault();
+      stageView.nudgePosition(0, e.key === "ArrowDown" ? 1 : -1, e.shiftKey);
     } else if (e.key === "[") player.seekScene(player.sceneIndex - 1);
     else if (e.key === "]") player.seekScene(player.sceneIndex + 1);
     else if (e.key >= "1" && e.key <= "9") {
