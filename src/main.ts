@@ -262,13 +262,23 @@ async function bootStudio(): Promise<void> {
     if (ctrl && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
       stageView.flushNudge(); // a half-open nudge must land before undo pops
+      /* the undo swaps the schedule-entry objects; re-resolve the selection
+         afterwards so the user doesn't have to re-select on every ctrl+Z */
+      const selSnap = stageView.captureSelection();
       const scene = e.shiftKey ? history.redo() : history.undo();
-      if (scene) restoreScene(scene);
+      if (scene) {
+        restoreScene(scene);
+        stageView.restoreSelection(selSnap);
+      }
     } else if (ctrl && (e.key === "y" || e.key === "Y")) {
       e.preventDefault();
       stageView.flushNudge();
+      const selSnap = stageView.captureSelection();
       const scene = history.redo();
-      if (scene) restoreScene(scene);
+      if (scene) {
+        restoreScene(scene);
+        stageView.restoreSelection(selSnap);
+      }
     } else if (ctrl && (e.key === "c" || e.key === "C")) {
       /* copy the selected clips in SCENE; anywhere else leave ctrl+C alone
          (never toggle clean mode on it) */
@@ -306,14 +316,16 @@ async function bootStudio(): Promise<void> {
          otherwise. The global restart button hides its ⇧R chip in TUNE. */
       if (mode.mode === "tune") tuneView.restart();
       else player.restartScene();
-    } else if (
-      (e.key === "e" || e.key === "E") && mode.mode === "stage" &&
-      stageView.hasSelection()
-    ) {
-      /* E replays the selected element's entrance (seek just before its
-         enter + play) — the fast loop for judging a timing/motion tweak */
-      e.preventDefault();
-      stageView.replayEntrance();
+    } else if (e.key === "e" || e.key === "E") {
+      /* E replays the selection: in SCENE the element's entrance, in TIME
+         the earliest selected clip — the fast loop for judging a tweak */
+      if (mode.mode === "stage" && stageView.hasSelection()) {
+        e.preventDefault();
+        stageView.replayEntrance();
+      } else if (mode.mode === "time" && tl.hasSelection()) {
+        e.preventDefault();
+        tl.replaySelection();
+      }
     }
     else if (!ctrl && (e.key === "c" || e.key === "C")) {
       document.body.classList.toggle("clean");

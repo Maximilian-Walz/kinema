@@ -1040,6 +1040,59 @@ export class StageView {
     return this.selected.size > 0 || !!this.sel;
   }
 
+  /** Selection descriptors that survive an undo/redo: History.apply swaps the
+      ScheduleEntry OBJECTS for clones, so the selection's references die and
+      the user had to re-select after every ctrl+Z. An entry is re-found as the
+      n-th entry with its id (schedule order); ones the restored snapshot no
+      longer contains simply drop out. */
+  captureSelection(): { selId: string | null; entries: Array<{ id: string; occ: number }> } {
+    const scene = this.player.scene;
+    const occOf = (entry: ScheduleEntry): number => {
+      let n = 0;
+      for (const s of scene.schedule) {
+        if (s === entry) return n;
+        if (s.id === entry.id) n++;
+      }
+      return -1;
+    };
+    return {
+      selId: this.sel?.id ?? null,
+      entries: [...this.selected]
+        .map((en) => ({ id: en.id, occ: occOf(en) }))
+        .filter((d) => d.occ >= 0),
+    };
+  }
+
+  /** re-resolve a captured selection against the restored schedule and repaint
+      (main.ts calls this right after restoreScene on undo/redo) */
+  restoreSelection(
+    snap: { selId: string | null; entries: Array<{ id: string; occ: number }> },
+  ): void {
+    if (!snap.selId && !snap.entries.length) return;
+    const scene = this.player.scene;
+    const resolve = (id: string, occ: number): ScheduleEntry | null => {
+      let n = 0;
+      for (const s of scene.schedule) {
+        if (s.id !== id) continue;
+        if (n === occ) return s;
+        n++;
+      }
+      return null;
+    };
+    const set = new Set<ScheduleEntry>();
+    for (const d of snap.entries) {
+      const en = resolve(d.id, d.occ);
+      if (en) set.add(en);
+    }
+    this.selected = set;
+    this.sel = snap.selId
+      ? { id: snap.selId, entry: [...set].find((s) => s.id === snap.selId) ?? null }
+      : null;
+    this.paintSelected();
+    this.applyHighlight();
+    this.renderInspector();
+  }
+
   /** E: replay the selected element's entrance — seek a beat before its enter
       and play, so a timing or duration tweak can be judged immediately. */
   replayEntrance(): void {
@@ -1761,6 +1814,18 @@ export class StageView {
     const themeDur = node
       ? parseFloat(getComputedStyle(node).transitionDuration) || 0.5
       : 0.5;
+
+    /* Probe whether the theme's .fx-* transition actually reads var(--fx-dur):
+       set it inline for a moment and see if the computed duration follows. A
+       theme that hard-codes the duration would swallow these controls without
+       any feedback — warn and disable them instead. */
+    let varSupported = true;
+    if (node) {
+      node.style.setProperty("--fx-dur", "0.123s");
+      varSupported =
+        Math.abs(parseFloat(getComputedStyle(node).transitionDuration) - 0.123) < 1e-3;
+      node.style.removeProperty("--fx-dur");
+    }
     const cur = parseFloat(ov["--fx-dur"] ?? "");
     const durInput = el("input", {
       type: "number", class: "sv-input sv-num",
@@ -1802,6 +1867,16 @@ export class StageView {
     easeSel.onchange = () =>
       this.commitStyle(scene, entry.id, { "--fx-ease": easeSel.value || null });
     parent.appendChild(this.field("easing", easeSel));
+
+    if (!varSupported) {
+      durInput.disabled = true;
+      easeSel.disabled = true;
+      parent.appendChild(el("div", {
+        class: "sv-insp-warn",
+        text:
+          "This project's theme hard-codes the preset duration — wrap it in var(--fx-dur, …) / var(--fx-ease, …) in theme.css to enable these controls.",
+      }));
+    }
   }
 
   /* ------------------------------ helpers ------------------------------- */

@@ -524,6 +524,17 @@ export class Timeline {
     return this.selection.size > 0;
   }
 
+  /** E: replay from just before the earliest selected clip — the TIME-mode
+      analogue of SCENE's replay-entrance, for judging a retimed line/caption. */
+  replaySelection(): void {
+    const starts = this.clips
+      .filter((c) => c.key && this.selection.has(c.key) && c.edges)
+      .map((c) => c.edges!()[0]);
+    if (!starts.length) return;
+    this.player.seek(Math.max(0, Math.min(...starts) - 0.5));
+    this.player.setPlaying(true);
+  }
+
   /** clear the selection without touching the model */
   clearSelection(): void {
     this.setSelection([]);
