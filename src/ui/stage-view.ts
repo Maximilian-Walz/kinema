@@ -242,7 +242,7 @@ export class StageView {
       el("span", {
         class: "sv-hint",
         text:
-          "click an element in the preview to select · drag it to move · ←/→ nudge timing (⇧ fine) · alt+arrows move · ctrl+C/V copy clips · del = remove from schedule",
+          "click selects · alt+click picks the exact element (auto-id) · drag moves · ←/→ nudge timing (⇧ fine) · alt+arrows move · ctrl+C/V copy clips · del removes",
       }),
     );
 
@@ -1135,12 +1135,94 @@ export class StageView {
 
   private onPreviewPointerDown = (e: PointerEvent): void => {
     if (this.editing) return; // let the caret place inside the editable
+    if (e.altKey) {
+      /* alt+click: pick EXACTLY the element under the cursor (not its nearest
+         id-bearing ancestor), assigning it a generated id first if it has
+         none. Select-only — the scene remounts when an id is written, so a
+         drag can't continue on the stale node. */
+      e.stopPropagation();
+      e.preventDefault();
+      void this.pickExactAt(e.clientX, e.clientY);
+      return;
+    }
     const node = this.pickAt(e.clientX, e.clientY);
     if (!node) return;
     e.stopPropagation();
     if (!this.sel || this.sel.id !== node.id) this.selectElement(node.id);
     this.beginElementDrag(e, node, node.id);
   };
+
+  /** topmost VISIBLE element under the point, id or not (for alt+click) */
+  private exactAt(clientX: number, clientY: number): Element | null {
+    const content = document.getElementById("scenecontent");
+    if (!content) return null;
+    for (const n of document.elementsFromPoint(clientX, clientY)) {
+      if (!(n instanceof Element) || !content.contains(n) || n === content) continue;
+      if (n.id === "caption") continue;
+      if (this.isVisible(n)) return n;
+    }
+    return null;
+  }
+
+  /** alt+click handler: select the exact element, writing a generated id into
+      scene.html first when it has none (the one gap in pick-from-stage). The
+      id is inserted source-side via the nearest id-bearing ancestor + child
+      path, so the rest of the file — and any runtime-only DOM state — is
+      untouched. Undoable. */
+  private async pickExactAt(clientX: number, clientY: number): Promise<void> {
+    const node = this.exactAt(clientX, clientY);
+    if (!node) return;
+    if (node.id && /^[\w.-]+$/.test(node.id)) {
+      this.selectElement(node.id);
+      return;
+    }
+    /* walk up to the nearest addressable ancestor, recording element-child
+       indexes on the way (matches Element.children on the server side) */
+    const content = document.getElementById("scenecontent");
+    const path: number[] = [];
+    let cur: Element = node;
+    let anc: Element | null = node.parentElement;
+    while (anc && anc !== content && !(anc.id && /^[\w.-]+$/.test(anc.id))) {
+      path.unshift(Array.prototype.indexOf.call(anc.children, cur));
+      cur = anc;
+      anc = anc.parentElement;
+    }
+    if (!anc || anc === content) {
+      console.warn("[stage] can't assign an id: no id-bearing ancestor — give the element (or a wrapper) an id in scene.html");
+      return;
+    }
+    path.unshift(Array.prototype.indexOf.call(anc.children, cur));
+
+    const scene = this.player.scene;
+    const newId = this.generateId(node);
+    this.flushNudge();
+    const before = this.history.snapshot(scene);
+    try {
+      const html = await api.assignElementId(scene.id, anc.id, path, newId);
+      this.player.replaceSceneHtml(scene, html);
+      this.history.commit(scene, before);
+      this.selectElement(newId);
+      this.rebuild();
+    } catch (err) {
+      console.warn("[stage] assign id failed:", err);
+    }
+  }
+
+  /** a readable, unique id for an element: its first sensible class name (else
+      the tag), suffixed with a counter until unused in the mounted scene */
+  private generateId(node: Element): string {
+    const cls = (node.getAttribute("class") ?? "")
+      .split(/\s+/)
+      .find((c) => /^[a-zA-Z][\w-]*$/.test(c) && !c.startsWith("fx-"));
+    const base = (cls || node.tagName.toLowerCase()).toLowerCase();
+    const content = document.getElementById("scenecontent");
+    const used = (id: string): boolean =>
+      !!content?.querySelector("#" + CSS.escape(id)) || id === "caption" ||
+      id === "scenecontent";
+    let id = base, i = 1;
+    while (used(id)) id = `${base}-${++i}`;
+    return id;
+  }
 
   private onPreviewPointerMove = (e: PointerEvent): void => {
     if (this.dragging || this.editing) return;

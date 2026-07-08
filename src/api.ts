@@ -74,6 +74,21 @@ export async function setElementHtml(sceneId: string, elId: string, html: string
   return (await r.json()).html as string;
 }
 
+/** Insert id="newId" on the element reached by `path` (element-child indexes)
+    under #ancestorId in scene.html; returns the whole updated scene html. */
+export async function assignElementId(
+  sceneId: string,
+  ancestorId: string,
+  path: number[],
+  newId: string,
+): Promise<string> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/element-id`), {
+    method: 'PUT',
+    body: JSON.stringify({ ancestorId, path, newId }),
+  }));
+  return (await r.json()).html as string;
+}
+
 /** Upsert visual override declarations for #elId into the generated overrides
     region of scene.css (size/colour/position). A null/empty value drops that
     property. Returns the updated CSS. */

@@ -329,6 +329,86 @@ export function createApi({ registry }) {
       return next;
     }
 
+    /* Find the n-th ELEMENT child (comments/text skipped) inside src[from,to).
+       Returns its open-tag range + inner range, or null. Element indexes match
+       DOM Element.children, so a client-computed child path resolves here. */
+    function nthElementChild(src, from, to, n) {
+      const tagRe = /<!--|<\s*(\/?)([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^"'>])*)>/g;
+      tagRe.lastIndex = from;
+      let depth = 0, count = 0, target = null, m;
+      while ((m = tagRe.exec(src)) && m.index < to) {
+        if (m[0] === '<!--') {
+          const end = src.indexOf('-->', m.index + 4);
+          if (end < 0) return null;
+          tagRe.lastIndex = end + 3;
+          continue;
+        }
+        const closing = m[1] === '/';
+        const tag = m[2].toLowerCase();
+        const selfClosed = VOID_TAGS.has(tag) || /\/\s*>$/.test(m[0]);
+        if (closing) {
+          if (depth === 0) return null; // ancestor's own close — malformed range
+          depth--;
+          if (target && depth === 0) return { ...target, innerEnd: m.index };
+          continue;
+        }
+        if (depth === 0) {
+          if (count === n) {
+            target = {
+              openStart: m.index,
+              openEnd: tagRe.lastIndex,
+              innerStart: tagRe.lastIndex,
+            };
+            if (selfClosed) return { ...target, innerEnd: tagRe.lastIndex };
+          }
+          count++;
+        }
+        if (!selfClosed) depth++;
+      }
+      return null;
+    }
+
+    /* Insert id="newId" into the open tag of the element reached by walking
+       `childPath` (element-child indexes, as in DOM Element.children) down from
+       #ancestorId. A pure source-level insertion: every other byte of
+       scene.html is preserved, so no runtime DOM state can leak into the file.
+       Backs pick-from-stage for elements the author gave no id. */
+    function assignElementId(sid, ancestorId, childPath, newId) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      if (!safeName(ancestorId)) throw new Error('bad ancestor id');
+      if (!/^[a-zA-Z][\w-]*$/.test(newId)) throw new Error('bad new id');
+      if (
+        !Array.isArray(childPath) || !childPath.length ||
+        childPath.some((i) => !Number.isInteger(i) || i < 0)
+      ) throw new Error('bad child path');
+      const file = path.join(projectDir, 'scenes', sid, 'scene.html');
+      let src;
+      try { src = fs.readFileSync(file, 'utf8'); } catch { throw new Error('scene.html not found'); }
+      const idRe = /\sid\s*=\s*("([^"]*)"|'([^']*)')/g;
+      let im;
+      while ((im = idRe.exec(src))) {
+        if ((im[2] !== undefined ? im[2] : im[3]) === newId) {
+          throw new Error('#' + newId + ' already exists in scene.html');
+        }
+      }
+      let { innerStart, innerEnd } = locateElementInner(src, ancestorId);
+      let el = null;
+      for (const idx of childPath) {
+        el = nthElementChild(src, innerStart, innerEnd, idx);
+        if (!el) throw new Error('child path does not resolve in scene.html');
+        innerStart = el.innerStart;
+        innerEnd = el.innerEnd;
+      }
+      const openTag = src.slice(el.openStart, el.openEnd);
+      const patched = openTag.replace(
+        /^(<\s*[a-zA-Z][\w-]*)/,
+        `$1 id="${newId}"`,
+      );
+      const next = src.slice(0, el.openStart) + patched + src.slice(el.openEnd);
+      writeFileTracked(file, next);
+      return next;
+    }
+
     /* Per-element visual overrides live in a generated region of scene.css, one
        `#id{...}` rule each, so the studio can tweak size/colour/position without
        touching hand-authored CSS. We parse the region, upsert this id's
@@ -464,7 +544,7 @@ export function createApi({ registry }) {
     return {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
       loadProject, sceneIds, lineIds, writeTimings, setElementText,
-      setElementHtml, setElementStyle, putSceneHtml, putSceneCss,
+      setElementHtml, setElementStyle, assignElementId, putSceneHtml, putSceneCss,
       sectionTakesDir, sectionKey,
       readTakesState, writeTakesState, listTakes, listSection,
     };
@@ -570,6 +650,24 @@ export function createApi({ registry }) {
         }
         try {
           const html = ctx.setElementHtml(id, body.id, body.html);
+          json(res, 200, { ok: true, html });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/element-id$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (
+          typeof body.ancestorId !== 'string' || typeof body.newId !== 'string' ||
+          !Array.isArray(body.path)
+        ) {
+          json(res, 400, { error: 'ancestorId, path and newId are required' }); return;
+        }
+        try {
+          const html = ctx.assignElementId(id, body.ancestorId, body.path, body.newId);
           json(res, 200, { ok: true, html });
         } catch (err) {
           json(res, 400, { error: String(err.message || err) });
