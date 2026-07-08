@@ -482,9 +482,13 @@ export class TuneView {
                     playheadAt,
                     onInPointChange: async (inPoint: number) => {
                         /* slip moved the window start; park the playhead there,
-                           persist, and replay the new slice */
+                           persist, and replay the new slice. Snapshot/commit
+                           bracket the change so the history hooks (which carry
+                           the take windows) make the slip undoable even though
+                           no scene file changes. */
                         this.selectedFile = tk.file;
                         this.startAt = inPoint;
+                        const before = this.history.snapshot(scene);
                         await api.setTakeInPoint(
                             scene.id,
                             activeId,
@@ -492,6 +496,7 @@ export class TuneView {
                             inPoint,
                         );
                         await this.takes.refresh();
+                        this.history.commit(scene, before);
                         this.play();
                     },
                     onResize: (inPoint: number, len: number) =>
