@@ -231,7 +231,10 @@ export class TuneView {
 
     /** Apply a window-edge re-length: set the line's length to `newLen` (start
         pinned), ripple every later line / schedule entry / caption by the delta,
-        and persist. Left-edge drags also move the in-point. Undoable. */
+        and persist. Left-edge drags also move the in-point. One undoable
+        transaction: the in-point is persisted BEFORE the commit so the history
+        hooks capture old + new window state alongside the timings, and a single
+        ctrl+Z restores both. */
     private async applyRelength(
         lineId: string,
         file: string,
@@ -241,10 +244,16 @@ export class TuneView {
         const scene = this.player.scene;
         const line = scene.lines.find((l) => l.id === lineId);
         if (!line) return;
+        const before = this.history.snapshot(scene);
+        const sect = this.takes.section(scene.id, lineId);
+        const inChanged = Math.abs((sect?.inPoint ?? 0) - inPoint) > 1e-4;
+        if (inChanged) {
+            await api.setTakeInPoint(scene.id, lineId, file, inPoint);
+            await this.takes.refresh();
+        }
         const delta = newLen - (line.to - line.from);
         if (Math.abs(delta) > 1e-4) {
             const anchor = line.to; // old end; content at/after it shifts
-            const before = this.history.snapshot(scene);
             line.to = line.from + newLen;
             for (const ln of scene.lines) {
                 if (ln === line) continue;
@@ -262,16 +271,10 @@ export class TuneView {
                 if (c.to >= anchor) c.to += delta;
             }
             scene.len += delta;
-            this.history.commit(scene, before);
             this.sync.changed(scene); // refresh engine + debounced putTimings
         }
-        const sect = this.takes.section(scene.id, lineId);
-        if (Math.abs((sect?.inPoint ?? 0) - inPoint) > 1e-4) {
-            await api.setTakeInPoint(scene.id, lineId, file, inPoint);
-            await this.takes.refresh();
-        } else {
-            this.render();
-        }
+        this.history.commit(scene, before); // no-op when nothing changed
+        if (!inChanged && Math.abs(delta) <= 1e-4) this.render();
     }
 
     /* ------------------------------- render ------------------------------- */

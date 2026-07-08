@@ -359,12 +359,16 @@ export class Timeline {
           const absFrom = this.player.offsets[si] + item.from;
           const left = absFrom * this.pps;
           clip.style.left = left + "px";
-          /* min width keeps a tiny clip clickable, but cap it at the next clip's
-             start (across all scenes) so zooming out doesn't make neighbours
-             visually overlap when their times don't */
+          /* min width keeps a tiny clip clickable, but cap the INFLATION at the
+             next clip's start (across all scenes) so zooming out doesn't make
+             neighbours visually overlap when their times don't. Never cap below
+             the true scaled width though: `starts` is stale mid-drag, so the cap
+             would visibly shrink a clip as it is dragged toward its neighbour —
+             and a genuine overlap should paint as one. */
+          const trueW = (item.to - item.from) * this.pps - 1;
           const nextStart = starts.find((s) => s > absFrom + 1e-6);
           const capPx = nextStart != null ? nextStart * this.pps - left - 1 : Infinity;
-          const w = Math.max(2, Math.min(Math.max(6, (item.to - item.from) * this.pps - 1), capPx));
+          const w = Math.max(2, trueW, Math.min(Math.max(6, trueW), capPx));
           clip.style.width = w + "px";
           clip.classList.toggle("tl-narrow", w < 16); // below the 2×8px padding floor
         };

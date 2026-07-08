@@ -16,6 +16,20 @@ export interface SceneSnapshot {
      scene.json — snapshot them too so those edits are undoable as well. */
   html: string;
   css: string;
+  /* opaque extra state captured alongside the scene by the hooks (e.g. take
+     in-points, which live in takes.json) so a transaction that changes both
+     undoes as one step. */
+  extra?: unknown;
+}
+
+/** Capture/restore state that belongs to a transaction but lives outside the
+    scene files (e.g. the take windows in takes.json). `capture` must return a
+    JSON-serialisable value; `restore` is only invoked when the edit being
+    undone/redone actually changed that value, so unrelated undos never clobber
+    edits made outside the history (a slip between two transactions stays). */
+export interface HistoryHooks {
+  capture(scene: SceneData): unknown;
+  restore(scene: SceneData, extra: unknown): void;
 }
 
 interface Edit {
@@ -29,6 +43,11 @@ const LIMIT = 200;
 export class History {
   private undoStack: Edit[] = [];
   private redoStack: Edit[] = [];
+  private readonly hooks?: HistoryHooks;
+
+  constructor(hooks?: HistoryHooks) {
+    this.hooks = hooks;
+  }
 
   snapshot(scene: SceneData): SceneSnapshot {
     return structuredClone({
@@ -38,6 +57,7 @@ export class History {
       lines: scene.lines,
       html: scene.html,
       css: scene.css,
+      extra: this.hooks?.capture(scene),
     });
   }
 
@@ -55,6 +75,7 @@ export class History {
     const edit = this.undoStack.pop();
     if (!edit) return null;
     this.apply(edit.scene, edit.before);
+    this.restoreExtra(edit, edit.before);
     this.redoStack.push(edit);
     return edit.scene;
   }
@@ -63,8 +84,18 @@ export class History {
     const edit = this.redoStack.pop();
     if (!edit) return null;
     this.apply(edit.scene, edit.after);
+    this.restoreExtra(edit, edit.after);
     this.undoStack.push(edit);
     return edit.scene;
+  }
+
+  /** hand the target snapshot's extra state to the hooks — but only when THIS
+      edit changed it, so undoing an unrelated edit can't roll back extra state
+      modified outside the history in the meantime */
+  private restoreExtra(edit: Edit, target: SceneSnapshot): void {
+    if (!this.hooks) return;
+    if (JSON.stringify(edit.before.extra) === JSON.stringify(edit.after.extra)) return;
+    this.hooks.restore(edit.scene, structuredClone(target.extra));
   }
 
   private apply(scene: SceneData, snap: SceneSnapshot): void {

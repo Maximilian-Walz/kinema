@@ -1,4 +1,4 @@
-import { fetchProject, getProject, putSceneCss, putSceneHtml } from "./api";
+import { fetchProject, getProject, putSceneCss, putSceneHtml, setTakeInPoint } from "./api";
 import { MicMonitor, PlaybackMeter } from "./audio/monitor";
 import { Takes } from "./audio/takes";
 import { Player } from "./engine/player";
@@ -142,7 +142,40 @@ async function bootStudio(): Promise<void> {
   const player = new Player(project, content, sceneStyle);
   const takes = new Takes(player);
   const sync = new TimingSync(player);
-  const history = new History();
+  /* Take windows (in-points) live in takes.json, outside the scene snapshot,
+     but a TUNE re-length changes them together with the line timings — the
+     history hooks fold them into the same transaction so one ctrl+Z restores
+     both. capture() runs per snapshot (cheap: one small object per line);
+     restore() only fires for edits that actually changed a window. */
+  type TakeWindows = Record<string, { file: string; inPoint: number }>;
+  const history = new History({
+    capture: (scene) => {
+      const out: TakeWindows = {};
+      for (const ln of scene.lines) {
+        if (!ln.id) continue;
+        const sect = takes.section(scene.id, ln.id);
+        if (sect?.candidate) {
+          out[ln.id] = { file: sect.candidate, inPoint: sect.inPoint ?? 0 };
+        }
+      }
+      return out;
+    },
+    restore: (scene, extra) => {
+      void (async () => {
+        let changed = false;
+        for (const [lineId, win] of Object.entries((extra ?? {}) as TakeWindows)) {
+          const sect = takes.section(scene.id, lineId);
+          /* only lines whose window differs, and only if the same take is
+             still the candidate — never resurrect a window onto another take */
+          if (sect?.candidate !== win.file) continue;
+          if (Math.abs((sect.inPoint ?? 0) - win.inPoint) <= 1e-4) continue;
+          await setTakeInPoint(scene.id, lineId, win.file, win.inPoint);
+          changed = true;
+        }
+        if (changed) await takes.refresh();
+      })().catch((err) => console.warn("[undo] take window restore failed:", err));
+    },
+  });
   const mode = new WorkspaceMode();
   mode.installHotkeys();
   const micMonitor = new MicMonitor(takes);
