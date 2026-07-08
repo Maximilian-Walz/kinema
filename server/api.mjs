@@ -557,15 +557,25 @@ export function createApi({ registry }) {
       return newId;
     }
 
-    /** rewrite project.json's scene order (must be a permutation of it) */
+    /* Rewrite project.json's scene list. Accepts any non-empty, duplicate-free
+       list of scene folders that exist on disk — not just permutations — so
+       the client's undoable delete (drop the id, keep the folder) and its
+       inverse (re-add an id whose folder is still there) both go through it. */
     function reorderScenes(order) {
       const projFile = path.join(projectDir, 'project.json');
       const proj = readJson(projFile, null);
       if (!proj || !Array.isArray(proj.scenes)) throw new Error('project.json not found');
-      if (
-        !Array.isArray(order) || order.length !== proj.scenes.length ||
-        [...order].sort().join('\n') !== [...proj.scenes].sort().join('\n')
-      ) throw new Error('order must be a permutation of the current scenes');
+      if (!Array.isArray(order) || !order.length) {
+        throw new Error('a project needs at least one scene');
+      }
+      const seen = new Set();
+      for (const sid of order) {
+        if (!safeName(sid) || seen.has(sid)) throw new Error('bad scene list');
+        seen.add(sid);
+        if (!fs.existsSync(path.join(projectDir, 'scenes', sid, 'scene.json'))) {
+          throw new Error('unknown scene ' + sid);
+        }
+      }
       proj.scenes = order;
       writeFileTracked(projFile, JSON.stringify(proj, null, 2) + '\n');
     }

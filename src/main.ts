@@ -1,4 +1,4 @@
-import { fetchProject, getProject, putSceneCss, putSceneHtml, setTakeInPoint } from "./api";
+import { fetchProject, getProject, putSceneCss, putSceneHtml, reorderScenes, setTakeInPoint } from "./api";
 import { MicMonitor, PlaybackMeter } from "./audio/monitor";
 import { Takes } from "./audio/takes";
 import { Player } from "./engine/player";
@@ -247,6 +247,15 @@ async function bootStudio(): Promise<void> {
     sync.changed(scene); // refresh + persist timings (scene.json)
   }
 
+  /* undo/redo of a scene-list reshape (reorder / duplicate / delete): apply
+     in memory (Player keeps the mount coherent) + persist to project.json.
+     Scene folders never move — delete only drops the project.json entry. */
+  function restoreSceneOrder(scenes: SceneData[]): void {
+    player.setSceneOrder(scenes);
+    void reorderScenes(scenes.map((s) => s.id))
+      .catch((err) => console.warn("[undo] scene order save failed:", err));
+  }
+
   /* ----------------------------- keyboard ------------------------------- */
   document.addEventListener("keydown", (e) => {
     const t = e.target as HTMLElement;
@@ -265,19 +274,23 @@ async function bootStudio(): Promise<void> {
       /* the undo swaps the schedule-entry objects; re-resolve the selection
          afterwards so the user doesn't have to re-select on every ctrl+Z */
       const selSnap = stageView.captureSelection();
-      const scene = e.shiftKey ? history.redo() : history.undo();
-      if (scene) {
-        restoreScene(scene);
+      const res = e.shiftKey ? history.redo() : history.undo();
+      if (res?.kind === "scene") {
+        restoreScene(res.scene);
         stageView.restoreSelection(selSnap);
+      } else if (res?.kind === "project") {
+        restoreSceneOrder(res.scenes);
       }
     } else if (ctrl && (e.key === "y" || e.key === "Y")) {
       e.preventDefault();
       stageView.flushNudge();
       const selSnap = stageView.captureSelection();
-      const scene = history.redo();
-      if (scene) {
-        restoreScene(scene);
+      const res = history.redo();
+      if (res?.kind === "scene") {
+        restoreScene(res.scene);
         stageView.restoreSelection(selSnap);
+      } else if (res?.kind === "project") {
+        restoreSceneOrder(res.scenes);
       }
     } else if (ctrl && (e.key === "c" || e.key === "C")) {
       /* copy the selected clips in SCENE; anywhere else leave ctrl+C alone

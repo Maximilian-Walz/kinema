@@ -309,8 +309,9 @@ export class Timeline {
         this.seekDrag(e);
       };
 
-      /* scene ops (hover-visible): reorder + duplicate. These rewrite
-         project.json — project-level, so NOT part of the scene-scoped undo. */
+      /* scene ops (hover-visible): reorder / duplicate / delete. They rewrite
+         project.json and are undoable (ctrl+Z); delete only drops the entry —
+         the scenes/<id> folder stays on disk. */
       const ops = el("div", { class: "tl-scene-ops" });
       const op = (text: string, title: string, onclick: () => void): void => {
         const b = el("button", { class: "tl-scene-op", text, title });
@@ -322,15 +323,17 @@ export class Timeline {
         ops.appendChild(b);
       };
       if (i > 0) {
-        op("◀", "move this scene one earlier (rewrites project.json; not undoable)",
-          () => void this.moveScene(i, -1));
+        op("◀", "move this scene one earlier", () => void this.moveScene(i, -1));
       }
       if (i < this.player.project.scenes.length - 1) {
-        op("▶", "move this scene one later (rewrites project.json; not undoable)",
-          () => void this.moveScene(i, 1));
+        op("▶", "move this scene one later", () => void this.moveScene(i, 1));
       }
-      op("⧉", "duplicate this scene after itself (voice takes are not copied; not undoable)",
+      op("⧉", "duplicate this scene after itself (voice takes are not copied)",
         () => void this.duplicateScene(i));
+      if (this.player.project.scenes.length > 1) {
+        op("✕", "remove this scene from the film — the scenes/ folder stays on disk; ctrl+Z restores it",
+          () => void this.deleteScene(i));
+      }
       block.appendChild(ops);
       handle.onpointerdown = (e) => {
         e.stopPropagation();
@@ -351,46 +354,53 @@ export class Timeline {
     return track;
   }
 
-  /* Re-derive playback after the scenes array changed shape (reorder/insert).
-     The player's `mounted` field is an INDEX, so when the current scene lands
-     on a different index the stale DOM would stay up — seek the same scene at
-     its new index to force the remount, then refresh every view. */
-  private applySceneOrder(mutate: () => void): void {
-    const cur = this.player.scene;
-    const local = this.player.localTime;
-    mutate();
-    this.player.recomputeOffsets();
-    const ni = this.player.project.scenes.indexOf(cur);
-    this.player.seekScene(Math.max(0, ni), local);
-    this.player.refreshTimings(); // 'timings' → every view rebuilds
-  }
-
-  private async moveScene(index: number, dir: -1 | 1): Promise<void> {
-    const scenes = this.player.project.scenes;
-    const j = index + dir;
-    if (j < 0 || j >= scenes.length) return;
-    const order = scenes.map((s) => s.id);
-    [order[index], order[j]] = [order[j], order[index]];
+  /* Scene-list reshapes (reorder / duplicate / delete) all funnel through
+     here: record the project-level history edit (so ctrl+Z works), apply in
+     memory (Player keeps the mount coherent + emits 'timings') and persist
+     the new order to project.json. Scene folders never move — delete only
+     drops the entry, so undo can always bring a scene back. */
+  private async setScenes(after: SceneData[]): Promise<void> {
+    const before = [...this.player.project.scenes];
     try {
-      await api.reorderScenes(order);
+      await api.reorderScenes(after.map((s) => s.id));
     } catch (err) {
-      console.warn("[time] scene reorder failed:", err);
+      console.warn("[time] scene order save failed:", err);
       return;
     }
-    this.applySceneOrder(() => {
-      const [moved] = scenes.splice(index, 1);
-      scenes.splice(j, 0, moved);
-    });
+    this.history.commitProject(before, after);
+    this.player.setSceneOrder(after);
+  }
+
+  private moveScene(index: number, dir: -1 | 1): Promise<void> {
+    const scenes = this.player.project.scenes;
+    const j = index + dir;
+    if (j < 0 || j >= scenes.length) return Promise.resolve();
+    const after = [...scenes];
+    [after[index], after[j]] = [after[j], after[index]];
+    return this.setScenes(after);
   }
 
   private async duplicateScene(index: number): Promise<void> {
     const scenes = this.player.project.scenes;
     try {
+      /* the server copies the folder AND inserts it into project.json; the
+         setScenes persist below is a no-op rewrite of the same order, kept so
+         duplicate shares the history/apply path with move + delete */
       const { scene } = await api.duplicateScene(scenes[index].id);
-      this.applySceneOrder(() => scenes.splice(index + 1, 0, scene));
+      const after = [...scenes];
+      after.splice(index + 1, 0, scene);
+      await this.setScenes(after);
     } catch (err) {
       console.warn("[time] scene duplicate failed:", err);
     }
+  }
+
+  private deleteScene(index: number): Promise<void> {
+    const scenes = this.player.project.scenes;
+    if (scenes.length <= 1) return Promise.resolve(); // never empty the film
+    const after = [...scenes];
+    after.splice(index, 1);
+    return this.setScenes(after);
   }
 
   /* ------------------------- script + captions --------------------------- */

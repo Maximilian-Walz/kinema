@@ -75,6 +75,26 @@ export class Player {
     this.events.emit('timings');
   }
 
+  /** Replace the scene list (reorder / insert / remove), keeping playback
+      coherent: `mounted` is an INDEX, so when the current scene lands on a
+      different index (or disappears) the stale DOM would stay up. Follow the
+      scene that was current to its new index; if it was removed, force a
+      remount at the clamped time. Emits 'timings' so every view rebuilds. */
+  setSceneOrder(scenes: SceneData[]): void {
+    const cur = this.scene;
+    const local = this.localTime;
+    this.project.scenes.splice(0, this.project.scenes.length, ...scenes);
+    this.recomputeOffsets();
+    const ni = this.project.scenes.indexOf(cur);
+    if (ni >= 0) {
+      this.update(this.offsets[ni] + Math.min(local, scenes[ni].len));
+    } else {
+      this.mounted = -1; // the mounted scene is gone — remount whatever is here
+      this.update(Math.min(this.time, this.total));
+    }
+    this.events.emit('timings');
+  }
+
   cursor(time = this.time): SceneCursor {
     const scenes = this.project.scenes;
     for (let i = scenes.length - 1; i >= 0; i--) {
