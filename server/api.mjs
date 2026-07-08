@@ -419,6 +419,9 @@ export function createApi({ registry }) {
     const STYLE_PROPS = new Set([
       'font-size', 'color', 'background', 'background-color', 'translate',
       'text-align', 'letter-spacing', 'line-height', 'opacity', 'font-weight',
+      /* per-element fx preset tuning: the theme's .fx-* transitions read these
+         custom properties (var(--fx-dur, …) / var(--fx-ease, …)) */
+      '--fx-dur', '--fx-ease',
     ]);
     function parseDeclString(s) {
       const out = {};

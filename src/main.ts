@@ -306,6 +306,14 @@ async function bootStudio(): Promise<void> {
          otherwise. The global restart button hides its ⇧R chip in TUNE. */
       if (mode.mode === "tune") tuneView.restart();
       else player.restartScene();
+    } else if (
+      (e.key === "e" || e.key === "E") && mode.mode === "stage" &&
+      stageView.hasSelection()
+    ) {
+      /* E replays the selected element's entrance (seek just before its
+         enter + play) — the fast loop for judging a timing/motion tweak */
+      e.preventDefault();
+      stageView.replayEntrance();
     }
     else if (!ctrl && (e.key === "c" || e.key === "C")) {
       document.body.classList.toggle("clean");

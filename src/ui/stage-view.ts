@@ -1040,6 +1040,21 @@ export class StageView {
     return this.selected.size > 0 || !!this.sel;
   }
 
+  /** E: replay the selected element's entrance — seek a beat before its enter
+      and play, so a timing or duration tweak can be judged immediately. */
+  replayEntrance(): void {
+    const entry = this.sel?.entry ??
+      (this.selected.size ? [...this.selected][0] : null);
+    if (!entry) return;
+    this.flushNudge();
+    const pre = 0.5; // enough to see the hidden "before" state settle
+    this.player.seekScene(
+      this.player.sceneIndex,
+      Math.max(0, entry.enter - pre),
+    );
+    this.player.setPlaying(true);
+  }
+
   /** clear the selection (Escape) */
   clearSelection(): void {
     this.select(null);
@@ -1698,6 +1713,8 @@ export class StageView {
     this.stopKeys(fxSel);
     parent.appendChild(this.field("animation", fxSel));
 
+    if (entry.fx) this.appendFxTuning(parent, scene, entry);
+
     /* The dropdown only reflects the schedule's `fx` field. When an element has
        no preset but still animates (a class like .el / .ovl with a CSS
        transition), "none" looks wrong — say so, and that a preset overrides it. */
@@ -1731,6 +1748,60 @@ export class StageView {
     del.onclick = () => this.deleteSelection();
     parent.appendChild(del);
     return true;
+  }
+
+  /** Per-element preset tuning: duration + easing, written as --fx-dur /
+      --fx-ease overrides the theme's .fx-* transitions read via var(). Only
+      shown when a preset is picked. `E` replays the entrance to judge it. */
+  private appendFxTuning(parent: HTMLElement, scene: SceneData, entry: ScheduleEntry): void {
+    const ov = this.parseOverrides(scene.css, entry.id);
+
+    /* theme default duration, for the placeholder (first transition item) */
+    const node = this.sceneEl(entry.id);
+    const themeDur = node
+      ? parseFloat(getComputedStyle(node).transitionDuration) || 0.5
+      : 0.5;
+    const cur = parseFloat(ov["--fx-dur"] ?? "");
+    const durInput = el("input", {
+      type: "number", class: "sv-input sv-num",
+      min: "0.05", max: "10", step: "0.05",
+      value: Number.isFinite(cur) ? String(cur) : "",
+      placeholder: String(themeDur),
+      title: "entrance/exit duration in seconds (empty = theme default) — press E to replay",
+    }) as HTMLInputElement;
+    this.stopKeys(durInput);
+    durInput.onchange = () => {
+      const v = Number(durInput.value);
+      this.commitStyle(scene, entry.id, {
+        "--fx-dur": v > 0 ? `${Math.min(10, Math.max(0.05, v))}s` : null,
+      });
+    };
+    const durReset = this.resetBtn(
+      () => this.commitStyle(scene, entry.id, { "--fx-dur": null }),
+      !ov["--fx-dur"],
+    );
+    parent.appendChild(this.field(
+      "duration (s) · E replays",
+      el("div", { class: "sv-insp-inline" }, durInput, durReset),
+    ));
+
+    const EASINGS: Array<[string, string]> = [
+      ["", "theme default"],
+      ["ease-out", "ease out"],
+      ["ease-in-out", "ease in-out"],
+      ["linear", "linear"],
+      ["cubic-bezier(.2,.9,.25,1.25)", "overshoot"],
+    ];
+    const easeSel = el("select", { class: "sv-select" }) as HTMLSelectElement;
+    for (const [val, label] of EASINGS) {
+      const opt = el("option", { value: val, text: label }) as HTMLOptionElement;
+      if ((ov["--fx-ease"] ?? "") === val) opt.selected = true;
+      easeSel.appendChild(opt);
+    }
+    this.stopKeys(easeSel);
+    easeSel.onchange = () =>
+      this.commitStyle(scene, entry.id, { "--fx-ease": easeSel.value || null });
+    parent.appendChild(this.field("easing", easeSel));
   }
 
   /* ------------------------------ helpers ------------------------------- */

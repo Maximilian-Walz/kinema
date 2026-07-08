@@ -167,6 +167,12 @@ shared `.fx-*.on` reset — is in
 [projects/intro/theme.css](../projects/intro/theme.css); copy it verbatim (tune
 the distances/easing to taste). Without it, picking a preset does nothing.
 
+The preset transitions read `var(--fx-dur, <default>)` and
+`var(--fx-ease, <default>)`, so the SCENE inspector's per-element duration and
+easing controls work by writing those custom properties into the element's
+`scene.css` override. Keep the `var()` wrappers when tuning the block —
+hard-coded durations disable the controls for that project.
+
 ## behaviors
 
 `behaviors` lists per-scene engine routines that run every frame (beyond the pure

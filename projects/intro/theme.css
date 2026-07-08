@@ -35,7 +35,8 @@
    UI needs no edit to scene.html/scene.css. Like `.el`, motion lives entirely in
    CSS so forward play and backward scrub look identical. */
 .fx-fade,.fx-up,.fx-down,.fx-left,.fx-right,.fx-pop{opacity:0;
-  transition:opacity .5s cubic-bezier(.2,.7,.3,1),transform .5s cubic-bezier(.2,.7,.3,1)}
+  transition:opacity var(--fx-dur,.5s) var(--fx-ease,cubic-bezier(.2,.7,.3,1)),
+    transform var(--fx-dur,.5s) var(--fx-ease,cubic-bezier(.2,.7,.3,1))}
 .fx-up{transform:translateY(28px)}
 .fx-down{transform:translateY(-28px)}
 .fx-left{transform:translateX(-44px)}
