@@ -726,6 +726,35 @@ export class StageView {
     this.rebuild();
   }
 
+  /** ctrl+D (or the inspector button): clone the selected clips 0.2s later —
+      lengths kept, clamped inside the scene — and select the clones. One
+      undoable step. */
+  duplicateSelection(): void {
+    const scene = this.player.scene;
+    const entries = [...this.selected].filter((en) =>
+      scene.schedule.includes(en)
+    );
+    if (!entries.length) return;
+    this.flushNudge();
+    const before = this.history.snapshot(scene);
+    const added: ScheduleEntry[] = [];
+    for (const src of entries) {
+      const en = structuredClone(src);
+      const len = en.exit !== undefined ? en.exit - en.enter : 0;
+      en.enter = round(Math.max(0, Math.min(scene.len - len, en.enter + 0.2)));
+      if (en.exit !== undefined) en.exit = round(Math.min(scene.len, en.enter + len));
+      scene.schedule.push(en);
+      added.push(en);
+    }
+    this.history.commit(scene, before);
+    this.sync.changed(scene);
+    this.selected = new Set(added);
+    this.sel = added.length === 1
+      ? { id: added[0].id, entry: added[0] }
+      : null;
+    this.rebuild();
+  }
+
   /* ----------------------------- selection ------------------------------ */
 
   private selectEntry(entry: ScheduleEntry): void {
@@ -1496,6 +1525,12 @@ export class StageView {
         class: "sv-insp-note",
         text: "Drag any selected clip to move them together. Delete removes them all from the schedule.",
       }));
+      const dup = el("button", {
+        class: "sv-mini", text: `⧉ duplicate ${n} entries`,
+        title: "clone the selected schedule entries 0.2s later (ctrl+D)",
+      });
+      dup.onclick = () => this.duplicateSelection();
+      host.appendChild(dup);
       const del = el("button", {
         class: "sv-del", text: `✕ remove ${n} from schedule`,
         title: "remove the selected elements from the scene's schedule (del)",
@@ -1516,12 +1551,38 @@ export class StageView {
     const info = this.player.elementInfo(sel.id);
     const entry = sel.entry && scene.schedule.includes(sel.entry) ? sel.entry : null;
 
+    /* the name is editable in place: it commits a data-label attribute into
+       scene.html (empty = clear it, falling back to the derived text label) */
+    const nameIn = el("input", {
+      type: "text",
+      class: "sv-insp-name",
+      value: info.label,
+      title:
+        "element label (data-label) — names its clips; clear to derive from the text again",
+    }) as HTMLInputElement;
+    this.stopKeys(nameIn);
+    nameIn.onchange = () => {
+      const next = nameIn.value.trim();
+      if (next === info.label) return;
+      /* clearing back to exactly the derived label also just clears the attr */
+      const node = this.sceneEl(sel.id);
+      const derived = (node?.textContent ?? "").replace(/\s+/g, " ").trim();
+      const label = next === derived ? "" : next;
+      const before = this.history.snapshot(scene);
+      api.setElementLabel(scene.id, sel.id, label)
+        .then((html) => {
+          this.player.replaceSceneHtml(scene, html);
+          this.history.commit(scene, before);
+          this.rebuild();
+        })
+        .catch((err) => console.warn("[stage] label write failed:", err));
+    };
     host.appendChild(el("div", { class: "sv-insp-head" },
       el("span", {
         class: "sv-tag" + (info.exists ? "" : " sv-tag-missing"),
         text: info.exists ? (info.tag || "?") : "missing",
       }),
-      el("span", { class: "sv-insp-name", text: info.label }),
+      nameIn,
       el("span", { class: "sv-insp-id", text: "#" + sel.id }),
     ));
 
@@ -1793,6 +1854,13 @@ export class StageView {
     });
     this.stopKeys(clsInput);
     parent.appendChild(this.field("toggle class", clsInput));
+
+    const dup = el("button", {
+      class: "sv-mini", text: "⧉ duplicate entry",
+      title: "clone this schedule entry 0.2s later (ctrl+D)",
+    });
+    dup.onclick = () => this.duplicateSelection();
+    parent.appendChild(dup);
 
     const del = el("button", {
       class: "sv-del", text: "✕ remove from schedule",

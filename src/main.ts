@@ -288,6 +288,13 @@ async function bootStudio(): Promise<void> {
         e.preventDefault();
         stageView.pasteClipboard();
       }
+    } else if (ctrl && (e.key === "d" || e.key === "D")) {
+      /* duplicate the selected clips in SCENE (and keep the browser's
+         bookmark dialog out of the way) */
+      if (mode.mode === "stage" && stageView.hasSelection()) {
+        e.preventDefault();
+        stageView.duplicateSelection();
+      }
     } else if (e.code === "Space") {
       e.preventDefault();
       /* Modes without the global timeline are take-centric: Space auditions the

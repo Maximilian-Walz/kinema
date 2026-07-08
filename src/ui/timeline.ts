@@ -301,13 +301,37 @@ export class Timeline {
       });
 
       block.onpointerdown = (e) => {
-        if ((e.target as HTMLElement).closest(".tl-handle")) return;
+        if ((e.target as HTMLElement).closest(".tl-handle, .tl-scene-ops")) return;
         if (e.altKey) {
           this.loopDrag(e);
           return;
         }
         this.seekDrag(e);
       };
+
+      /* scene ops (hover-visible): reorder + duplicate. These rewrite
+         project.json — project-level, so NOT part of the scene-scoped undo. */
+      const ops = el("div", { class: "tl-scene-ops" });
+      const op = (text: string, title: string, onclick: () => void): void => {
+        const b = el("button", { class: "tl-scene-op", text, title });
+        b.onpointerdown = (ev) => ev.stopPropagation(); // don't seek
+        b.onclick = (ev) => {
+          ev.stopPropagation();
+          onclick();
+        };
+        ops.appendChild(b);
+      };
+      if (i > 0) {
+        op("◀", "move this scene one earlier (rewrites project.json; not undoable)",
+          () => void this.moveScene(i, -1));
+      }
+      if (i < this.player.project.scenes.length - 1) {
+        op("▶", "move this scene one later (rewrites project.json; not undoable)",
+          () => void this.moveScene(i, 1));
+      }
+      op("⧉", "duplicate this scene after itself (voice takes are not copied; not undoable)",
+        () => void this.duplicateScene(i));
+      block.appendChild(ops);
       handle.onpointerdown = (e) => {
         e.stopPropagation();
         const orig = scene.len;
@@ -325,6 +349,48 @@ export class Timeline {
       place();
     });
     return track;
+  }
+
+  /* Re-derive playback after the scenes array changed shape (reorder/insert).
+     The player's `mounted` field is an INDEX, so when the current scene lands
+     on a different index the stale DOM would stay up — seek the same scene at
+     its new index to force the remount, then refresh every view. */
+  private applySceneOrder(mutate: () => void): void {
+    const cur = this.player.scene;
+    const local = this.player.localTime;
+    mutate();
+    this.player.recomputeOffsets();
+    const ni = this.player.project.scenes.indexOf(cur);
+    this.player.seekScene(Math.max(0, ni), local);
+    this.player.refreshTimings(); // 'timings' → every view rebuilds
+  }
+
+  private async moveScene(index: number, dir: -1 | 1): Promise<void> {
+    const scenes = this.player.project.scenes;
+    const j = index + dir;
+    if (j < 0 || j >= scenes.length) return;
+    const order = scenes.map((s) => s.id);
+    [order[index], order[j]] = [order[j], order[index]];
+    try {
+      await api.reorderScenes(order);
+    } catch (err) {
+      console.warn("[time] scene reorder failed:", err);
+      return;
+    }
+    this.applySceneOrder(() => {
+      const [moved] = scenes.splice(index, 1);
+      scenes.splice(j, 0, moved);
+    });
+  }
+
+  private async duplicateScene(index: number): Promise<void> {
+    const scenes = this.player.project.scenes;
+    try {
+      const { scene } = await api.duplicateScene(scenes[index].id);
+      this.applySceneOrder(() => scenes.splice(index + 1, 0, scene));
+    } catch (err) {
+      console.warn("[time] scene duplicate failed:", err);
+    }
   }
 
   /* ------------------------- script + captions --------------------------- */

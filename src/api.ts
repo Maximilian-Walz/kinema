@@ -74,6 +74,34 @@ export async function setElementHtml(sceneId: string, elId: string, html: string
   return (await r.json()).html as string;
 }
 
+/** Set (or clear, with '') the data-label attribute on #elId in scene.html —
+    the display name clips/inspector show. Returns the updated scene html. */
+export async function setElementLabel(sceneId: string, elId: string, label: string): Promise<string> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/element-label`), {
+    method: 'PUT',
+    body: JSON.stringify({ id: elId, label }),
+  }));
+  return (await r.json()).html as string;
+}
+
+/** Duplicate a scene (folder copy + project.json insert after the source);
+    line ids are re-prefixed, takes are not copied. Returns the new scene. */
+export async function duplicateScene(sceneId: string): Promise<{ id: string; scene: SceneData }> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/duplicate`), {
+    method: 'POST',
+  }));
+  const j = await r.json();
+  return { id: j.id as string, scene: j.scene as SceneData };
+}
+
+/** Persist a new scene order into project.json (a permutation of the ids). */
+export async function reorderScenes(order: string[]): Promise<void> {
+  await check(await fetch(withProject('/api/project/scene-order'), {
+    method: 'PUT',
+    body: JSON.stringify({ order }),
+  }));
+}
+
 /** Insert id="newId" on the element reached by `path` (element-child indexes)
     under #ancestorId in scene.html; returns the whole updated scene html. */
 export async function assignElementId(

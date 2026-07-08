@@ -329,6 +329,43 @@ export function createApi({ registry }) {
       return next;
     }
 
+    /* Set (or clear, with an empty label) the data-label attribute on #elId's
+       open tag — the editable display name the SCENE editor shows on clips and
+       in the inspector. Source-level like the other element patches: only the
+       open tag changes, every other byte is preserved. */
+    function setElementLabel(sid, elId, label) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      if (!safeName(elId)) throw new Error('bad element id');
+      const file = path.join(projectDir, 'scenes', sid, 'scene.html');
+      let src;
+      try { src = fs.readFileSync(file, 'utf8'); } catch { throw new Error('scene.html not found'); }
+      const idRe = /\sid\s*=\s*("([^"]*)"|'([^']*)')/g;
+      let m, hit = null;
+      while ((m = idRe.exec(src))) {
+        const val = m[2] !== undefined ? m[2] : m[3];
+        if (val === elId) { hit = m; break; }
+      }
+      if (!hit) throw new Error('no #' + elId + ' in scene.html');
+      const open = src.lastIndexOf('<', hit.index);
+      const openEnd = src.indexOf('>', hit.index);
+      if (open < 0 || openEnd < 0) throw new Error('malformed markup near #' + elId);
+      let openTag = src.slice(open, openEnd + 1);
+      const clean = String(label).trim()
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const attrRe = /\s+data-label\s*=\s*("[^"]*"|'[^']*')/;
+      if (attrRe.test(openTag)) {
+        openTag = clean
+          ? openTag.replace(attrRe, ` data-label="${clean}"`)
+          : openTag.replace(attrRe, '');
+      } else if (clean) {
+        openTag = openTag.replace(/^(<\s*[a-zA-Z][\w-]*)/, `$1 data-label="${clean}"`);
+      }
+      const next = src.slice(0, open) + openTag + src.slice(openEnd + 1);
+      writeFileTracked(file, next);
+      return next;
+    }
+
     /* Find the n-th ELEMENT child (comments/text skipped) inside src[from,to).
        Returns its open-tag range + inner range, or null. Element indexes match
        DOM Element.children, so a client-computed child path resolves here. */
@@ -478,6 +515,61 @@ export function createApi({ registry }) {
       return out;
     }
 
+    /* ------------------------- scene-level ops --------------------------- */
+
+    /* Copy scenes/<sid> to a fresh "<sid>-copy[-n]" folder and insert it into
+       project.json right after the source. Line ids key voice takes and must
+       be unique project-wide (chain mode + cross-scene lookups walk them), so
+       they are re-prefixed with the new scene id; takes themselves are NOT
+       copied — the duplicate starts with a clean voice slate. */
+    function duplicateScene(sid) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      const projFile = path.join(projectDir, 'project.json');
+      const proj = readJson(projFile, null);
+      if (!proj || !Array.isArray(proj.scenes)) throw new Error('project.json not found');
+      const at = proj.scenes.indexOf(sid);
+      if (at < 0) throw new Error('unknown scene ' + sid);
+      let newId = sid + '-copy';
+      for (
+        let n = 2;
+        proj.scenes.includes(newId) ||
+        fs.existsSync(path.join(projectDir, 'scenes', newId));
+        n++
+      ) newId = `${sid}-copy-${n}`;
+      fs.cpSync(
+        path.join(projectDir, 'scenes', sid),
+        path.join(projectDir, 'scenes', newId),
+        { recursive: true },
+      );
+      const sceneFile = path.join(projectDir, 'scenes', newId, 'scene.json');
+      const data = readJson(sceneFile, null);
+      if (data && Array.isArray(data.lines)) {
+        for (const ln of data.lines) {
+          if (!ln.id) continue;
+          ln.id = ln.id.startsWith(sid)
+            ? newId + ln.id.slice(sid.length)
+            : `${newId}-${ln.id}`;
+        }
+        writeFileTracked(sceneFile, JSON.stringify(data, null, 2) + '\n');
+      }
+      proj.scenes.splice(at + 1, 0, newId);
+      writeFileTracked(projFile, JSON.stringify(proj, null, 2) + '\n');
+      return newId;
+    }
+
+    /** rewrite project.json's scene order (must be a permutation of it) */
+    function reorderScenes(order) {
+      const projFile = path.join(projectDir, 'project.json');
+      const proj = readJson(projFile, null);
+      if (!proj || !Array.isArray(proj.scenes)) throw new Error('project.json not found');
+      if (
+        !Array.isArray(order) || order.length !== proj.scenes.length ||
+        [...order].sort().join('\n') !== [...proj.scenes].sort().join('\n')
+      ) throw new Error('order must be a permutation of the current scenes');
+      proj.scenes = order;
+      writeFileTracked(projFile, JSON.stringify(proj, null, 2) + '\n');
+    }
+
     /* recordings live one folder deeper than before: per section, not per scene */
     const sectionTakesDir = (sid, lid) => path.join(TAKES_DIR, sid, lid);
     const sectionKey = (sid, lid, file) => sid + '/' + lid + '/' + file;
@@ -547,7 +639,8 @@ export function createApi({ registry }) {
     return {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
       loadProject, sceneIds, lineIds, writeTimings, setElementText,
-      setElementHtml, setElementStyle, assignElementId, putSceneHtml, putSceneCss,
+      setElementHtml, setElementStyle, assignElementId, setElementLabel,
+      duplicateScene, reorderScenes, putSceneHtml, putSceneCss,
       sectionTakesDir, sectionKey,
       readTakesState, writeTakesState, listTakes, listSection,
     };
@@ -654,6 +747,42 @@ export function createApi({ registry }) {
         try {
           const html = ctx.setElementHtml(id, body.id, body.html);
           json(res, 200, { ok: true, html });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/element-label$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.id !== 'string' || typeof body.label !== 'string') {
+          json(res, 400, { error: 'id and label are required' }); return;
+        }
+        try {
+          const html = ctx.setElementLabel(id, body.id, body.label);
+          json(res, 200, { ok: true, html });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'POST' && /^\/api\/scenes\/[\w.-]+\/duplicate$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        try {
+          const newId = ctx.duplicateScene(id);
+          const scene = ctx.loadProject().scenes.find((s) => s.id === newId);
+          json(res, 200, { ok: true, id: newId, scene });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && p === '/api/project/scene-order') {
+        if (!ctx) return noProject();
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        try {
+          ctx.reorderScenes(body.order);
+          json(res, 200, { ok: true });
         } catch (err) {
           json(res, 400, { error: String(err.message || err) });
         }
