@@ -990,7 +990,8 @@ export class StageView {
 
   /** Is element `id` on-screen at the current playhead? When it's scheduled,
       use the schedule window (deterministic + instant on a seek, vs. waiting on
-      the entrance/exit fade). Otherwise fall back to computed visibility. */
+      the entrance/exit fade). Otherwise fall back to effective visibility —
+      ancestor-aware, so the box hides with the element's animated container. */
   private isOnScreen(id: string): boolean {
     const entry = this.player.scene.schedule.find((s) => s.id === id);
     if (entry) {
@@ -998,9 +999,7 @@ export class StageView {
       return local >= entry.enter && (entry.exit === undefined || local < entry.exit);
     }
     const node = this.sceneEl(id);
-    if (!node) return false;
-    const cs = getComputedStyle(node);
-    return cs.display !== "none" && cs.visibility !== "hidden" && parseFloat(cs.opacity) > 0.01;
+    return node ? this.isVisible(node) : false;
   }
 
   private repositionBoxes(): void {
@@ -1127,10 +1126,24 @@ export class StageView {
     return null;
   }
 
+  /** Effective visibility: the element itself AND every ancestor up to the
+      stage must be rendered. A child's own computed opacity stays 1 while its
+      animated container sits at opacity 0 before its entrance, and hit-testing
+      ignores opacity — without the ancestor walk, everything inside a
+      not-yet-entered (or exited) container would remain clickable. Only
+      opacity needs the walk: display:none subtrees aren't hit at all, and
+      computed visibility already accounts for inheritance. */
   private isVisible(el: Element): boolean {
     const s = getComputedStyle(el);
-    return s.visibility !== "hidden" && s.display !== "none" &&
-      parseFloat(s.opacity || "1") > 0.05;
+    if (
+      s.visibility === "hidden" || s.display === "none" ||
+      parseFloat(s.opacity || "1") <= 0.05
+    ) return false;
+    const content = document.getElementById("scenecontent");
+    for (let n = el.parentElement; n && n !== content; n = n.parentElement) {
+      if (parseFloat(getComputedStyle(n).opacity || "1") <= 0.05) return false;
+    }
+    return true;
   }
 
   private onPreviewPointerDown = (e: PointerEvent): void => {
