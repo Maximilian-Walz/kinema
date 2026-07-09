@@ -36,9 +36,14 @@ Ignore generated artifacts inside the project repo (the studio already excludes
 them from the *studio* repo, but the *project* repo should too):
 
 ```gitignore
-takes/      # recorded voice .webm/.wav — large, regenerable per take
-exports/    # rendered MP4s
+# recorded voice .webm/.wav — large, regenerable per take
+takes/
+# rendered MP4s
+exports/
 ```
+
+(Keep each comment on its own line — a `.gitignore` has no inline comments, so
+`takes/ # …` would be read as a literal pattern and ignore nothing.)
 
 ### B. Out-of-tree, referenced by config
 
