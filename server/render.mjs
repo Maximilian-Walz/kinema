@@ -242,6 +242,19 @@ async function resolveRenderBrowser(explicit, progress) {
     /* nothing cached yet — fall through to install */
   }
 
+  /* Outside Windows, prefer an installed Chrome/Edge over the 150 MB shell
+     download: the startup-boost handoff that forces the shell is Windows-only,
+     and everyday Chrome renders fine here under old headless. This keeps the
+     first export from hanging on a slow/blocked download when a perfectly good
+     browser is already on the machine. Windows still downloads the shell. */
+  if (process.platform !== "win32") {
+    try {
+      return { executablePath: findChrome(), shell: false };
+    } catch {
+      /* no system browser found — fall through to download */
+    }
+  }
+
   /* download once */
   try {
     const buildId = await resolveBuildId(
