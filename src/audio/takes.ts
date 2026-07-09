@@ -351,29 +351,53 @@ export class Takes {
     return null;
   }
 
+  /** Resolve which section to record. Line ids are only unique *within* a
+      scene (see docs/project-format.md), so a bare id is ambiguous across
+      scenes — e.g. every scene here has an `ln-1`. Precedence:
+        1. an explicit `sceneIdx` (the record button passes the current scene;
+           chain mode passes the next line's scene) — authoritative;
+        2. a bare `lineId` — prefer the *current* scene, then search forward,
+           so it never silently resolves to a same-named line in scene 1;
+        3. nothing — the line under the playhead in the current scene. */
+  private resolveSection(
+    lineId?: string,
+    sceneIdx?: number,
+  ): { scene: SceneData; line: TimedText; sceneIndex: number } | null {
+    const scenes = this.player.project.scenes;
+    if (sceneIdx != null && scenes[sceneIdx]) {
+      const scene = scenes[sceneIdx];
+      const line = lineId
+        ? scene.lines.find((l) => l.id === lineId)
+        : this.lineAt(scene, this.player.localTime) ?? scene.lines[0];
+      return line ? { scene, line, sceneIndex: sceneIdx } : null;
+    }
+    if (lineId) {
+      const cur = this.player.sceneIndex;
+      const inCur = scenes[cur]?.lines.find((l) => l.id === lineId);
+      if (inCur) return { scene: scenes[cur], line: inCur, sceneIndex: cur };
+      return this.findLineAcrossScenes(lineId);
+    }
+    const scene = this.player.scene;
+    const line = this.lineAt(scene, this.player.localTime) ?? scene.lines[0];
+    return line ? { scene, line, sceneIndex: this.player.sceneIndex } : null;
+  }
+
   /* ---------------------------- recording ------------------------------- */
 
   /** Record one section. `lineId` defaults to the line under the playhead;
       returns an error string or null. Seeks to the line's `from`, records, and
       auto-stops at the line's `to`. */
-  async startRecording(lineId?: string): Promise<string | null> {
+  async startRecording(
+    lineId?: string,
+    sceneIdx?: number,
+  ): Promise<string | null> {
     if (this.recorder) return null;
-    let scene = this.player.scene;
-    let line: TimedText | undefined;
-    let sceneIndex = this.player.sceneIndex;
-    if (lineId) {
-      const hit = this.findLineAcrossScenes(lineId);
-      if (hit) {
-        scene = hit.scene;
-        line = hit.line;
-        sceneIndex = hit.sceneIndex;
-      }
-    } else {
-      line = this.lineAt(scene, this.player.localTime) ?? scene.lines[0];
-    }
-    if (!line || !line.id) {
+    const target = this.resolveSection(lineId, sceneIdx);
+    const line = target?.line;
+    if (!target || !line || !line.id) {
       return "no line to record (add a narration line first)";
     }
+    const { scene, sceneIndex } = target;
 
     /* reuse the monitor stream when already armed; otherwise open a new one */
     let stream: MediaStream;
@@ -444,9 +468,9 @@ export class Takes {
          auto-advance to the next narration line and start its count-in.
          A manual stop (user pressed stop / Escape) never chains. */
       if (wasNatural && this.chainMode) {
-        const nextLineId = this.nextLineIdAcrossScenes(sceneId, lid);
-        if (nextLineId) {
-          void this.startRecordingWithCountIn(nextLineId);
+        const next = this.nextLineIdAcrossScenes(sceneId, lid);
+        if (next) {
+          void this.startRecordingWithCountIn(next.lineId, next.sceneIndex);
         }
       }
     };
@@ -488,16 +512,18 @@ export class Takes {
   private nextLineIdAcrossScenes(
     sceneId: string,
     lineId: string,
-  ): string | null {
+  ): { sceneIndex: number; lineId: string } | null {
     const scenes = this.player.project.scenes;
     const si = scenes.findIndex((s) => s.id === sceneId);
     if (si < 0) return null;
     const li = scenes[si].lines.findIndex((l) => l.id === lineId);
     if (li >= 0 && li + 1 < scenes[si].lines.length) {
-      return scenes[si].lines[li + 1].id ?? null;
+      const id = scenes[si].lines[li + 1].id;
+      return id ? { sceneIndex: si, lineId: id } : null;
     }
     for (let i = si + 1; i < scenes.length; i++) {
-      if (scenes[i].lines.length) return scenes[i].lines[0].id ?? null;
+      const first = scenes[i].lines[0];
+      if (first?.id) return { sceneIndex: i, lineId: first.id };
     }
     return null;
   }
@@ -531,28 +557,22 @@ export class Takes {
   /** Start the count-in then begin recording.  Both the panel rec buttons and
       the `r` shortcut call this instead of calling startRecording directly.
       Returns an error string or null (same contract as startRecording). */
-  async startRecordingWithCountIn(lineId?: string): Promise<string | null> {
+  async startRecordingWithCountIn(
+    lineId?: string,
+    sceneIdx?: number,
+  ): Promise<string | null> {
     if (this.recorder || this.countInAbort) return null;
 
-    /* resolve the target line up-front so we can seek to it and show the beat
-       overlay. Lookup is project-wide so chain-mode can pass a lineId from the
-       next scene. */
-    let scene = this.player.scene;
-    let line: TimedText | undefined;
-    let sceneIndex = this.player.sceneIndex;
-    if (lineId) {
-      const hit = this.findLineAcrossScenes(lineId);
-      if (hit) {
-        scene = hit.scene;
-        line = hit.line;
-        sceneIndex = hit.sceneIndex;
-      }
-    } else {
-      line = this.lineAt(scene, this.player.localTime) ?? scene.lines[0];
-    }
-    if (!line || !line.id) {
+    /* resolve the target section up-front so we can seek to it and show the
+       beat overlay. `sceneIdx` disambiguates a line id that repeats across
+       scenes (chain-mode hands us the next scene; the record button the
+       current one). */
+    const target = this.resolveSection(lineId, sceneIdx);
+    const line = target?.line;
+    if (!target || !line || !line.id) {
       return "no line to record (add a narration line first)";
     }
+    const { sceneIndex } = target;
     const lid = line.id;
 
     /* park the playhead on the target line NOW, not when recording starts:
@@ -638,7 +658,7 @@ export class Takes {
       installedTempMonitor = true;
     }
 
-    const err = await this.startRecording(lid);
+    const err = await this.startRecording(lid, sceneIndex);
 
     /* if we installed a temporary monitor entry and startRecording did NOT take
        ownership (it would have set monitorStream = null on error, but it doesn't
