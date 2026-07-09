@@ -134,8 +134,12 @@ export class RecordView {
                 }
             }
             const lineId = this.currentLineId();
+            /* pass the scene we're looking at: line ids repeat across scenes
+               (every scene has an ln-1), so a bare id would resolve to the
+               first scene that has it and yank recording back there. */
             const err = await this.takes.startRecordingWithCountIn(
                 lineId ?? undefined,
+                this.player.sceneIndex,
             );
             if (err) this.setStatus(err);
         };
