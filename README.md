@@ -56,8 +56,10 @@ node scripts/smoke.mjs      # boot the studio + render mode in headless Chrome (
 node scripts/stage-check.mjs http://127.0.0.1:<port>   # SCENE-mode checks (dev server up)
 ```
 
-Working on the studio code? [CLAUDE.md](CLAUDE.md) maps the architecture (modes,
-where edits persist, the server, the verify loop); open work lives in
-[GitHub Issues](https://github.com/Maximilian-Walz/kinema/issues), with
+Working on the studio code? [CONTRIBUTING.md](CONTRIBUTING.md) has the process
+(checks, PRs, working with AI agents); [AGENTS.md](AGENTS.md) maps the
+architecture. Open work lives in
+[GitHub Issues](https://github.com/Maximilian-Walz/kinema/issues) and the
+[roadmap board](https://github.com/users/Maximilian-Walz/projects/1), with
 [`good first issue`](https://github.com/Maximilian-Walz/kinema/labels/good%20first%20issue)
 as the entry point.
