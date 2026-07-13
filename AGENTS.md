@@ -95,8 +95,9 @@ write one, run it, then delete it.
 - Match the surrounding style: terse comments that explain *why*, the `el()` DOM
   builder, no frameworks. Keep studio chrome out of the stage content's styles.
 - No em-dashes in prose (docs, issues, commit messages); rephrase instead.
-- External contributions come as PRs (see [CONTRIBUTING.md](CONTRIBUTING.md));
-  the maintainer commits verified work to `main` directly.
+- Work on a ticket goes through a PR with green CI, the maintainer's own work
+  included (see [CONTRIBUTING.md](CONTRIBUTING.md)). The maintainer's ruleset
+  bypass is for small direct fixes, not the default path.
 
 Open work lives in [GitHub Issues](https://github.com/Maximilian-Walz/kinema/issues)
 and the [roadmap board](https://github.com/users/Maximilian-Walz/projects/1);
