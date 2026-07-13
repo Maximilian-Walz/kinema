@@ -57,5 +57,7 @@ node scripts/stage-check.mjs http://127.0.0.1:<port>   # SCENE-mode checks (dev 
 ```
 
 Working on the studio code? [CLAUDE.md](CLAUDE.md) maps the architecture (modes,
-where edits persist, the server, the verify loop); open ideas are in
-[docs/backlog.md](docs/backlog.md).
+where edits persist, the server, the verify loop); open work lives in
+[GitHub Issues](https://github.com/Maximilian-Walz/kinema/issues), with
+[`good first issue`](https://github.com/Maximilian-Walz/kinema/labels/good%20first%20issue)
+as the entry point.

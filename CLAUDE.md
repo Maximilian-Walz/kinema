@@ -98,4 +98,6 @@ write one, run it, then delete it.
 - Match the surrounding style: terse comments that explain *why*, the `el()` DOM
   builder, no frameworks. Keep studio chrome out of the stage content's styles.
 
-Open work lives in [docs/backlog.md](docs/backlog.md).
+Open work lives in [GitHub Issues](https://github.com/Maximilian-Walz/kinema/issues);
+`needs refinement` marks issues whose scope is still open (no label = ready to
+pick up).
