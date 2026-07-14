@@ -446,6 +446,70 @@ export function createApi({ registry }) {
       return next;
     }
 
+    /* Locate #elId's OUTER range (open-tag start .. close-tag end, or the
+       self-closing/void tag end). Same depth-counted close matching as
+       locateElementInner; returns byte offsets into `html`. */
+    function locateElementOuter(html, elId) {
+      const idRe = /\sid\s*=\s*("([^"]*)"|'([^']*)')/g;
+      let m, hit = null;
+      while ((m = idRe.exec(html))) {
+        const val = m[2] !== undefined ? m[2] : m[3];
+        if (val === elId) { hit = m; break; }
+      }
+      if (!hit) throw new Error('no #' + elId + ' in scene.html');
+      const open = html.lastIndexOf('<', hit.index);
+      const openEnd = html.indexOf('>', hit.index);
+      if (open < 0 || openEnd < 0) throw new Error('malformed markup near #' + elId);
+      const openTag = html.slice(open, openEnd + 1);
+      const tm = /^<\s*([a-zA-Z][\w-]*)/.exec(openTag);
+      if (!tm) throw new Error('malformed tag near #' + elId);
+      const tag = tm[1].toLowerCase();
+      if (VOID_TAGS.has(tag) || /\/\s*>$/.test(openTag)) {
+        return { outerStart: open, outerEnd: openEnd + 1 };
+      }
+      const tagRe = new RegExp('<\\s*(/?)\\s*' + tag + '\\b[^>]*>', 'gi');
+      tagRe.lastIndex = openEnd + 1;
+      let depth = 1, mm;
+      while ((mm = tagRe.exec(html))) {
+        if (mm[1] === '/') {
+          if (--depth === 0) return { outerStart: open, outerEnd: tagRe.lastIndex };
+        } else if (!/\/\s*>$/.test(mm[0])) {
+          depth++;
+        }
+      }
+      throw new Error('no matching </' + tag + '> for #' + elId);
+    }
+
+    /* Duplicate #elId: clone its outer HTML, insert the copy right after it in
+       scene.html, and give the copy's ROOT the fresh id `newId`. Descendant
+       ids are stripped from the clone so it can't create duplicate ids in the
+       DOM (the copy's inner parts become anonymous; alt+click can re-id them).
+       Pure source-level edit — no runtime DOM state leaks into the file. */
+    function duplicateElement(sid, elId, newId) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      if (!safeName(elId)) throw new Error('bad element id');
+      if (!/^[a-zA-Z][\w-]*$/.test(newId)) throw new Error('bad new id');
+      const file = path.join(projectDir, 'scenes', sid, 'scene.html');
+      let src;
+      try { src = fs.readFileSync(file, 'utf8'); } catch { throw new Error('scene.html not found'); }
+      const idRe = /\sid\s*=\s*("([^"]*)"|'([^']*)')/g;
+      let im;
+      while ((im = idRe.exec(src))) {
+        if ((im[2] !== undefined ? im[2] : im[3]) === newId) {
+          throw new Error('#' + newId + ' already exists in scene.html');
+        }
+      }
+      const { outerStart, outerEnd } = locateElementOuter(src, elId);
+      let clone = src.slice(outerStart, outerEnd)
+        /* drop every id in the clone (root + descendants) so nothing collides */
+        .replace(/\sid\s*=\s*("[^"]*"|'[^']*')/g, '')
+        /* then give the clone's root element the new id */
+        .replace(/^(<\s*[a-zA-Z][\w-]*)/, `$1 id="${newId}"`);
+      const next = src.slice(0, outerEnd) + '\n' + clone + src.slice(outerEnd);
+      writeFileTracked(file, next);
+      return next;
+    }
+
     /* Per-element visual overrides live in a generated region of scene.css, one
        `#id{...}` rule each, so the studio can tweak size/colour/position without
        touching hand-authored CSS. We parse the region, upsert this id's
@@ -650,7 +714,7 @@ export function createApi({ registry }) {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
       loadProject, sceneIds, lineIds, writeTimings, setElementText,
       setElementHtml, setElementStyle, assignElementId, setElementLabel,
-      duplicateScene, reorderScenes, putSceneHtml, putSceneCss,
+      duplicateElement, duplicateScene, reorderScenes, putSceneHtml, putSceneCss,
       sectionTakesDir, sectionKey,
       readTakesState, writeTakesState, listTakes, listSection,
     };
@@ -793,6 +857,21 @@ export function createApi({ registry }) {
         try {
           ctx.reorderScenes(body.order);
           json(res, 200, { ok: true });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/element-duplicate$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.id !== 'string' || typeof body.newId !== 'string') {
+          json(res, 400, { error: 'id and newId are required' }); return;
+        }
+        try {
+          const html = ctx.duplicateElement(id, body.id, body.newId);
+          json(res, 200, { ok: true, html });
         } catch (err) {
           json(res, 400, { error: String(err.message || err) });
         }

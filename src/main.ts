@@ -302,11 +302,12 @@ async function bootStudio(): Promise<void> {
         stageView.pasteClipboard();
       }
     } else if (ctrl && (e.key === "d" || e.key === "D")) {
-      /* duplicate the selected clips in SCENE (and keep the browser's
-         bookmark dialog out of the way) */
+      /* SCENE: duplicate the selected ELEMENT — a real copy in scene.html; a
+         multi-clip selection clones the schedule entries instead. Also keeps
+         the browser's bookmark dialog out of the way. */
       if (mode.mode === "stage" && stageView.hasSelection()) {
         e.preventDefault();
-        stageView.duplicateSelection();
+        stageView.duplicateHotkey();
       }
     } else if (e.code === "Space") {
       e.preventDefault();
