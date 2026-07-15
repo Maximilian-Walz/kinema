@@ -510,6 +510,26 @@ export function createApi({ registry }) {
       return next;
     }
 
+    /* Delete #elId's node from scene.html — the inverse of duplicateElement.
+       When the element sits alone on its line(s), take the surrounding
+       indentation and newline with it so no blank line is left behind. */
+    function deleteElement(sid, elId) {
+      if (!safeName(sid)) throw new Error('bad scene id');
+      if (!safeName(elId)) throw new Error('bad element id');
+      const file = path.join(projectDir, 'scenes', sid, 'scene.html');
+      let src;
+      try { src = fs.readFileSync(file, 'utf8'); } catch { throw new Error('scene.html not found'); }
+      const { outerStart, outerEnd } = locateElementOuter(src, elId);
+      let s = outerStart;
+      while (s > 0 && (src[s - 1] === ' ' || src[s - 1] === '\t')) s--;
+      let e = outerEnd;
+      if ((s === 0 || src[s - 1] === '\n') && src[e] === '\n') e++;
+      else s = outerStart;
+      const next = src.slice(0, s) + src.slice(e);
+      writeFileTracked(file, next);
+      return next;
+    }
+
     /* Per-element visual overrides live in a generated region of scene.css, one
        `#id{...}` rule each, so the studio can tweak size/colour/position without
        touching hand-authored CSS. We parse the region, upsert this id's
@@ -714,7 +734,7 @@ export function createApi({ registry }) {
       id, projectDir, TAKES_DIR, EXPORTS_DIR, PICKS_FILE,
       loadProject, sceneIds, lineIds, writeTimings, setElementText,
       setElementHtml, setElementStyle, assignElementId, setElementLabel,
-      duplicateElement, duplicateScene, reorderScenes, putSceneHtml, putSceneCss,
+      duplicateElement, deleteElement, duplicateScene, reorderScenes, putSceneHtml, putSceneCss,
       sectionTakesDir, sectionKey,
       readTakesState, writeTakesState, listTakes, listSection,
     };
@@ -871,6 +891,19 @@ export function createApi({ registry }) {
         }
         try {
           const html = ctx.duplicateElement(id, body.id, body.newId);
+          json(res, 200, { ok: true, html });
+        } catch (err) {
+          json(res, 400, { error: String(err.message || err) });
+        }
+
+      } else if (req.method === 'PUT' && /^\/api\/scenes\/[\w.-]+\/element-delete$/.test(p)) {
+        if (!ctx) return noProject();
+        const id = p.split('/')[3];
+        if (!ctx.sceneIds().includes(id)) { json(res, 404, { error: 'unknown scene' }); return; }
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (typeof body.id !== 'string') { json(res, 400, { error: 'id is required' }); return; }
+        try {
+          const html = ctx.deleteElement(id, body.id);
           json(res, 200, { ok: true, html });
         } catch (err) {
           json(res, 400, { error: String(err.message || err) });

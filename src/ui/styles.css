@@ -480,12 +480,18 @@ body.mode-tune .t-restart .t-kbd{display:none}
 input.sv-insp-name:hover{border-color:var(--st-line)}
 input.sv-insp-name:focus{border-color:var(--st-accent);outline:none;
   background:var(--st-panel2)}
+/* the head's second line: #id plus the element-scoped op icons (per-entry ops
+   live in TIMING) — icons ride the line so they cost the tabs no height */
+.sv-insp-sub{display:flex;align-items:center;gap:2px;width:100%;min-width:0}
 .sv-insp-id{font-family:var(--st-mono);font-size:10.5px;color:var(--st-faint);
-  width:100%}
+  flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sv-iconbtn{flex:none;padding:2px 7px;font-size:12px;line-height:1;
+  background:transparent;border-color:transparent;color:var(--st-dim)}
+.sv-iconbtn:hover{border-color:var(--st-line);color:var(--st-text)}
+.sv-iconbtn-danger:hover{color:#ffb4a8;border-color:rgba(248,81,73,.4);
+  background:rgba(248,81,73,.12)}
 .sv-insp-warn{color:#ffb4a8;font-size:11px;line-height:1.4}
 .sv-insp-note{color:var(--st-faint);font-size:11px;line-height:1.4}
-/* element-scoped op row under the head (per-entry ops live in TIMING) */
-.sv-elops{display:flex;gap:6px;flex-wrap:wrap}
 
 /* tab strip (TEXT | LOOK | TIMING) — one group shown at a time. Segmented
    control idiom in the inspector's mono-uppercase voice. */

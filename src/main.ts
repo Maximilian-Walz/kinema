@@ -359,8 +359,12 @@ async function bootStudio(): Promise<void> {
     } else if (e.key === "o" || e.key === "O") {
       player.setLoop({ start: player.loop?.start ?? 0, end: player.time });
     } else if (e.key === "Delete" || e.key === "Backspace") {
-      if (mode.mode === "stage") stageView.deleteSelection();
-      else tl.deleteSelection();
+      /* SCENE: plain del unschedules the clips (the node stays in scene.html);
+         ⇧del deletes the element itself — the inverse of ctrl+D */
+      if (mode.mode === "stage") {
+        if (e.shiftKey) void stageView.deleteElementNode();
+        else stageView.deleteSelection();
+      } else tl.deleteSelection();
     } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       /* Arrow-key navigation, in escalating granularity:
            plain     -> next/prev narration LINE

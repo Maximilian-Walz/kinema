@@ -242,7 +242,7 @@ export class StageView {
       el("span", {
         class: "sv-hint",
         text:
-          "click selects · alt+click picks the exact element (auto-id) · drag moves · ←/→ nudge timing (⇧ fine) · alt+arrows move · ctrl+C/V copy clips · ctrl+D duplicates the element · del removes",
+          "click selects · alt+click picks the exact element (auto-id) · drag moves · ←/→ nudge timing (⇧ fine) · alt+arrows move · ctrl+C/V copy clips · ctrl+D duplicates the element · del removes the clip · ⇧del the element",
       }),
     );
 
@@ -767,6 +767,37 @@ export class StageView {
       this.rebuild();
     } catch (err) {
       console.warn("[stage] duplicate element failed:", err);
+    }
+  }
+
+  /** Delete the selected element for real (the ✕ head icon / ⇧del) — the
+      inverse of duplicateElementNode: remove its node from scene.html, its
+      #id overrides from scene.css and all its schedule entries. One undoable
+      step. Plain del only unschedules; the node stays in the file. */
+  async deleteElementNode(): Promise<void> {
+    const elId = this.sel?.id;
+    if (!elId) return;
+    this.flushNudge();
+    const scene = this.player.scene;
+    const before = this.history.snapshot(scene);
+    try {
+      const html = await api.deleteElement(scene.id, elId);
+      this.player.replaceSceneHtml(scene, html);
+      const ov = this.parseOverrides(scene.css, elId);
+      if (Object.keys(ov).length) {
+        const clear = Object.fromEntries(Object.keys(ov).map((k) => [k, null]));
+        const css = await api.setElementStyle(scene.id, elId, clear);
+        this.player.replaceSceneCss(scene, css);
+      }
+      for (let i = scene.schedule.length - 1; i >= 0; i--) {
+        if (scene.schedule[i].id === elId) scene.schedule.splice(i, 1);
+      }
+      this.history.commit(scene, before);
+      this.sync.changed(scene);
+      this.select(null);
+      this.rebuild();
+    } catch (err) {
+      console.warn("[stage] delete element failed:", err);
     }
   }
 
@@ -1633,13 +1664,32 @@ export class StageView {
         })
         .catch((err) => console.warn("[stage] label write failed:", err));
     };
+    /* element-scoped ops (vs the per-entry ones in TIMING) ride the #id line
+       as icon buttons, so they're always visible without costing the tabs any
+       height — future element ops land here too */
+    const idRow = el("div", { class: "sv-insp-sub" },
+      el("span", { class: "sv-insp-id", text: "#" + sel.id }));
+    if (info.exists) {
+      const dupEl = el("button", {
+        class: "sv-iconbtn", text: "⧉",
+        title: "duplicate element (ctrl+D): an independent copy in scene.html, with its look and clips",
+      });
+      dupEl.onclick = () => void this.duplicateElementNode();
+      const delEl = el("button", {
+        class: "sv-iconbtn sv-iconbtn-danger", text: "✕",
+        title: "delete element (⇧del): remove it from scene.html, with its overrides and clips",
+      });
+      delEl.onclick = () => void this.deleteElementNode();
+      idRow.appendChild(dupEl);
+      idRow.appendChild(delEl);
+    }
     host.appendChild(el("div", { class: "sv-insp-head" },
       el("span", {
         class: "sv-tag" + (info.exists ? "" : " sv-tag-missing"),
         text: info.exists ? (info.tag || "?") : "missing",
       }),
       nameIn,
-      el("span", { class: "sv-insp-id", text: "#" + sel.id }),
+      idRow,
     ));
 
     if (!info.exists) {
@@ -1649,16 +1699,6 @@ export class StageView {
       }));
       return;
     }
-
-    /* element-scoped ops (vs the per-entry ones in TIMING) live right under
-       the identity head, always visible — future element ops land here too */
-    const dupEl = el("button", {
-      class: "sv-mini",
-      text: "⧉ duplicate element",
-      title: "make an independent copy of this element in scene.html, with its look and clips (ctrl+D)",
-    });
-    dupEl.onclick = () => void this.duplicateElementNode();
-    host.appendChild(el("div", { class: "sv-elops" }, dupEl));
 
     /* one group at a time, chosen by the tab strip (B): TEXT | LOOK | TIMING.
        TEXT dims when the element has no editable text; TIMING shows either the
@@ -1926,7 +1966,7 @@ export class StageView {
     const dup = el("button", {
       class: "sv-mini", text: "⧉ duplicate entry",
       title: entry.exit !== undefined
-        ? "clone this entry to just after its exit — the element re-enters"
+        ? `clone this #${entry.id} entry to just after its exit — the element re-enters`
         : "add an exit first: a second entry only shows once this one has ended",
     }) as HTMLButtonElement;
     dup.disabled = entry.exit === undefined;
