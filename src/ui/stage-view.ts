@@ -770,9 +770,12 @@ export class StageView {
     }
   }
 
-  /** Clone the selected clips 0.2s later — lengths kept, clamped inside the
-      scene — and select the clones. Same element, new schedule entries (one
-      element that enters / exits / re-enters). One undoable step. */
+  /** Clone the selected clips — same element, new schedule entries (one
+      element that enters / exits / re-enters). A clone lands just after its
+      source's exit, so it reads as a second appearance; an exitless source
+      can never show a second time (its window is open-ended), so its clone
+      keeps a small offset and just extends coverage. Lengths kept, clamped
+      inside the scene; the clones become the selection. One undoable step. */
   duplicateSelection(): void {
     const scene = this.player.scene;
     const entries = [...this.selected].filter((en) =>
@@ -785,7 +788,8 @@ export class StageView {
     for (const src of entries) {
       const en = structuredClone(src);
       const len = en.exit !== undefined ? en.exit - en.enter : 0;
-      en.enter = round(Math.max(0, Math.min(scene.len - len, en.enter + 0.2)));
+      const at = en.exit !== undefined ? en.exit + 0.2 : en.enter + 0.2;
+      en.enter = round(Math.max(0, Math.min(scene.len - len, at)));
       if (en.exit !== undefined) en.exit = round(Math.min(scene.len, en.enter + len));
       scene.schedule.push(en);
       added.push(en);
@@ -1579,7 +1583,7 @@ export class StageView {
       }));
       const dup = el("button", {
         class: "sv-mini", text: `⧉ duplicate ${n} entries`,
-        title: "clone the selected schedule entries 0.2s later (ctrl+D)",
+        title: "clone each selected entry to just after its exit (ctrl+D)",
       });
       dup.onclick = () => this.duplicateSelection();
       host.appendChild(dup);
@@ -1646,6 +1650,16 @@ export class StageView {
       return;
     }
 
+    /* element-scoped ops (vs the per-entry ones in TIMING) live right under
+       the identity head, always visible — future element ops land here too */
+    const dupEl = el("button", {
+      class: "sv-mini",
+      text: "⧉ duplicate element",
+      title: "make an independent copy of this element in scene.html, with its look and clips (ctrl+D)",
+    });
+    dupEl.onclick = () => void this.duplicateElementNode();
+    host.appendChild(el("div", { class: "sv-elops" }, dupEl));
+
     /* one group at a time, chosen by the tab strip (B): TEXT | LOOK | TIMING.
        TEXT dims when the element has no editable text; TIMING shows either the
        schedule fields or the add-to-schedule button. */
@@ -1677,16 +1691,6 @@ export class StageView {
         }
         break;
     }
-
-    /* element-level (not per-entry, so outside the tabs): a real copy in
-       scene.html the user can edit independently of the source */
-    const dupEl = el("button", {
-      class: "sv-mini",
-      text: "⧉ duplicate element",
-      title: "make an independent copy of this element in scene.html, with its look and clips (ctrl+D)",
-    });
-    dupEl.onclick = () => void this.duplicateElementNode();
-    host.appendChild(dupEl);
   }
 
   /** the TEXT | LOOK | TIMING tab strip. `enabled[tab]` false dims a tab (kept
@@ -1917,10 +1921,15 @@ export class StageView {
     this.stopKeys(clsInput);
     parent.appendChild(this.field("toggle class", clsInput));
 
+    /* a second entry only ever shows once the first has ended — without an
+       exit the source keeps the element on forever, so a clone is invisible */
     const dup = el("button", {
       class: "sv-mini", text: "⧉ duplicate entry",
-      title: "clone this schedule entry 0.2s later (same element re-entering)",
-    });
+      title: entry.exit !== undefined
+        ? "clone this entry to just after its exit — the element re-enters"
+        : "add an exit first: a second entry only shows once this one has ended",
+    }) as HTMLButtonElement;
+    dup.disabled = entry.exit === undefined;
     dup.onclick = () => this.duplicateSelection();
     parent.appendChild(dup);
 
