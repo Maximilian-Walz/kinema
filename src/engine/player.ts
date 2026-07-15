@@ -159,6 +159,7 @@ export class Player {
     // reconciliation pass instead of lingering until the next remount.
     const nextOn = new Set<string>();
     const nextFx = new Map<string, string>();
+    const keys = new Set<string>(); // every (id, class) the schedule drives
     for (const ev of scene.schedule) {
       const cls = ev.cls || 'on';
       const el = this.resolve(ev.id);
@@ -170,12 +171,22 @@ export class Player {
         el.classList.add(fxCls);
         nextFx.set(ev.id, fxCls);
       }
-      const on = local >= ev.enter && (ev.exit === undefined || local < ev.exit);
-      el.classList.toggle(cls, on);
-      if (on) nextOn.add(ev.id + '\u0000' + cls);
+      // several entries can share an (id, class) pair (enter / exit /
+      // re-enter, or a duplicated clip) and the class is on when ANY window
+      // contains t. Union first, toggle after the loop: toggling per entry
+      // would let a later inactive entry override an earlier active one
+      // (only the last clip of an element ever showed).
+      keys.add(ev.id + '\u0000' + cls);
+      if (local >= ev.enter && (ev.exit === undefined || local < ev.exit)) {
+        nextOn.add(ev.id + '\u0000' + cls);
+      }
+    }
+    for (const key of keys) {
+      const i = key.indexOf('\u0000');
+      this.resolve(key.slice(0, i))?.classList.toggle(key.slice(i + 1), nextOn.has(key));
     }
     for (const key of this.driven) {
-      if (nextOn.has(key)) continue;
+      if (nextOn.has(key) || keys.has(key)) continue;
       const i = key.indexOf('\u0000');
       this.resolve(key.slice(0, i))?.classList.remove(key.slice(i + 1));
     }

@@ -74,6 +74,26 @@ export async function setElementHtml(sceneId: string, elId: string, html: string
   return (await r.json()).html as string;
 }
 
+/** Duplicate #elId in scene.html: clone its outer HTML after itself, give the
+    copy the fresh id `newId`, strip the copy's descendant ids. Returns html. */
+export async function duplicateElement(sceneId: string, elId: string, newId: string): Promise<string> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/element-duplicate`), {
+    method: 'PUT',
+    body: JSON.stringify({ id: elId, newId }),
+  }));
+  return (await r.json()).html as string;
+}
+
+/** Delete #elId's node from scene.html (the inverse of duplicateElement).
+    Returns the updated scene html. */
+export async function deleteElement(sceneId: string, elId: string): Promise<string> {
+  const r = await check(await fetch(withProject(`/api/scenes/${sceneId}/element-delete`), {
+    method: 'PUT',
+    body: JSON.stringify({ id: elId }),
+  }));
+  return (await r.json()).html as string;
+}
+
 /** Set (or clear, with '') the data-label attribute on #elId in scene.html —
     the display name clips/inspector show. Returns the updated scene html. */
 export async function setElementLabel(sceneId: string, elId: string, label: string): Promise<string> {

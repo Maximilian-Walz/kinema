@@ -302,11 +302,12 @@ async function bootStudio(): Promise<void> {
         stageView.pasteClipboard();
       }
     } else if (ctrl && (e.key === "d" || e.key === "D")) {
-      /* duplicate the selected clips in SCENE (and keep the browser's
-         bookmark dialog out of the way) */
+      /* SCENE: duplicate the selected ELEMENT — a real copy in scene.html; a
+         multi-clip selection clones the schedule entries instead. Also keeps
+         the browser's bookmark dialog out of the way. */
       if (mode.mode === "stage" && stageView.hasSelection()) {
         e.preventDefault();
-        stageView.duplicateSelection();
+        stageView.duplicateHotkey();
       }
     } else if (e.code === "Space") {
       e.preventDefault();
@@ -358,8 +359,12 @@ async function bootStudio(): Promise<void> {
     } else if (e.key === "o" || e.key === "O") {
       player.setLoop({ start: player.loop?.start ?? 0, end: player.time });
     } else if (e.key === "Delete" || e.key === "Backspace") {
-      if (mode.mode === "stage") stageView.deleteSelection();
-      else tl.deleteSelection();
+      /* SCENE: plain del unschedules the clips (the node stays in scene.html);
+         ⇧del deletes the element itself — the inverse of ctrl+D */
+      if (mode.mode === "stage") {
+        if (e.shiftKey) void stageView.deleteElementNode();
+        else stageView.deleteSelection();
+      } else tl.deleteSelection();
     } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       /* Arrow-key navigation, in escalating granularity:
            plain     -> next/prev narration LINE

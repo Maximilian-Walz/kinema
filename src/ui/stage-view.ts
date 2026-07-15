@@ -242,7 +242,7 @@ export class StageView {
       el("span", {
         class: "sv-hint",
         text:
-          "click selects · alt+click picks the exact element (auto-id) · drag moves · ←/→ nudge timing (⇧ fine) · alt+arrows move · ctrl+C/V copy clips · del removes",
+          "click selects · alt+click picks the exact element (auto-id) · drag moves · ←/→ nudge timing (⇧ fine) · alt+arrows move · ctrl+C/V copy clips · ctrl+D duplicates the element · del removes the clip · ⇧del the element",
       }),
     );
 
@@ -726,9 +726,87 @@ export class StageView {
     this.rebuild();
   }
 
-  /** ctrl+D (or the inspector button): clone the selected clips 0.2s later —
-      lengths kept, clamped inside the scene — and select the clones. One
-      undoable step. */
+  /** ctrl+D dispatch: one element selected → duplicate the ELEMENT (a real,
+      independent copy); a multi-clip selection keeps the entry-clone op. */
+  duplicateHotkey(): void {
+    if (this.sel && this.selected.size <= 1) void this.duplicateElementNode();
+    else this.duplicateSelection();
+  }
+
+  /** A REAL copy of the selected element (#3): the server clones its outer
+      HTML right after the source under a fresh id, then the source's css
+      overrides (nudged +24px so the copy is visibly separate) and schedule
+      entries are cloned onto that id. The copy looks and moves like the
+      source but edits independently — unlike duplicateSelection, which only
+      re-schedules the SAME element. One undoable step. */
+  async duplicateElementNode(): Promise<void> {
+    const srcId = this.sel?.id;
+    if (!srcId) return;
+    this.flushNudge();
+    const scene = this.player.scene;
+    /* "title" → "title-2"; a counter suffix on the source is replaced, not
+       stacked ("title-2" → "title-3", never "title-2-2") */
+    const newId = this.uniqueSceneId(srcId.replace(/-\d+$/, ""));
+    const before = this.history.snapshot(scene);
+    try {
+      const html = await api.duplicateElement(scene.id, srcId, newId);
+      this.player.replaceSceneHtml(scene, html);
+      const ov = this.parseOverrides(scene.css, srcId);
+      const t = this.parseTranslate(ov.translate);
+      ov.translate = `${t.x + 24}px ${t.y + 24}px`;
+      const css = await api.setElementStyle(scene.id, newId, ov);
+      this.player.replaceSceneCss(scene, css);
+      for (const src of scene.schedule.filter((s) => s.id === srcId)) {
+        const en = structuredClone(src);
+        en.id = newId;
+        scene.schedule.push(en);
+      }
+      this.history.commit(scene, before);
+      this.sync.changed(scene);
+      this.selectElement(newId);
+      this.rebuild();
+    } catch (err) {
+      console.warn("[stage] duplicate element failed:", err);
+    }
+  }
+
+  /** Delete the selected element for real (the ✕ head icon / ⇧del) — the
+      inverse of duplicateElementNode: remove its node from scene.html, its
+      #id overrides from scene.css and all its schedule entries. One undoable
+      step. Plain del only unschedules; the node stays in the file. */
+  async deleteElementNode(): Promise<void> {
+    const elId = this.sel?.id;
+    if (!elId) return;
+    this.flushNudge();
+    const scene = this.player.scene;
+    const before = this.history.snapshot(scene);
+    try {
+      const html = await api.deleteElement(scene.id, elId);
+      this.player.replaceSceneHtml(scene, html);
+      const ov = this.parseOverrides(scene.css, elId);
+      if (Object.keys(ov).length) {
+        const clear = Object.fromEntries(Object.keys(ov).map((k) => [k, null]));
+        const css = await api.setElementStyle(scene.id, elId, clear);
+        this.player.replaceSceneCss(scene, css);
+      }
+      for (let i = scene.schedule.length - 1; i >= 0; i--) {
+        if (scene.schedule[i].id === elId) scene.schedule.splice(i, 1);
+      }
+      this.history.commit(scene, before);
+      this.sync.changed(scene);
+      this.select(null);
+      this.rebuild();
+    } catch (err) {
+      console.warn("[stage] delete element failed:", err);
+    }
+  }
+
+  /** Clone the selected clips — same element, new schedule entries (one
+      element that enters / exits / re-enters). A clone lands just after its
+      source's exit, so it reads as a second appearance; an exitless source
+      can never show a second time (its window is open-ended), so its clone
+      keeps a small offset and just extends coverage. Lengths kept, clamped
+      inside the scene; the clones become the selection. One undoable step. */
   duplicateSelection(): void {
     const scene = this.player.scene;
     const entries = [...this.selected].filter((en) =>
@@ -741,7 +819,8 @@ export class StageView {
     for (const src of entries) {
       const en = structuredClone(src);
       const len = en.exit !== undefined ? en.exit - en.enter : 0;
-      en.enter = round(Math.max(0, Math.min(scene.len - len, en.enter + 0.2)));
+      const at = en.exit !== undefined ? en.exit + 0.2 : en.enter + 0.2;
+      en.enter = round(Math.max(0, Math.min(scene.len - len, at)));
       if (en.exit !== undefined) en.exit = round(Math.min(scene.len, en.enter + len));
       scene.schedule.push(en);
       added.push(en);
@@ -1324,13 +1403,21 @@ export class StageView {
     const cls = (node.getAttribute("class") ?? "")
       .split(/\s+/)
       .find((c) => /^[a-zA-Z][\w-]*$/.test(c) && !c.startsWith("fx-"));
-    const base = (cls || node.tagName.toLowerCase()).toLowerCase();
+    return this.uniqueSceneId((cls || node.tagName.toLowerCase()).toLowerCase());
+  }
+
+  /** `base`, else `base-2`, `base-3`, … until unused as an id in the mounted
+      scene. `base` is sanitised to a valid id (letters/digits/-/_, leading
+      letter) so it round-trips through the server's id validation. */
+  private uniqueSceneId(base: string): string {
+    let b = base.toLowerCase().replace(/[^\w-]/g, "-").replace(/^[^a-z]+/, "");
+    if (!b) b = "el";
     const content = document.getElementById("scenecontent");
     const used = (id: string): boolean =>
       !!content?.querySelector("#" + CSS.escape(id)) || id === "caption" ||
       id === "scenecontent";
-    let id = base, i = 1;
-    while (used(id)) id = `${base}-${++i}`;
+    let id = b, i = 1;
+    while (used(id)) id = `${b}-${++i}`;
     return id;
   }
 
@@ -1527,7 +1614,7 @@ export class StageView {
       }));
       const dup = el("button", {
         class: "sv-mini", text: `⧉ duplicate ${n} entries`,
-        title: "clone the selected schedule entries 0.2s later (ctrl+D)",
+        title: "clone each selected entry to just after its exit (ctrl+D)",
       });
       dup.onclick = () => this.duplicateSelection();
       host.appendChild(dup);
@@ -1577,13 +1664,32 @@ export class StageView {
         })
         .catch((err) => console.warn("[stage] label write failed:", err));
     };
+    /* element-scoped ops (vs the per-entry ones in TIMING) ride the #id line
+       as icon buttons, so they're always visible without costing the tabs any
+       height — future element ops land here too */
+    const idRow = el("div", { class: "sv-insp-sub" },
+      el("span", { class: "sv-insp-id", text: "#" + sel.id }));
+    if (info.exists) {
+      const dupEl = el("button", {
+        class: "sv-iconbtn", text: "⧉",
+        title: "duplicate element (ctrl+D): an independent copy in scene.html, with its look and clips",
+      });
+      dupEl.onclick = () => void this.duplicateElementNode();
+      const delEl = el("button", {
+        class: "sv-iconbtn sv-iconbtn-danger", text: "✕",
+        title: "delete element (⇧del): remove it from scene.html, with its overrides and clips",
+      });
+      delEl.onclick = () => void this.deleteElementNode();
+      idRow.appendChild(dupEl);
+      idRow.appendChild(delEl);
+    }
     host.appendChild(el("div", { class: "sv-insp-head" },
       el("span", {
         class: "sv-tag" + (info.exists ? "" : " sv-tag-missing"),
         text: info.exists ? (info.tag || "?") : "missing",
       }),
       nameIn,
-      el("span", { class: "sv-insp-id", text: "#" + sel.id }),
+      idRow,
     ));
 
     if (!info.exists) {
@@ -1855,10 +1961,15 @@ export class StageView {
     this.stopKeys(clsInput);
     parent.appendChild(this.field("toggle class", clsInput));
 
+    /* a second entry only ever shows once the first has ended — without an
+       exit the source keeps the element on forever, so a clone is invisible */
     const dup = el("button", {
       class: "sv-mini", text: "⧉ duplicate entry",
-      title: "clone this schedule entry 0.2s later (ctrl+D)",
-    });
+      title: entry.exit !== undefined
+        ? `clone this #${entry.id} entry to just after its exit — the element re-enters`
+        : "add an exit first: a second entry only shows once this one has ended",
+    }) as HTMLButtonElement;
+    dup.disabled = entry.exit === undefined;
     dup.onclick = () => this.duplicateSelection();
     parent.appendChild(dup);
 
